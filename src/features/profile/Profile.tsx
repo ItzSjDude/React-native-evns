@@ -6,7 +6,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi} from '../auth';
 import {Colors} from '../../Constants/Colors';
-import AppIcon from '../../Constants/Icons';
+import AppIcon, {IconName} from '../../Constants/Icons';
 import Typography from '../../Constants/Typography';
 import {getMyProfile, getProfilePage, updateMyProfile} from './profileService';
 import type {ProfileItem, ProfilePost, ProfileTab, UserProfile} from './types';
@@ -14,6 +14,11 @@ import type {ProfileItem, ProfilePost, ProfileTab, UserProfile} from './types';
 type ListState = {items: ProfileItem[]; loading: boolean; loaded: boolean; error: string | null; hasMore: boolean; offset: number};
 const emptyList = (): ListState => ({items: [], loading: false, loaded: false, error: null, hasMore: true, offset: 0});
 const tabs: ProfileTab[] = ['posts', 'parties', 'events'];
+const accountItems: {label: string; icon: IconName; message: string}[] = [
+  {label: 'Nearby visibility', icon: 'location', message: 'Nearby visibility settings are coming soon.'},
+  {label: 'Blocked people', icon: 'people', message: 'Blocked people settings are coming soon.'},
+  {label: 'Security', icon: 'shield', message: 'Security settings are coming soon.'},
+];
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 
 const Profile = () => {
@@ -165,23 +170,22 @@ const Profile = () => {
         <View style={styles.body}>
           <View style={styles.identityRow}>
             <LinearGradient colors={['#F5C58D', '#463B75']} style={styles.avatarRing}>
-              <View style={styles.avatar}>{avatar ? <Image source={{uri: avatar}} style={styles.avatarImage} /> : <AppIcon name="user" size={42} color={Colors.text} />}</View>
+              <View style={styles.avatar}>{avatar ? <Image source={{uri: avatar}} style={styles.avatarImage} /> : <AppIcon name="user" size={48} color={Colors.text} />}</View>
             </LinearGradient>
-            {!editing && <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={startEditing} style={styles.editButton}><AppIcon name="edit" size={17} color={Colors.primary} /><Typography size={14} color={Colors.primary} fontWeight="600">Edit profile</Typography></Pressable>}
+            <View style={styles.identity}>
+              {profile ? <><Typography size={24} color={Colors.text} fontWeight="600" numsOfLine={1}>{displayName}</Typography>
+                {profile.handle ? <Typography size={15} color={Colors.muted} numsOfLine={1}>@{profile.handle}</Typography> : null}
+                <Typography size={13} color={Colors.muted} numsOfLine={1}>{profile.email}</Typography></> : null}
+            </View>
+            {profile && !editing ? <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={startEditing} style={({pressed}) => [styles.editButton, pressed && styles.pressed]}><AppIcon name="edit" size={17} color={Colors.primary} /><Typography size={14} color={Colors.primary} fontWeight="600" style={styles.editLabel}>Edit profile</Typography></Pressable> : null}
           </View>
           {profileLoading && !profile ? <ActivityIndicator accessibilityLabel="Loading profile" color={Colors.primary} style={styles.loading} /> : null}
           {profileError ? <View style={styles.message}><Typography color={Colors.textBody}>{profileError}</Typography><Pressable accessibilityRole="button" onPress={() => loadProfile()}><Typography color={Colors.primary}>Retry</Typography></Pressable></View> : null}
           {profile && !editing ? <>
-            <Typography size={26} color={Colors.text} fontWeight="700" style={styles.name}>{displayName}</Typography>
-            {profile.handle ? <Typography size={14} color={Colors.primary}>@{profile.handle}</Typography> : null}
-            {profile.bio ? <Typography size={15} color={Colors.textBody} style={styles.bio}>{profile.bio}</Typography> : null}
-            {profile.city ? <View style={styles.location}><AppIcon name="location" size={17} color={Colors.muted} /><Typography size={14} color={Colors.muted}>{profile.city}</Typography></View> : null}
-            {profile.interests?.length ? <View style={styles.interests}>{profile.interests.map(interest => <View key={interest} style={styles.interest}><Typography size={13} color={Colors.textBody}>{interest}</Typography></View>)}</View> : null}
-            <View style={styles.stats}>
-              <Stat value={profile.stats?.following ?? 0} label="Following" />
-              <Stat value={profile.stats?.hosted ?? 0} label="Hosted" />
-              <Stat value={profile.stats?.posts ?? 0} label="Posts" />
-            </View>
+            {profile.bio ? <Typography size={16} color={Colors.muted} style={styles.bio}>{profile.bio}</Typography> : null}
+            {profile.interests?.length ? <View style={styles.interests}>{profile.interests.map(interest => <View key={interest} style={styles.interestPill}><AppIcon name={interestIcon(interest)} size={17} color={Colors.text} /><Typography size={13} color={Colors.textBody} style={styles.interestText}>{interest}</Typography></View>)}</View> : null}
+            {profile.city ? <View style={styles.locationRow}><AppIcon name="location" size={19} color={Colors.muted} /><Typography size={15} color={Colors.muted} style={styles.locationText}>{profile.city}</Typography></View> : null}
+            <View style={styles.stats}><Typography size={15} color={Colors.textBody}><Typography size={15} color={Colors.text} fontWeight="600">{profile.stats?.following ?? 0}</Typography> Following</Typography><View style={styles.statDivider} /><Typography size={15} color={Colors.textBody}><Typography size={15} color={Colors.text} fontWeight="600">{profile.stats?.hosted ?? 0}</Typography> Hosted</Typography></View>
           </> : null}
           {profile && editing ? <View style={styles.form}>
             <Field label="Name" value={draft.name} onChangeText={name => setDraft(current => ({...current, name}))} maxLength={80} />
@@ -195,47 +199,72 @@ const Profile = () => {
             </View>
           </View> : null}
           {profile && !editing ? <>
-            <View style={styles.tabs}>{tabs.map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected: activeTab === tab}} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.tabActive]}><Typography size={15} color={activeTab === tab ? Colors.primary : Colors.muted} fontWeight="600">{tab[0].toUpperCase() + tab.slice(1)}</Typography></Pressable>)}</View>
-            {list.items.map(item => <ProfileListItem key={item.id} item={item} tab={activeTab} />)}
+            <View style={styles.tabs}>{tabs.map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected: activeTab === tab}} onPress={() => setActiveTab(tab)} style={styles.tab}><Typography size={16} color={activeTab === tab ? Colors.primary : Colors.muted} fontWeight={activeTab === tab ? '600' : '400'}>{tab[0].toUpperCase() + tab.slice(1)}</Typography>{activeTab === tab && <View style={styles.tabIndicator} />}</Pressable>)}</View>
+            {list.items.map(item => <ProfileListItem key={item.id} item={item} tab={activeTab} profile={profile} />)}
             {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${activeTab}`} color={Colors.primary} style={styles.loading} /> : null}
             {list.error ? <View style={styles.message}><Typography color={Colors.textBody}>{list.error}</Typography><Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)}><Typography color={Colors.primary}>Retry</Typography></Pressable></View> : null}
             {!list.loading && !list.error && list.items.length === 0 ? <Typography size={14} color={Colors.muted} style={styles.empty}>No {activeTab} yet.</Typography> : null}
             {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} style={styles.more}><Typography color={Colors.primary} fontWeight="600">Load more</Typography></Pressable> : null}
           </> : null}
-          <Pressable accessibilityRole="button" onPress={handleLogout} style={styles.logout}><AppIcon name="logout" size={20} color={Colors.coral} /><Typography size={15} color={Colors.coral} fontWeight="600">Log out</Typography></Pressable>
+          <Typography size={18} color={Colors.text} fontWeight="600" style={styles.sectionTitle}>Account &amp; privacy</Typography>
+          <View style={styles.accountCard}>{accountItems.map((item, index) => <Pressable key={item.label} accessibilityRole="button" onPress={() => Alert.alert(item.label, item.message)} style={({pressed}) => [styles.accountRow, pressed && styles.pressed, index < accountItems.length - 1 && styles.accountBorder]}><AppIcon name={item.icon} size={23} color={Colors.muted} /><Typography size={15} color={Colors.textBody} style={styles.accountLabel}>{item.label}</Typography><AppIcon name="chevron" size={19} color={Colors.muted} /></Pressable>)}</View>
+          <Pressable accessibilityRole="button" onPress={handleLogout} style={({pressed}) => [styles.logoutButton, pressed && styles.pressed]}><AppIcon name="logout" size={20} color={Colors.coral} /><Typography size={16} color={Colors.coral} fontWeight="600" style={styles.logoutText}>Log out</Typography></Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const Stat = ({value, label}: {value: number; label: string}) => <View style={styles.stat}><Typography size={18} color={Colors.text} fontWeight="700">{value}</Typography><Typography size={12} color={Colors.muted}>{label}</Typography></View>;
 const Field = ({label, ...props}: {label: string} & React.ComponentProps<typeof TextInput>) => <View style={styles.field}><Typography size={13} color={Colors.muted} fontWeight="600">{label}</Typography><TextInput {...props} accessibilityLabel={label} placeholderTextColor={Colors.muted} style={[styles.input, props.multiline && styles.multiline]} /></View>;
-const ProfileListItem = ({item, tab}: {item: ProfileItem; tab: ProfileTab}) => {
-  const title = tab === 'posts' ? (item as ProfilePost).body || 'Post' : (item as {title: string}).title;
-  const detail = tab === 'posts'
-    ? `${(item as ProfilePost).reactions.likeCount} likes`
-    : tab === 'parties'
-      ? `${(item as {participant_count: number}).participant_count} ${(item as {participant_count: number}).participant_count === 1 ? 'participant' : 'participants'}`
-      : `${(item as {attendee_count: number}).attendee_count} attending`;
-  return <View style={styles.listItem}><Typography size={15} color={Colors.textBody} fontWeight="600">{title}</Typography><Typography size={12} color={Colors.muted} style={styles.itemDetail}>{detail}</Typography></View>;
+const interestIcon = (interest: string): IconName => {
+  const value = interest.toLowerCase();
+  if (value.includes('music')) return 'music';
+  if (value.includes('football') || value.includes('sport')) return 'football';
+  if (value.includes('startup') || value.includes('tech')) return 'rocket';
+  return 'plus';
+};
+const dateLabel = (value: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+};
+const ProfileListItem = ({item, tab, profile}: {item: ProfileItem; tab: ProfileTab; profile: UserProfile}) => {
+  const post = tab === 'posts' ? item as ProfilePost : null;
+  const title = post?.body || (item as {title?: string}).title || 'Post';
+  const detail = post ? dateLabel(post.createdAt) : tab === 'parties'
+    ? dateLabel((item as {scheduled_start_at: string | null}).scheduled_start_at)
+    : dateLabel((item as {starts_at: string}).starts_at);
+  return <View style={styles.postCard}>
+    <View style={styles.postHeader}>
+      <View style={styles.miniAvatar}>{profile.avatar_url ? <Image source={{uri: profile.avatar_url}} style={styles.miniAvatarImage} /> : <AppIcon name="user" size={20} color={Colors.text} />}</View>
+      <View style={styles.postAuthor}><Typography size={15} color={Colors.text} fontWeight="600" numsOfLine={1}>{profile.name}</Typography><Typography size={12} color={Colors.muted} numsOfLine={1}>{profile.handle ? `@${profile.handle}` : profile.email}{detail ? ` · ${detail}` : ''}</Typography></View>
+      <AppIcon name="menu" size={20} color={Colors.muted} />
+    </View>
+    <Typography size={16} color={Colors.textBody} style={styles.postText}>{title}</Typography>
+    {post ? <View style={styles.postActions}><Typography size={14} color={Colors.coral}>♥ {post.reactions?.likeCount ?? 0}</Typography><Typography size={14} color={Colors.muted}>♡ {post.commentCount ?? 0}</Typography><AppIcon name="share" size={20} color={Colors.muted} /></View>
+      : <View style={styles.postActions}><AppIcon name={tab === 'parties' ? 'people' : 'location'} size={18} color={Colors.muted} /><Typography size={14} color={Colors.muted}>{tab === 'parties' ? `${(item as {participant_count: number}).participant_count} participants` : `${(item as {attendee_count: number}).attendee_count} attending`}</Typography></View>}
+  </View>;
 };
 
 export default Profile;
 
 const styles = StyleSheet.create({
-  safeArea: {flex: 1, backgroundColor: Colors.background}, content: {paddingBottom: 115},
-  cover: {height: 146, overflow: 'hidden'}, coverImage: {width: '100%', height: '100%'}, coverGlow: {position: 'absolute', width: 260, height: 130, right: -40, bottom: -10, borderRadius: 120, backgroundColor: '#5B4086', opacity: 0.22},
-  body: {paddingHorizontal: 20, marginTop: -46}, identityRow: {flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'},
-  avatarRing: {width: 98, height: 98, borderRadius: 49, padding: 3}, avatar: {flex: 1, borderRadius: 46, backgroundColor: '#28253B', alignItems: 'center', justifyContent: 'center'}, avatarImage: {width: '100%', height: '100%', borderRadius: 46},
-  editButton: {minHeight: 40, borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: 20, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2},
-  name: {marginTop: 15, marginBottom: 3}, bio: {marginTop: 13, lineHeight: 22}, location: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 11},
-  interests: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 15}, interest: {backgroundColor: Colors.card, borderRadius: 15, paddingHorizontal: 11, paddingVertical: 6},
-  stats: {flexDirection: 'row', marginTop: 24, paddingVertical: 15, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.border}, stat: {flex: 1, alignItems: 'center', gap: 3},
-  tabs: {flexDirection: 'row', marginTop: 22, borderBottomWidth: 1, borderColor: Colors.border}, tab: {flex: 1, alignItems: 'center', paddingBottom: 12, minHeight: 42}, tabActive: {borderBottomWidth: 2, borderColor: Colors.primary},
-  listItem: {paddingVertical: 17, borderBottomWidth: 1, borderColor: Colors.border}, itemDetail: {marginTop: 7}, empty: {textAlign: 'center', paddingVertical: 34}, loading: {marginVertical: 30},
+  safeArea: {flex: 1, backgroundColor: Colors.background}, content: {paddingBottom: 125},
+  cover: {height: 142, overflow: 'hidden'}, coverImage: {width: '100%', height: '100%'}, coverGlow: {position: 'absolute', width: 250, height: 110, right: -40, bottom: 10, borderRadius: 120, backgroundColor: '#5B4086', opacity: 0.2, transform: [{rotate: '-12deg'}]},
+  body: {paddingHorizontal: 20, marginTop: -36}, identityRow: {flexDirection: 'row', alignItems: 'center'},
+  avatarRing: {width: 116, height: 116, borderRadius: 58, padding: 3}, avatar: {flex: 1, borderRadius: 55, backgroundColor: '#28253B', alignItems: 'center', justifyContent: 'center'}, avatarImage: {width: '100%', height: '100%', borderRadius: 55},
+  identity: {flex: 1, marginLeft: 15, paddingTop: 31, minWidth: 0},
+  editButton: {borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: 22, paddingVertical: 10, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginTop: 28}, editLabel: {marginLeft: 5},
+  bio: {marginTop: 17, lineHeight: 23},
+  interests: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13}, interestPill: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.borderMuted, borderRadius: 22, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: Colors.card}, interestText: {marginLeft: 6},
+  locationRow: {flexDirection: 'row', alignItems: 'center', marginTop: 14}, locationText: {marginLeft: 7},
+  stats: {flexDirection: 'row', alignItems: 'center', marginTop: 18}, statDivider: {height: 22, width: 1, backgroundColor: Colors.borderMuted, marginHorizontal: 22},
+  tabs: {flexDirection: 'row', justifyContent: 'space-around', marginTop: 22, borderBottomWidth: 1, borderBottomColor: Colors.border}, tab: {alignItems: 'center', paddingHorizontal: 15, paddingBottom: 11}, tabIndicator: {height: 3, width: 62, borderRadius: 2, backgroundColor: Colors.primary, position: 'absolute', bottom: -1},
+  postCard: {backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, borderRadius: 18, padding: 15, marginTop: 14}, postHeader: {flexDirection: 'row', alignItems: 'center'}, miniAvatar: {width: 38, height: 38, borderRadius: 19, backgroundColor: '#453E60', alignItems: 'center', justifyContent: 'center'}, miniAvatarImage: {width: '100%', height: '100%', borderRadius: 19}, postAuthor: {flex: 1, marginLeft: 10}, postText: {marginTop: 14, lineHeight: 23}, postActions: {flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 18},
+  empty: {textAlign: 'center', paddingVertical: 34}, loading: {marginVertical: 30},
   message: {backgroundColor: Colors.card, borderRadius: 14, padding: 16, gap: 12, marginTop: 15}, more: {alignItems: 'center', padding: 15},
   form: {marginTop: 22, gap: 15}, field: {gap: 7}, input: {minHeight: 44, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, color: Colors.text, fontSize: 15}, multiline: {minHeight: 92, textAlignVertical: 'top', paddingTop: 12},
   formActions: {flexDirection: 'row', gap: 10, marginTop: 2}, cancelButton: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.card, borderRadius: 12}, saveButton: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: 12},
-  logout: {minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 32, borderRadius: 14, backgroundColor: '#291722'},
+  sectionTitle: {marginTop: 25, marginBottom: 11}, accountCard: {backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, borderRadius: 17, paddingHorizontal: 15}, accountRow: {height: 57, flexDirection: 'row', alignItems: 'center'}, accountBorder: {borderBottomWidth: 1, borderBottomColor: Colors.border}, accountLabel: {flex: 1, marginLeft: 15},
+  logoutButton: {height: 54, borderWidth: 1, borderColor: '#713A48', borderRadius: 17, marginTop: 19, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#291722'}, logoutText: {marginLeft: 9}, pressed: {opacity: 0.7},
 });
