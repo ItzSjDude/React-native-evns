@@ -17,6 +17,7 @@ export type ApiError = {
 type ApiEnvelope<T> = {
   success: boolean;
   data: T;
+  meta?: ApiPageMeta;
   error?: {
     code?: string;
     message: string;
@@ -25,53 +26,52 @@ type ApiEnvelope<T> = {
   requestId?: string;
 };
 
-export async function apiRequest<T>(
+export type ApiPageMeta = {limit: number; offset: number; hasMore: boolean};
+export type ApiPage<T> = {data: T; meta: ApiPageMeta};
+
+export type ApiRequestOptions = RequestInit & {
+  auth?: 'none' | 'optional' | 'required';
+};
+
+/** Supplied by the auth feature so shared infrastructure has no feature imports. */
+export type ApiAuthHandlers = {
+  getAccessToken: () => Promise<string | null>;
+  refreshAccessToken: (failedAccessToken: string) => Promise<string>;
+  onSessionInvalid: (failedAccessToken: string) => Promise<void>;
+};
+
+let authHandlers: ApiAuthHandlers | null = null;
+
+export function configureApiAuth(handlers: ApiAuthHandlers): void {
+  authHandlers = handlers;
+}
+
+function isApiError(error: unknown): error is ApiError {
+  return typeof error === 'object' && error !== null &&
+    typeof (error as ApiError).status === 'number';
+}
+
+async function sendRequest<T, R>(
   path: string,
-  options: RequestInit = {},
-  accessToken?: string,
-): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  options: RequestInit,
+  accessToken: string | null,
+  select: (envelope: ApiEnvelope<T>) => R,
+): Promise<R> {
+  const headers = new Headers(options.headers);
+  if (options.body != null && typeof options.body === 'string' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
-  console.log('[API] request:', {
-    method: options.method ?? 'GET',
-    url,
-    hasAccessToken: Boolean(accessToken),
-  });
+  const response = await fetch(`${API_BASE_URL}${path}`, {...options, headers});
+  const rawBody = await response.text();
 
-  let response: Response;
-  let rawBody = '';
-
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-
-        // Used for protected APIs after login
-        ...(accessToken
-          ? {
-              Authorization: `Bearer ${accessToken}`,
-            }
-          : {}),
-
-        ...(options.headers ?? {}),
-      },
-    });
-
-    rawBody = await response.text();
-  } catch (error) {
-    console.error('[API] network blocked:', {
-      url,
-      error,
-    });
-
-    throw error;
+  // Several successful endpoints (including reaction removal) return no body.
+  if (response.ok && (response.status === 204 || rawBody.length === 0)) {
+    return undefined as R;
   }
 
-  console.log('[API] response:', {url, status: response.status});
-
   let body: ApiEnvelope<T>;
-
   try {
     body = JSON.parse(rawBody) as ApiEnvelope<T>;
   } catch {
@@ -81,18 +81,73 @@ export async function apiRequest<T>(
     } satisfies ApiError;
   }
 
+  if (!body || typeof body !== 'object' || typeof body.success !== 'boolean') {
+    throw {
+      status: response.status,
+      message: `Server returned an invalid response (${response.status}).`,
+    } satisfies ApiError;
+  }
+
   if (!response.ok || body.success === false) {
     throw {
       status: response.status,
       code: body.error?.code,
-      message:
-        body.error?.message ??
-        'Something went wrong. Please try again.',
+      message: body.error?.message ?? 'Something went wrong. Please try again.',
       details: body.error?.details,
       requestId: body.requestId,
     } satisfies ApiError;
   }
 
-  // Returns only data
-  return body.data;
+  return select(body);
+}
+
+async function executeRequest<T, R>(
+  path: string,
+  {auth = 'none', ...options}: ApiRequestOptions,
+  select: (envelope: ApiEnvelope<T>) => R,
+): Promise<R> {
+  if (auth === 'none') return sendRequest(path, options, null, select);
+  if (!authHandlers) throw new Error('API auth handlers are not configured.');
+
+  const accessToken = await authHandlers.getAccessToken();
+  if (!accessToken && auth === 'required') {
+    throw {status: 401, message: 'Please sign in to continue.'} satisfies ApiError;
+  }
+
+  try {
+    return await sendRequest(path, options, accessToken, select);
+  } catch (error) {
+    if (!accessToken || !isApiError(error) || error.status !== 401) throw error;
+  }
+
+  let newAccessToken: string;
+  try {
+    newAccessToken = await authHandlers.refreshAccessToken(accessToken);
+  } catch (error) {
+    // Network and server outages are retryable; invalid refresh credentials are not.
+    if (isApiError(error) && [400, 401, 403].includes(error.status)) {
+      await authHandlers.onSessionInvalid(accessToken);
+    }
+    throw error;
+  }
+
+  try {
+    return await sendRequest(path, options, newAccessToken, select);
+  } catch (error) {
+    if (isApiError(error) && error.status === 401) {
+      await authHandlers.onSessionInvalid(newAccessToken);
+    }
+    throw error;
+  }
+}
+
+export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return executeRequest<T, T>(path, options, envelope => envelope.data);
+}
+
+export function apiRequestPage<T>(path: string, options: ApiRequestOptions = {}): Promise<ApiPage<T>> {
+  return executeRequest<T, ApiPage<T>>(path, options, envelope => {
+    if (!envelope.meta) throw new Error('Paginated response did not include meta.');
+    return {data: envelope.data, meta: envelope.meta};
+  });
 }

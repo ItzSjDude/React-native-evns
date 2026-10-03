@@ -4,7 +4,7 @@ import {persistReducer, persistStore} from 'redux-persist';
 import {authReducer} from '../../features/auth';
 
 const persistedAuthReducer = persistReducer(
-  {key: 'auth', storage: AsyncStorage, whitelist: ['user', 'needsOnboarding']},
+  {key: 'auth', storage: AsyncStorage, whitelist: ['needsOnboarding']},
   authReducer,
 );
 
