@@ -74,7 +74,7 @@ const CustomTabBar = ({state, descriptors, navigation}: BottomTabBarProps) => {
   const [pillWidth, setPillWidth] = useState(0);
   const position = useSharedValue(state.index);
   const availableWidth = pillWidth || screenWidth * (screenWidth < 360 ? 0.9 : 0.74);
-  const activeWidth = Math.min(108, Math.max(0, availableWidth - 12 - 4 * 43));
+  const activeWidth = Math.min(105, Math.max(0, availableWidth - 12 - 4 * 43));
   const inactiveWidth = Math.max(43, (availableWidth - 12 - activeWidth) / (state.routes.length - 1));
 
   useEffect(() => {
@@ -126,13 +126,13 @@ export default TabNavigation;
 
 const styles = StyleSheet.create({
   tabBar: {position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: Colors.transparent},
-  tabPill: {width: '74%', height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#514B62', backgroundColor: '#11101B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5},
+  tabPill: {width: '74%', height: 55, borderRadius: 28, borderWidth: 1, borderColor: '#514B62', backgroundColor: '#11101B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5},
   tabPillCompact: {width: '90%'},
   tabSlot: {height: 50, justifyContent: 'center'},
   tabItem: {height: 50, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 5},
   activeGlow: {position: 'absolute', left: -4, right: -4, top: 1, bottom: 1, borderRadius: 25, borderWidth: 3, borderColor: 'rgba(148, 127, 226, 0.20)'},
   activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
   labelClip: {overflow: 'hidden', marginLeft: 3},
-  tabLabel: {color: Colors.text, fontSize: 15, fontWeight: '600'},
+  tabLabel: {color: Colors.text, fontSize: 14.5, fontWeight: '600'},
   pressed: {opacity: 0.7},
 });
