@@ -1,4 +1,4 @@
-package com.evns
+package com.hivachat.app
 
 import android.app.Application
 import com.facebook.react.PackageList
