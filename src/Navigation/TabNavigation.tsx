@@ -1,6 +1,7 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {Animated, Easing, Pressable, StyleSheet, View} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {createBottomTabNavigator, type BottomTabBarProps} from '@react-navigation/bottom-tabs';
+import Animated, {Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withTiming, type SharedValue} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {HomeStack, Nearby, Party, Messages, Profile} from './StackNavigation';
 import {Colors} from '../Constants/Colors';
@@ -19,44 +20,84 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const tabIcons: Record<keyof TabParamList, IconName> = {
   Home: 'home', Nearby: 'nearby', Party: 'party', Messages: 'messages', Profile: 'profile',
 };
+const positions = [0, 1, 2, 3, 4];
+
+type TabButtonProps = {
+  name: keyof TabParamList;
+  index: number;
+  focused: boolean;
+  activeWidth: number;
+  inactiveWidth: number;
+  position: SharedValue<number>;
+  onPress: () => void;
+  onLongPress: () => void;
+  accessibilityLabel: string;
+};
+
+const TabButton = ({name, index, focused, activeWidth, inactiveWidth, position, onPress, onLongPress, accessibilityLabel}: TabButtonProps) => {
+  const widths = positions.map(value => value === index ? activeWidth : inactiveWidth);
+  const visibility = positions.map(value => value === index ? 1 : 0);
+  const containerStyle = useAnimatedStyle(() => ({
+    width: interpolate(position.value, positions, widths, Extrapolation.CLAMP),
+  }));
+  const activeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(position.value, positions, visibility, Extrapolation.CLAMP),
+  }));
+  const labelStyle = useAnimatedStyle(() => ({
+    width: interpolate(position.value, positions, visibility.map(value => value * Math.max(0, activeWidth - 40)), Extrapolation.CLAMP),
+    opacity: interpolate(position.value, positions, visibility, Extrapolation.CLAMP),
+  }));
+
+  return <Animated.View style={[styles.tabSlot, containerStyle]}>
+    <Animated.View pointerEvents="none" style={[styles.activeTab, activeStyle]} />
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{selected: focused}}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={({pressed}) => [styles.tabItem, pressed && styles.pressed]}>
+      <AppIcon name={tabIcons[name]} size={24} color={focused ? Colors.text : Colors.muted} />
+      <Animated.View style={[styles.labelClip, labelStyle]}>
+        <Typography size={14} color={Colors.text} fontWeight="600" numsOfLine={1}>{name}</Typography>
+      </Animated.View>
+    </Pressable>
+  </Animated.View>;
+};
 
 const CustomTabBar = ({state, descriptors, navigation}: BottomTabBarProps) => {
+  const {width: screenWidth} = useWindowDimensions();
   const [pillWidth, setPillWidth] = useState(0);
-  const position = useRef(new Animated.Value(state.index)).current;
-  const itemWidth = (pillWidth - 12) / state.routes.length;
+  const position = useSharedValue(state.index);
+  const availableWidth = pillWidth || screenWidth * (screenWidth < 360 ? 0.94 : 0.84);
+  const activeWidth = Math.min(112, Math.max(0, availableWidth - 16 - 4 * 44));
+  const inactiveWidth = Math.max(44, (availableWidth - 16 - activeWidth) / (state.routes.length - 1));
 
   useEffect(() => {
-    Animated.timing(position, {
-      toValue: state.index,
-      duration: 190,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    position.value = withTiming(state.index, {duration: 190, easing: Easing.out(Easing.cubic)});
   }, [position, state.index]);
 
   return <SafeAreaView edges={['bottom']} style={styles.tabBar}>
-    <View style={styles.tabPill} onLayout={event => setPillWidth(event.nativeEvent.layout.width)}>
-      {pillWidth > 0 && <Animated.View pointerEvents="none" style={[styles.activeTab, {width: itemWidth, transform: [{translateX: Animated.multiply(position, itemWidth)}]}]} />}
+    <View style={[styles.tabPill, screenWidth < 360 && styles.tabPillCompact]} onLayout={event => setPillWidth(event.nativeEvent.layout.width)}>
       {state.routes.map((route, index) => {
         const focused = state.index === index;
         const options = descriptors[route.key].options;
-        const label = options.tabBarAccessibilityLabel ?? route.name;
         const onPress = () => {
           const event = navigation.emit({type: 'tabPress', target: route.key, canPreventDefault: true});
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
-        const onLongPress = () => navigation.emit({type: 'tabLongPress', target: route.key});
-        return <Pressable
+        return <TabButton
           key={route.key}
-          accessibilityRole="tab"
-          accessibilityLabel={label}
-          accessibilityState={{selected: focused}}
+          name={route.name as keyof TabParamList}
+          index={index}
+          focused={focused}
+          activeWidth={activeWidth}
+          inactiveWidth={inactiveWidth}
+          position={position}
           onPress={onPress}
-          onLongPress={onLongPress}
-          style={({pressed}) => [styles.tabItem, pressed && styles.pressed]}>
-          <AppIcon name={tabIcons[route.name as keyof TabParamList]} size={23} color={focused ? Colors.text : Colors.muted} />
-          <Typography size={11} color={focused ? Colors.text : Colors.muted} fontWeight={focused ? '600' : '500'} numsOfLine={1} style={styles.tabLabel}>{route.name}</Typography>
-        </Pressable>;
+          onLongPress={() => navigation.emit({type: 'tabLongPress', target: route.key})}
+          accessibilityLabel={options.tabBarAccessibilityLabel ?? route.name}
+        />;
       })}
     </View>
   </SafeAreaView>;
@@ -81,9 +122,11 @@ export default TabNavigation;
 
 const styles = StyleSheet.create({
   tabBar: {position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: Colors.transparent},
-  tabPill: {width: '90%', maxWidth: 430, height: 60, borderRadius: 34, borderWidth: 1, borderColor: Colors.borderMuted, backgroundColor: Colors.navBackground, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6},
-  activeTab: {position: 'absolute', left: 6, top: 5, bottom: 5, borderRadius: 26, backgroundColor: Colors.primaryDark, borderWidth: 1, borderColor: Colors.primaryBorder},
-  tabItem: {flex: 1, height: 56, alignItems: 'center', justifyContent: 'center', gap: 2, zIndex: 1},
-  tabLabel: {textAlign: 'center'},
+  tabPill: {width: '84%', height: 52, borderRadius: 38, borderWidth: 1, borderColor: Colors.borderMuted, backgroundColor: Colors.navBackground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7},
+  tabPillCompact: {width: '94%'},
+  tabSlot: {height: 46, justifyContent: 'center'},
+  tabItem: {height: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 5},
+  activeTab: {position: 'absolute', left: 0, right: 0, top: 3, bottom: 3, borderRadius: 22, backgroundColor: Colors.primaryDark, borderWidth: 1, borderColor: Colors.primaryBorder},
+  labelClip: {overflow: 'hidden', marginLeft: 3},
   pressed: {opacity: 0.7},
 });
