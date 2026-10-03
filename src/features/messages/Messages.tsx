@@ -1,0 +1,25 @@
+import React from 'react';
+import {StyleSheet, View} from 'react-native';
+import {Colors} from '../../Constants/Colors';
+import Typography from '../../Constants/Typography';
+
+const Messages = () => {
+  return (
+    <View style={styles.container}>
+      <Typography size={28} color={Colors.textNavy} fontWeight="600" style={styles.title}>Messages</Typography>
+    </View>
+  );
+};
+
+export default Messages;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  title: {
+  },
+});

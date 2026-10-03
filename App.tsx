@@ -1,45 +1,22 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, {useState} from 'react';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
+import MainNavigation from './src/Navigation/MainNavigation';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
+import {persistor, store} from './src/core/store';
+import SplashScreen from './src/components/SplashScreen';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
-
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
+const App = () => {
+  const [showSplash, setShowSplash] = useState(false);
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <Provider store={store}>
+        <PersistGate persistor={persistor}>
+          {showSplash ? <SplashScreen onFinish={() => setShowSplash(false)} /> : <MainNavigation />}
+        </PersistGate>
+      </Provider>
     </SafeAreaProvider>
   );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+};
 
 export default App;
