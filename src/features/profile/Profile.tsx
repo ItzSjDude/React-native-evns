@@ -177,7 +177,7 @@ const Profile = () => {
                 {profile.handle ? <Typography size={15} color={Colors.muted} numsOfLine={1}>@{profile.handle}</Typography> : null}
                 <Typography size={13} color={Colors.muted} numsOfLine={1}>{profile.email}</Typography></> : null}
             </View>
-            {profile && !editing ? <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={startEditing} style={({pressed}) => [styles.editButton, pressed && styles.pressed]}><AppIcon name="edit" size={17} color={Colors.primary} /><Typography size={14} color={Colors.primary} fontWeight="600" style={styles.editLabel}>Edit profile</Typography></Pressable> : null}
+            {profile && !editing ? <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={startEditing} style={({pressed}) => [styles.editButton, pressed && styles.pressed]}><AppIcon name="edit" size={17} color={Colors.primary} /><Typography size={14} color={Colors.primary} fontWeight="600" style={styles.editLabel}>Edit</Typography></Pressable> : null}
           </View>
           {profileLoading && !profile ? <ActivityIndicator accessibilityLabel="Loading profile" color={Colors.primary} style={styles.loading} /> : null}
           {profileError ? <View style={styles.message}><Typography color={Colors.textBody}>{profileError}</Typography><Pressable accessibilityRole="button" onPress={() => loadProfile()}><Typography color={Colors.primary}>Retry</Typography></Pressable></View> : null}

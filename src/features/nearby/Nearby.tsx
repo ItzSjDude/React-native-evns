@@ -6,7 +6,7 @@ import Typography from '../../Constants/Typography';
 const Nearby = () => {
   return (
     <View style={styles.container}>
-      <Typography size={28} color={Colors.textNavy} fontWeight="600" style={styles.title}>Nearby</Typography>
+      <Typography size={28} color={Colors.text} fontWeight="600">Nearby</Typography>
     </View>
   );
 };
@@ -18,8 +18,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
-  },
-  title: {
+    backgroundColor: Colors.background,
   },
 });

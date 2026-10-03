@@ -13,23 +13,23 @@ export type AuthStackParamList = {
 };
 
 export type HomeStackParamList = {
-  Home: undefined;
+  HomeScreen: undefined;
 };
 
 export type NearbyStackParamList = {
-  Nearby: undefined;
+  NearbyScreen: undefined;
 };
 
 export type PartyStackParamList = {
-  Party: undefined;
+  PartyScreen: undefined;
 };
 
 export type MessagesStackParamList = {
-  Messages: undefined;
+  MessagesScreen: undefined;
 };
 
 export type ProfileStackParamList = {
-  Profile: undefined;
+  ProfileScreen: undefined;
 };
 
 const AuthStackNavigator = createNativeStackNavigator<AuthStackParamList>();
@@ -54,26 +54,26 @@ export const AuthStack = ({initialRouteName = 'Login'}: {initialRouteName?: keyo
 
 export const HomeStack = () => (
   <HomeStackNavigator.Navigator screenOptions={{headerShown: false}}>
-    <HomeStackNavigator.Screen name="Home" component={HomeScreen} />
+    <HomeStackNavigator.Screen name="HomeScreen" component={HomeScreen} />
   </HomeStackNavigator.Navigator>
 );
 
 export const Nearby = () => (
   <NearbyStackNavigator.Navigator screenOptions={{headerShown: false}}>
-    <NearbyStackNavigator.Screen name="Nearby" component={NearbyScreen} />
+    <NearbyStackNavigator.Screen name="NearbyScreen" component={NearbyScreen} />
   </NearbyStackNavigator.Navigator>
 );
 
 export const Party = () => (
   <PartyStackNavigator.Navigator screenOptions={{headerShown: false}}>
-    <PartyStackNavigator.Screen name="Party" component={PartyScreen} />
+    <PartyStackNavigator.Screen name="PartyScreen" component={PartyScreen} />
   </PartyStackNavigator.Navigator>
 );
 
 export const Messages = () => (
   <MessagesStackNavigator.Navigator screenOptions={{headerShown: false}}>
     <MessagesStackNavigator.Screen
-      name="Messages"
+      name="MessagesScreen"
       component={MessagesScreen}
     />
   </MessagesStackNavigator.Navigator>
@@ -81,6 +81,6 @@ export const Messages = () => (
 
 export const Profile = () => (
   <ProfileStackNavigator.Navigator screenOptions={{headerShown: false}}>
-    <ProfileStackNavigator.Screen name="Profile" component={ProfileScreen} />
+    <ProfileStackNavigator.Screen name="ProfileScreen" component={ProfileScreen} />
   </ProfileStackNavigator.Navigator>
 );
