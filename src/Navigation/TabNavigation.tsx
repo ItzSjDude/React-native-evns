@@ -18,7 +18,7 @@ export type TabParamList = {
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const tabIcons: Record<keyof TabParamList, IconName> = {
-  Home: 'home', Nearby: 'nearby', Party: 'party', Messages: 'messages', Profile: 'profile',
+  Home: 'home', Nearby: 'nearby', Party: 'people', Messages: 'messages', Profile: 'profile',
 };
 const positions = [0, 1, 2, 3, 4];
 
@@ -49,6 +49,7 @@ const TabButton = ({name, index, focused, activeWidth, inactiveWidth, position, 
   }));
 
   return <Animated.View style={[styles.tabSlot, containerStyle]}>
+    <Animated.View pointerEvents="none" style={[styles.activeGlow, activeStyle]} />
     <Animated.View pointerEvents="none" style={[styles.activeTab, activeStyle]} />
     <Pressable
       accessibilityRole="tab"
@@ -59,7 +60,7 @@ const TabButton = ({name, index, focused, activeWidth, inactiveWidth, position, 
       style={({pressed}) => [styles.tabItem, pressed && styles.pressed]}>
       <AppIcon name={tabIcons[name]} size={24} color={focused ? Colors.text : Colors.muted} />
       <Animated.View style={[styles.labelClip, labelStyle]}>
-        <Typography size={14} color={Colors.text} fontWeight="600" numsOfLine={1}>{name}</Typography>
+        <Typography size={16} color={Colors.text} fontWeight="600" numsOfLine={1}>{name}</Typography>
       </Animated.View>
     </Pressable>
   </Animated.View>;
@@ -70,7 +71,7 @@ const CustomTabBar = ({state, descriptors, navigation}: BottomTabBarProps) => {
   const [pillWidth, setPillWidth] = useState(0);
   const position = useSharedValue(state.index);
   const availableWidth = pillWidth || screenWidth * (screenWidth < 360 ? 0.94 : 0.84);
-  const activeWidth = Math.min(112, Math.max(0, availableWidth - 16 - 4 * 44));
+  const activeWidth = Math.min(122, Math.max(0, availableWidth - 16 - 4 * 44));
   const inactiveWidth = Math.max(44, (availableWidth - 16 - activeWidth) / (state.routes.length - 1));
 
   useEffect(() => {
@@ -122,11 +123,12 @@ export default TabNavigation;
 
 const styles = StyleSheet.create({
   tabBar: {position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: Colors.transparent},
-  tabPill: {width: '84%', height: 52, borderRadius: 38, borderWidth: 1, borderColor: Colors.borderMuted, backgroundColor: Colors.navBackground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7},
+  tabPill: {width: '84%', height: 56, borderRadius: 38, borderWidth: 1, borderColor: '#514B62', backgroundColor: '#11101B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7},
   tabPillCompact: {width: '94%'},
-  tabSlot: {height: 46, justifyContent: 'center'},
-  tabItem: {height: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 5},
-  activeTab: {position: 'absolute', left: 0, right: 0, top: 3, bottom: 3, borderRadius: 22, backgroundColor: Colors.primaryDark, borderWidth: 1, borderColor: Colors.primaryBorder},
+  tabSlot: {height: 50, justifyContent: 'center'},
+  tabItem: {height: 50, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 5},
+  activeGlow: {position: 'absolute', left: -4, right: -4, top: 0, bottom: 0, borderRadius: 28, borderWidth: 3, borderColor: 'rgba(148, 127, 226, 0.20)'},
+  activeTab: {position: 'absolute', left: 0, right: 0, top: 3, bottom: 3, borderRadius: 25, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
   labelClip: {overflow: 'hidden', marginLeft: 3},
   pressed: {opacity: 0.7},
 });
