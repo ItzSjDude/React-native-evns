@@ -3,17 +3,11 @@ import type {AuthSession} from './types';
 
 export type AuthState = {
   status: 'loading' | 'authenticated' | 'unauthenticated';
-  user: AuthSession['user'] | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   needsOnboarding: boolean;
 };
 
 const initialState: AuthState = {
   status: 'loading',
-  user: null,
-  accessToken: null,
-  refreshToken: null,
   needsOnboarding: false,
 };
 
@@ -23,16 +17,16 @@ const authSlice = createSlice({
   reducers: {
     setSession: (state, action: PayloadAction<AuthSession>) => {
       state.status = 'authenticated';
-      state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
-      state.refreshToken = action.payload.refreshToken;
-      state.needsOnboarding = action.payload.isNewUser === true;
+      if (action.payload.isNewUser !== undefined) {
+        state.needsOnboarding = action.payload.isNewUser;
+      }
     },
     completeOnboarding: state => {
       state.needsOnboarding = false;
     },
     clearSession: state => {
       Object.assign(state, initialState);
+      state.status = 'unauthenticated';
     },
   },
 });

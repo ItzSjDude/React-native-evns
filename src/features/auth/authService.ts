@@ -2,7 +2,7 @@ import {Platform} from 'react-native';
 import {GoogleSignin, isSuccessResponse} from '@react-native-google-signin/google-signin';
 import {getAuth, getIdToken, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut} from '@react-native-firebase/auth';
 import {apiRequest} from '../../core/api/apiClient';
-import {clearSession, loadSession, saveSession} from './session';
+import {clearSession, getSessionVersion, loadSession, saveSession} from './session';
 import type {AuthSession} from './types';
 
 const HIVA_WEB_CLIENT_ID = '45623280223-d1ldfjkerts5tbpap45iqgnfon06c0sg.apps.googleusercontent.com';
@@ -26,8 +26,15 @@ export async function signInWithGoogle(): Promise<AuthSession | null> {
 }
 
 export async function refreshBackendSession(session: AuthSession): Promise<AuthSession> {
-  const refreshed = await apiRequest<AuthSession>('/auth/refresh', {method: 'POST', body: JSON.stringify({refreshToken: session.refreshToken})});
-  await saveSession(refreshed);
+  const version = getSessionVersion();
+  const tokens = await apiRequest<Partial<AuthSession>>('/auth/refresh', {method: 'POST', body: JSON.stringify({refreshToken: session.refreshToken})});
+  if (!tokens.accessToken || !tokens.refreshToken) {
+    throw new Error('Refresh response did not include both tokens.');
+  }
+  const refreshed: AuthSession = {...session, ...tokens};
+  if (!await saveSession(refreshed, version)) {
+    throw new Error('Session changed while refreshing.');
+  }
   return refreshed;
 }
 
@@ -41,27 +48,41 @@ export async function restoreBackendSession(): Promise<AuthSession | null> {
     await saveSession(session);
     return session;
   }
+  const version = getSessionVersion();
   try {
-    const current = await apiRequest<{user: AuthSession['user']}>('/auth/me', {}, stored.accessToken);
-    return {...stored, user: current.user};
+    const current = await apiRequest<{user: AuthSession['user']}>('/auth/me', {auth: 'required'});
+    const latest = await loadSession();
+    return {...(latest ?? stored), user: current.user};
   } catch (error) {
-    if ((error as {status?: number}).status !== 401) throw error;
-    try { return await refreshOnce(stored); }
-    catch (refreshError) {
-      const status = (refreshError as {status?: number}).status;
-      if (status === 400 || status === 401 || status === 403) { await clearSession(); return null; }
-      throw refreshError;
-    }
+    if ((error as {status?: number}).status === 401) return null;
+    // A temporary outage should not discard a valid locally stored session.
+    return getSessionVersion() === version ? stored : loadSession();
   }
 }
 
-let refreshInFlight: Promise<AuthSession> | null = null;
+let refreshInFlight: {refreshToken: string; promise: Promise<AuthSession>} | null = null;
 export function refreshOnce(session: AuthSession): Promise<AuthSession> {
-  if (!refreshInFlight) refreshInFlight = refreshBackendSession(session).finally(() => { refreshInFlight = null; });
-  return refreshInFlight;
+  if (!refreshInFlight || refreshInFlight.refreshToken !== session.refreshToken) {
+    const promise = (async () => {
+      const current = await loadSession();
+      if (!current) throw {status: 401, message: 'Session expired.'};
+      if (current.refreshToken !== session.refreshToken) return current;
+      return refreshBackendSession(current);
+    })().finally(() => {
+      if (refreshInFlight?.promise === promise) refreshInFlight = null;
+    });
+    refreshInFlight = {refreshToken: session.refreshToken, promise};
+  }
+  return refreshInFlight.promise;
 }
 
-export async function logoutFromApi(refreshToken: string): Promise<void> {
-  try { await apiRequest('/auth/logout', {method: 'POST', body: JSON.stringify({refreshToken})}); }
-  finally { await clearSession(); await Promise.allSettled([firebaseSignOut(getAuth()), GoogleSignin.signOut()]); }
+export async function logoutFromApi(): Promise<void> {
+  const refreshToken = (await loadSession())?.refreshToken;
+  await clearSession();
+  try {
+    if (refreshToken) {
+      await apiRequest('/auth/logout', {method: 'POST', body: JSON.stringify({refreshToken})});
+    }
+  }
+  finally { await Promise.allSettled([firebaseSignOut(getAuth()), GoogleSignin.signOut()]); }
 }
