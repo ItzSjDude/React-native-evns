@@ -2,7 +2,7 @@ import {createSlice, PayloadAction} from '@reduxjs/toolkit';
 import type {AuthSession} from './types';
 
 export type AuthState = {
-  status: 'authenticated' | 'unauthenticated';
+  status: 'loading' | 'authenticated' | 'unauthenticated';
   user: AuthSession['user'] | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -10,7 +10,7 @@ export type AuthState = {
 };
 
 const initialState: AuthState = {
-  status: 'unauthenticated',
+  status: 'loading',
   user: null,
   accessToken: null,
   refreshToken: null,
@@ -26,7 +26,7 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
-      state.needsOnboarding = action.payload.isNewUser;
+      state.needsOnboarding = action.payload.isNewUser === true;
     },
     completeOnboarding: state => {
       state.needsOnboarding = false;

@@ -1,6 +1,6 @@
 export type AuthUser = {
   id: string;
-  name: string;
+  name?: string;
   email: string;
   avatar_url?: string;
   email_verified: boolean;
@@ -12,5 +12,5 @@ export type AuthSession = {
   accessToken: string;
   refreshToken: string;
   expiresIn: string;
-  isNewUser: boolean;
+  isNewUser?: boolean;
 };

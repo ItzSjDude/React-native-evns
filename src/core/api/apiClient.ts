@@ -68,11 +68,7 @@ export async function apiRequest<T>(
     throw error;
   }
 
-  console.log('[API] response:', {
-    url,
-    status: response.status,
-    body: rawBody,
-  });
+  console.log('[API] response:', {url, status: response.status});
 
   let body: ApiEnvelope<T>;
 

@@ -24,7 +24,8 @@ describe('Google authentication contract flow', () => {
   });
 
   it('exchanges the Google ID token at /auth/firebase and returns the session', async () => {
-    const session = await signInWithGoogle('google-id-token');
+    const session = await signInWithGoogle();
+    if (!session) throw new Error('Expected a session');
 
     expect(session.accessToken).toBe('access-token');
     expect(session.isNewUser).toBe(true);
@@ -32,7 +33,7 @@ describe('Google authentication contract flow', () => {
       expect.stringContaining('/auth/firebase'),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({idToken: 'google-id-token'}),
+        body: JSON.stringify({idToken: 'firebase-id-token'}),
       }),
     );
   });

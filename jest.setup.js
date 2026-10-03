@@ -25,6 +25,7 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
     signIn: jest.fn(),
     signOut: jest.fn().mockResolvedValue(undefined),
   },
+  isSuccessResponse: response => response?.type === 'success',
   statusCodes: {
     SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
     IN_PROGRESS: 'IN_PROGRESS',
@@ -37,13 +38,21 @@ jest.mock('@react-native-firebase/app', () => ({
 }));
 
 jest.mock('@react-native-firebase/auth', () => ({
-  getAuth: jest.fn(() => ({})),
+  getAuth: jest.fn(() => ({currentUser: null})),
   GoogleAuthProvider: {
     credential: jest.fn(token => ({providerId: 'google.com', token})),
   },
   signInWithCredential: jest.fn().mockResolvedValue({
     user: {getIdToken: jest.fn().mockResolvedValue('firebase-id-token')},
   }),
+  getIdToken: jest.fn().mockResolvedValue('firebase-id-token'),
+  signOut: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('react-native-keychain', () => ({
+  setGenericPassword: jest.fn().mockResolvedValue(true),
+  getGenericPassword: jest.fn().mockResolvedValue(false),
+  resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock('react-native-reanimated', () => {

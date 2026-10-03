@@ -10,10 +10,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {LinearGradient, Rect, Stop} from 'react-native-svg';
 import {Images} from '../../Constants/Images';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
+import {statusCodes} from '@react-native-google-signin/google-signin';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useAppDispatch} from '../../core/store/hooks';
 import {setSession, signInWithGoogle} from '../../features/auth';
@@ -27,39 +24,6 @@ type GoogleSignInError = {
   code?: string;
   message?: string;
 };
-
-const waitForUi = (): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, 0));
-
-const wait = (milliseconds: number): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, milliseconds));
-
-async function startGoogleSignIn() {
-  // React Native can receive the tap before its current Activity has been
-  // attached to the React context (especially immediately after launch).
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await waitForUi();
-
-    try {
-      await GoogleSignin.hasPlayServices();
-      return await GoogleSignin.signIn();
-    } catch (error) {
-      const code = (error as GoogleSignInError).code;
-      if (code !== 'NULL_PRESENTER' || attempt === 2) {
-        throw error;
-      }
-
-      await wait(150);
-    }
-  }
-
-  throw new Error('Google sign-in could not start.');
-}
-
-GoogleSignin.configure({
-  webClientId: '45623280223-d1ldfjkerts5tbpap45iqgnfon06c0sg.apps.googleusercontent.com',
-  
-});
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
@@ -103,22 +67,8 @@ const Login = (_props: LoginProps) => {
   setErrorMessage('');
 
   try {
-    const userInfo = await startGoogleSignIn();
-
-    console.log('[Google Sign-In] response:', userInfo);
-
-    if (userInfo.type !== 'success') {
-      console.log('[Google] Sign-in was not successful');
-      return;
-    }
-
-    // Get Firebase ID token
-    const idToken = userInfo.data.idToken;
-
-    if (!idToken) {
-      throw new Error('Google ID token not received');
-    }
-    const session = await signInWithGoogle(idToken);
+    const session = await signInWithGoogle();
+    if (!session) return;
 
     
     // Redux state drives MainNavigation from AuthStack to the authenticated tabs.
