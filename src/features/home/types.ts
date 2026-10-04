@@ -1,13 +1,7 @@
-export type HomeComment = {
-  id: string;
-  body: string;
-  createdAt: string;
-  author: {id: string; name: string; avatarUrl: string | null};
-};
-
 export type HomePost = {
   id: string;
   author: string;
+  avatarUrl?: string | null;
   time: string;
   content: string;
   likes: number;
@@ -16,3 +10,30 @@ export type HomePost = {
   shares?: number;
   images?: string[];
 };
+
+export type HomeComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: {id: string; name: string; avatarUrl: string | null};
+};
+
+export type PostMedia = {url: string; type: 'IMAGE'};
+
+export type ApiPost = {
+  id: string;
+  body: string;
+  media: PostMedia[];
+  visibility: 'PUBLIC';
+  createdAt: string;
+  updatedAt: string;
+  author: {id: string; name: string; avatarUrl: string | null};
+  reactions: {likeCount: number; viewerHasLiked: boolean};
+};
+
+export type PostFeed = {
+  posts: ApiPost[];
+  page: {limit: number; hasMore: boolean; nextCursor: string | null};
+};
+
+export type CreatePostInput = {body?: string; media?: PostMedia[]};

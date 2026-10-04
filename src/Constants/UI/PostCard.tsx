@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Image, Modal, Pressable, ScrollView, useWindowDimensions, View} from 'react-native';
 import {Colors} from '../Colors';
 import AppIcon from '../Icons';
@@ -7,6 +7,7 @@ import Typography from '../Typography';
 export type PostCardData = {
   id: string;
   author: string;
+  avatarUrl?: string | null;
   time: string;
   content: string;
   likes: number;
@@ -21,16 +22,35 @@ type PostCardProps = PostCardData & {
   onOpenComments?: () => void;
 };
 
-const Avatar = () => (
-  <View className="h-[43px] w-[43px] items-center justify-center rounded-[22px] bg-[#77717C]">
-    <AppIcon name="user" size={24} color={Colors.iconDark} />
-  </View>
-);
+const Avatar = ({avatarUrl}: {avatarUrl?: string | null}) => {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [avatarUrl]);
+
+  if (avatarUrl && !imageFailed) {
+    return (
+      <Image
+        source={{uri: avatarUrl}}
+        accessibilityLabel="Author avatar"
+        onError={() => setImageFailed(true)}
+        className="h-[43px] w-[43px] rounded-[22px]"
+      />
+    );
+  }
+
+  return (
+    <View className="h-[43px] w-[43px] items-center justify-center rounded-[22px] bg-[#77717C]">
+      <AppIcon name="user" size={24} color={Colors.iconDark} />
+    </View>
+  );
+};
 
 const StatButton = ({icon, count, color = Colors.muted, filled = false, onPress, label}: {icon: 'heart' | 'comment'; count: number; color?: string; filled?: boolean; onPress?: () => void; label: string}) => (
   <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className="mr-[8px] flex-row items-center rounded-full border border-[#363342] px-[11px] py-[7px] active:opacity-70">
     <AppIcon name={icon} size={19} color={color} filled={filled} />
-    <Typography size={13} color={color} fontWeight="600" className="ml-[7px]">{count}</Typography>
+    <Typography size={13} color={Colors.text} fontWeight="600" className="ml-[7px]">{count}</Typography>
   </Pressable>
 );
 
@@ -49,7 +69,7 @@ const ReportModal = ({visible, onClose}: {visible: boolean; onClose: () => void}
   </Modal>
 );
 
-const PostCard = ({author, time, content, likes, likedByViewer = false, comments = 0, images = [], onToggleLike, onOpenComments}: PostCardProps) => {
+const PostCard = ({author, avatarUrl, time, content, likes, likedByViewer = false, comments = 0, images = [], onToggleLike, onOpenComments}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -59,7 +79,7 @@ const PostCard = ({author, time, content, likes, likedByViewer = false, comments
     <View className="overflow-hidden rounded-[20px] border border-[#363342] bg-card">
       <View className="px-[15px] pb-[16px] pt-[15px]">
         <View className="flex-row items-center">
-          <Avatar />
+          <Avatar avatarUrl={avatarUrl} />
           <View className="ml-[12px] flex-1">
             <Typography size={16} color={Colors.text} fontWeight="700">{author}</Typography>
             <Typography size={12} color={Colors.muted} className="mt-[3px]">{time}</Typography>

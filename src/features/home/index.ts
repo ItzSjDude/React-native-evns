@@ -1,2 +1,2 @@
 export {default as HomeScreen} from './Home';
-export type {HomeComment, HomePost} from './types';
+export type {ApiPost, CreatePostInput, HomePost, PostFeed, PostMedia} from './types';
