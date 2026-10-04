@@ -17,6 +17,7 @@ export type TypographyProps = {
   fontWeight?: TextStyle['fontWeight'];
   textAlign?: TextStyle['textAlign'];
   style?: StyleProp<TextStyle>;
+  className?: string;
   numsOfLine?: number;
   ellipsisMode?: TextProps['ellipsizeMode'];
   lineHeight?: number;
@@ -30,21 +31,23 @@ export const Typography: React.FC<TypographyProps> = ({
   fontWeight,
   textAlign,
   style,
+  className,
   numsOfLine,
   ellipsisMode = 'tail',
   lineHeight,
 }) => (
   <Text
+    className={className}
     numberOfLines={numsOfLine}
     ellipsizeMode={ellipsisMode}
     style={[
       {
-        lineHeight,
+        ...(lineHeight !== undefined ? {lineHeight} : {}),
         fontSize: Math.max(1, (size - 1) / PixelRatio.getFontScale()),
         color,
         fontFamily,
-        fontWeight,
-        textAlign,
+        ...(fontWeight !== undefined ? {fontWeight} : {}),
+        ...(textAlign !== undefined ? {textAlign} : {}),
       },
       style,
     ]}>

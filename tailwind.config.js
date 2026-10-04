@@ -1,0 +1,36 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./App.tsx', './src/**/*.{js,jsx,ts,tsx}'],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        background: '#0B0914',
+        foreground: '#F7F5FF',
+        card: '#191824',
+        border: '#363342',
+        'border-muted': '#4A4659',
+        primary: '#A58AFF',
+        'primary-dark': '#211B43',
+        'primary-border': '#8A6BFF',
+        'nav-background': '#100E1B',
+        'text-dark': '#10152F',
+        'text-navy': '#111B42',
+        'text-body': '#E7E4EF',
+        muted: '#9A97A9',
+        'muted-light': '#687087',
+        coral: '#FF786F',
+        avatar: '#77717C',
+        'icon-dark': '#080711',
+        'google-border': '#E7E9EC',
+        'google-border-mid': '#C6CFD8',
+        'google-border-blue': '#5D86AA',
+        shadow: '#7D8794',
+        'glow-green': '#34D399',
+        'glow-emerald': '#10B981',
+        'glow-violet': '#8B5CF6',
+      },
+    },
+  },
+  plugins: [],
+};

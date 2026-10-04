@@ -4,11 +4,11 @@ import {
   Easing,
   Image,
   Pressable,
-  StyleSheet,
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {LinearGradient, Rect, Stop} from 'react-native-svg';
+import {cssInterop} from 'nativewind';
 import {Images} from '../../Constants/Images';
 import {statusCodes} from '@react-native-google-signin/google-signin';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -26,6 +26,9 @@ type GoogleSignInError = {
 };
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
+
+cssInterop(Svg, {className: 'style'});
+cssInterop(SafeAreaView, {className: 'style'});
 
 const Login = (_props: LoginProps) => {
   const dispatch = useAppDispatch();
@@ -136,22 +139,21 @@ const Login = (_props: LoginProps) => {
 };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        <View style={styles.brandSection}>
-          <Image source={Images.logo} style={styles.logo} resizeMode="contain" />
-          <Typography size={44} color={Colors.textNavy} fontWeight="500" style={styles.brandName}>HivaChat</Typography>
-          {/* <Typography size={24} color={Colors.mutedLight} textAlign="center" style={styles.tagline}>Find your next event</Typography> */}
+    <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+      <View className="flex-1 px-5">
+        <View className="flex-1 items-center pt-[50%]">
+          <Image source={Images.logo} className="mb-[6px] h-[95px] w-[95px]" resizeMode="contain" />
+          <Typography size={44} color={Colors.textNavy} fontWeight="500" className="mt-[15px] tracking-[-1px]">HivaChat</Typography>
         </View>
 
-        <View style={styles.actions}>
+        <View className="w-full pb-[34px]">
           <Pressable
             accessibilityRole="button"
             onLayout={({nativeEvent}) => setButtonSize(nativeEvent.layout)}
-            style={({pressed}) => [styles.googleButton, pressed && styles.pressed]}
+            className="h-[52px] w-full flex-row items-center justify-center rounded-[34px] bg-white shadow-lg shadow-shadow active:opacity-70"
             onPress={handleGoogleLogin}
             disabled={isLoading}>
-            <Svg pointerEvents="none" style={styles.animatedBorder}>
+            <Svg pointerEvents="none" className="absolute inset-0">
               <LinearGradient
                 id="googleBorderHighlight"
                 x1="0%"
@@ -187,14 +189,14 @@ const Login = (_props: LoginProps) => {
                 strokeDashoffset={borderOffset}
               />
             </Svg>
-            <Typography size={18} color={Colors.textDark} fontWeight="600" style={styles.googleButtonText}>{isLoading ? 'Signing in…' : 'Continue with'}</Typography>
+            <Typography size={18} color={Colors.textDark} fontWeight="600">{isLoading ? 'Signing in…' : 'Continue with'}</Typography>
             <Image
               source={Images.googleLogo}
-              style={styles.googleMark}
+              className="ml-[14px] h-[22px] w-[22px]"
               resizeMode="contain"
             />
           </Pressable>
-          {!!errorMessage && <Typography size={14} color={Colors.coral} textAlign="center" style={styles.error}>{errorMessage}</Typography>}
+          {!!errorMessage && <Typography size={14} color={Colors.coral} textAlign="center" className="mt-[14px]">{errorMessage}</Typography>}
 
         </View>
       </View>
@@ -203,69 +205,3 @@ const Login = (_props: LoginProps) => {
 };
 
 export default Login;
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.white,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal:20,
-  },
-  brandSection: {
-    flex: 1,
-    alignItems: 'center',
-    // justifyContent: 'center',
-    paddingTop: '50%',
-    // backgroundColor:'red'
-  },
-  logo: {
-    width: 95,
-    height: 95,
-    marginBottom: 6,
-  },
-  brandName: {
-    letterSpacing: -1,
-    marginTop:15
-  },
-  tagline: {
-    marginTop: 30,
-  },
-  actions: {
-    width: '100%',
-    paddingBottom: 34,
-  },
-  googleButton: {
-    height: 52,
-    width: '100%',
-    borderRadius: 34,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-    shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 5},
-    shadowOpacity: 0.18,
-    shadowRadius: 9,
-    elevation: 5,
-  },
-  animatedBorder: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  googleButtonText: {
-  },
-  googleMark: {
-    width: 22,
-    height: 22,
-    marginLeft: 14,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  error: {marginTop: 14},
-});

@@ -1,23 +1,26 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
+import {View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
 import AppIcon from '../../Constants/Icons';
 import Typography from '../../Constants/Typography';
+
+cssInterop(SafeAreaView, {className: 'style'});
 const Party = () => {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        <View style={styles.iconCircle}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <View className="flex-1 items-center justify-center px-8">
+        <View className="mb-5 h-[86px] w-[86px] items-center justify-center rounded-[43px] bg-[#211B43]">
           <AppIcon name="party" size={42} color={Colors.primary} />
         </View>
         <Typography size={28} color={Colors.text} fontWeight="600">
           Party
         </Typography>
-        <Typography size={15} color={Colors.muted} style={styles.subtitle}>
+        <Typography size={15} color={Colors.muted} className="mt-2 text-center">
           Discover parties and connect with your community.
         </Typography>
-        <Typography size={14} color={Colors.muted} style={styles.comingSoon}>
+        <Typography size={14} color={Colors.muted} className="mt-[30px]">
           Party rooms are coming soon.
         </Typography>
       </View>
@@ -26,11 +29,3 @@ const Party = () => {
 };
 
 export default Party;
-
-const styles = StyleSheet.create({
-  safeArea: {flex: 1, backgroundColor: Colors.background},
-  container: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32},
-  iconCircle: {width: 86, height: 86, borderRadius: 43, backgroundColor: Colors.primaryDark, alignItems: 'center', justifyContent: 'center', marginBottom: 20},
-  subtitle: {textAlign: 'center', marginTop: 8},
-  comingSoon: {marginTop: 30},
-});

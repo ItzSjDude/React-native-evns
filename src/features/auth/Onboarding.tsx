@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native'
+import { View } from 'react-native'
 import Typography from '../../Constants/Typography'
 import React from 'react'
 import { Pressable } from 'react-native'
@@ -10,7 +10,7 @@ const Onboarding = () => {
   const dispatch = useAppDispatch()
   return (
     <View>
-      <Typography size={28} color={Colors.textNavy} fontWeight="600" style={styles.title}>Onboarding</Typography>
+      <Typography size={28} color={Colors.textNavy} fontWeight="600">Onboarding</Typography>
       <Pressable accessibilityRole="button" onPress={() => dispatch(completeOnboarding())}>
         <Typography size={16} color={Colors.textNavy}>Continue</Typography>
       </Pressable>
@@ -18,8 +18,4 @@ const Onboarding = () => {
   )
 }
 
-const styles = StyleSheet.create({
-  title: {
-  },
-})
 export default Onboarding

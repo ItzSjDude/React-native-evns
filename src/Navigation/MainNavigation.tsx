@@ -1,7 +1,6 @@
 import React, {useEffect} from 'react';
-import {StatusBar, StyleSheet, View} from 'react-native';
+import {StatusBar, View} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
-import {Colors} from '../Constants/Colors';
 import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
 import TabNavigation from './TabNavigation';
@@ -41,9 +40,7 @@ const MainNavigation = () => {
   const isAuthenticated = status === 'authenticated';
 
   return (
-    <View style={[styles.container,
-    //  {paddingTop: insets.top}
-     ]}>
+    <View className="flex-1 bg-background">
       <StatusBar
         barStyle="light-content"
       />
@@ -55,10 +52,3 @@ const MainNavigation = () => {
 };
 
 export default MainNavigation;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-});

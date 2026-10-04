@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
+import {View} from 'react-native';
 import IconBallFootball from '@tabler/icons-react-native/IconBallFootball';
 import IconBell from '@tabler/icons-react-native/IconBell';
 import IconBellFilled from '@tabler/icons-react-native/IconBellFilled';
@@ -96,9 +96,9 @@ type IconProps = {
 export const AppIcon = ({name, size = 24, color = Colors.text, filled = true}: IconProps) => {
   if (name === 'profile' && filled) {
     return (
-      <View style={[styles.profileBase, {width: size, height: size}]}>
+      <View className="items-center justify-center" style={{width: size, height: size}}>
         <IconCircleFilled size={size} color={color} />
-        <View style={styles.profileUser}>
+        <View className="absolute">
           <IconUserFilled size={size * 0.72} color="#13111F" />
         </View>
       </View>
@@ -108,10 +108,5 @@ export const AppIcon = ({name, size = 24, color = Colors.text, filled = true}: I
   const Icon = (filled ? filledIcons[name] : undefined) ?? icons[name];
   return <Icon size={size} color={color} strokeWidth={2} />;
 };
-
-const styles = StyleSheet.create({
-  profileBase: {alignItems: 'center', justifyContent: 'center'},
-  profileUser: {position: 'absolute'},
-});
 
 export default AppIcon;

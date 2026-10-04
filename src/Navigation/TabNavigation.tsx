@@ -118,10 +118,7 @@ const TabButton = ({
         hitSlop={{left: 2, right: 2}}
         onPress={onPress}
         onLongPress={onLongPress}
-        style={({pressed}) => [
-          styles.tabItem,
-          pressed && styles.pressed,
-        ]}>
+        className="h-[50px] w-full flex-row items-center justify-center gap-1 px-[5px] active:opacity-70">
         <AppIcon
           name={tabIcons[name]}
           size={24}
@@ -130,7 +127,7 @@ const TabButton = ({
         />
 
         {focused && (
-          <Text style={styles.tabLabel}>
+          <Text className="text-sm font-semibold text-foreground">
             {name}
           </Text>
         )}
@@ -174,12 +171,9 @@ const CustomTabBar = ({
   return (
     <SafeAreaView
       edges={['bottom']}
-      style={styles.tabBar}>
+      className="absolute bottom-0 left-0 right-0 items-center bg-transparent">
       <View
-        style={[
-          styles.tabPill,
-          screenWidth < 360 && styles.tabPillCompact,
-        ]}
+        className={`h-[55px] flex-row items-center justify-center rounded-[28px] border border-[#514B62] bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[90%]' : 'w-[74%]'}`}
         onLayout={event =>
           setPillWidth(event.nativeEvent.layout.width)
         }>
@@ -269,78 +263,9 @@ const TabNavigation = () => (
 
 export default TabNavigation;
 
+// Reanimated needs native style objects for the tab width and fading overlays.
 const styles = StyleSheet.create({
-  tabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    backgroundColor: Colors.transparent,
-  },
-
-  tabPill: {
-    width: '74%',
-    height: 55,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#514B62',
-    backgroundColor: '#11101B',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-
-  tabPillCompact: {
-    width: '90%',
-  },
-
-  tabSlot: {
-    height: 50,
-    justifyContent: 'center',
-  },
-
-  tabItem: {
-    height: 50,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 5,
-  },
-
-  activeGlow: {
-    position: 'absolute',
-    left: -4,
-    right: -4,
-    top: 1,
-    bottom: 1,
-    borderRadius: 25,
-    borderWidth: 3,
-    borderColor: 'rgba(148, 127, 226, 0.20)',
-  },
-
-  activeTab: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 5,
-    bottom: 5,
-    borderRadius: 20,
-    backgroundColor: '#13111F',
-    borderWidth: 1.5,
-    borderColor: '#73679D',
-  },
-
-  tabLabel: {
-    color: Colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  pressed: {
-    opacity: 0.7,
-  },
+  tabSlot: {height: 50, justifyContent: 'center'},
+  activeGlow: {position: 'absolute', left: -4, right: -4, top: 1, bottom: 1, borderRadius: 25, borderWidth: 3, borderColor: 'rgba(148, 127, 226, 0.20)'},
+  activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
 });

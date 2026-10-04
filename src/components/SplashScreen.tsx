@@ -1,6 +1,7 @@
 import React, {useEffect} from 'react';
 import {StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import {cssInterop} from 'nativewind';
 import Svg, {
   Circle,
   Defs,
@@ -28,6 +29,8 @@ type SplashScreenProps = {
 };
 
 const AnimatedView = Animated.View;
+
+cssInterop(LinearGradient, {className: 'style'});
 
 const SplashLogo = () => (
   <Svg width="72" height="72" viewBox="0 0 64 64">
@@ -157,43 +160,43 @@ const SplashScreen = ({onFinish}: SplashScreenProps) => {
   const barFiveStyle = useBarStyle(barFive);
 
   return (
-    <View style={styles.root}>
+    <View className="flex-1 bg-[#07050F]">
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0B071A', '#080512', '#040209']} style={styles.viewport}>
-        <View style={styles.statusRow}><Animated.Text style={styles.statusText}>9:47</Animated.Text><View style={styles.dynamicIsland} /><View style={styles.statusIcons}><View style={styles.signal}><View style={styles.signalBarOne} /><View style={styles.signalBarTwo} /><View style={styles.signalBarThree} /><View style={styles.signalBarFour} /></View><View style={styles.wifi} /><View style={styles.battery}><View /></View></View></View>
+      <LinearGradient colors={['#0B071A', '#080512', '#040209']} className="flex-1 overflow-hidden px-6">
+        <View className="z-[3] h-[34px] flex-row items-center justify-between"><Animated.Text style={styles.statusText}>9:47</Animated.Text><View className="h-4 w-24 rounded-[10px] border border-[#FFFFFF0D] bg-[#00000073]" /><View className="flex-row items-center gap-[7px]"><View className="h-[14px] flex-row items-end gap-[2px]"><View className="h-1 w-[3px] bg-[#DDD6FEE6]" /><View className="h-[7px] w-[3px] bg-[#DDD6FEE6]" /><View className="h-[10px] w-[3px] bg-[#DDD6FEE6]" /><View className="h-[13px] w-[3px] bg-[#DDD6FEE6]" /></View><View className="h-[9px] w-[14px] rounded-lg border-t-2 border-[#DDD6FEE6]" /><View className="h-[11px] w-5 rounded-[3px] border border-[#DDD6FEE6] p-[2px]"><View /></View></View></View>
 
         <AnimatedView pointerEvents="none" style={[styles.lightStage, lightsStyle]}>
-          <AnimatedView style={[styles.beamLeft, leftBeamStyle]}><LinearGradient colors={['rgba(167,139,250,0.4)', 'rgba(34,211,238,0.2)', 'transparent']} style={styles.fullBleed} /></AnimatedView>
-          <AnimatedView style={[styles.beamRight, rightBeamStyle]}><LinearGradient colors={['rgba(110,231,183,0.35)', 'rgba(139,92,246,0.25)', 'transparent']} style={styles.fullBleed} /></AnimatedView>
-          <AnimatedView style={[styles.spotlight, spotlightStyle]}><LinearGradient colors={['rgba(168,85,247,0.35)', 'rgba(52,211,153,0.2)', 'transparent']} style={styles.fullBleed} /></AnimatedView>
+          <AnimatedView style={[styles.beamLeft, leftBeamStyle]}><LinearGradient colors={['rgba(167,139,250,0.4)', 'rgba(34,211,238,0.2)', 'transparent']} className="absolute inset-0" /></AnimatedView>
+          <AnimatedView style={[styles.beamRight, rightBeamStyle]}><LinearGradient colors={['rgba(110,231,183,0.35)', 'rgba(139,92,246,0.25)', 'transparent']} className="absolute inset-0" /></AnimatedView>
+          <AnimatedView style={[styles.spotlight, spotlightStyle]}><LinearGradient colors={['rgba(168,85,247,0.35)', 'rgba(52,211,153,0.2)', 'transparent']} className="absolute inset-0" /></AnimatedView>
           <AnimatedView style={[styles.orbOne, firstOrbStyle]} />
           <AnimatedView style={[styles.orbTwo, secondOrbStyle]} />
           <AnimatedView style={[styles.violetAura, auraStyle]} />
           <AnimatedView style={[styles.cyanAura, auraStyle]} />
           <AnimatedView style={[styles.emeraldAura, auraStyle]} />
-          <View style={styles.dotTexture} />
+          <View className="absolute inset-0 border border-[#8B5CF61F] bg-transparent opacity-[0.07]" />
         </AnimatedView>
 
         <AnimatedView style={[styles.mainContent, stageStyle]}>
           <AnimatedView style={[styles.coreBacklight, auraStyle]} />
           <AnimatedView style={[styles.logoWrap, logoStyle]}>
-            <AnimatedView style={[styles.orbitRing, orbitStyle]}><View style={styles.orbitNode} /></AnimatedView>
-            <View style={styles.outerRing} />
-            <View style={styles.logoDisc}>
+            <AnimatedView style={[styles.orbitRing, orbitStyle]}><View className="h-[10px] w-[10px] rounded-[5px] bg-[#34D399] shadow-lg shadow-glow-green" /></AnimatedView>
+            <View className="absolute h-[190px] w-[190px] rounded-[100px] border border-[#8B5CF61A]" />
+            <View className="h-28 w-28 items-center justify-center overflow-hidden rounded-[26px] border border-[#8B5CF68C] bg-[#1A1238E6] shadow-xl shadow-glow-violet">
               <AnimatedView style={[styles.sheen, sheenStyle]} />
-              <View style={styles.logoInner}><SplashLogo /></View>
+              <View className="h-[106px] w-[106px] items-center justify-center rounded-[22px] bg-[#0B061AF0]"><SplashLogo /></View>
             </View>
           </AnimatedView>
           <AnimatedView style={titleStyle}><Svg width={Math.min(width - 48, 340)} height="58"><Defs><SvgLinearGradient id="titleGrad" x1="0" x2="1" y1="0" y2="0"><Stop offset="0" stopColor="#FFFFFF" /><Stop offset="0.55" stopColor="#E9D5FF" /><Stop offset="1" stopColor="#A7F3D0" /></SvgLinearGradient></Defs><SvgText x={Math.min(width - 48, 340) / 2} y="44" textAnchor="middle" fill="url(#titleGrad)" fontSize="42" fontWeight="800">Hiva chat</SvgText></Svg></AnimatedView>
-          <Animated.Text style={[styles.tagline, taglineStyle]}>VOICE <Text style={styles.greenDot}>•</Text> VIBE <Text style={styles.violetDot}>•</Text> CONNECT</Animated.Text>
-          <AnimatedView style={[styles.equalizer, equalizerStyle]}><AnimatedView style={[styles.soundBar, styles.barGreen, barOneStyle]} /><AnimatedView style={[styles.soundBar, styles.barPurple, barTwoStyle]} /><AnimatedView style={[styles.soundBar, styles.barPink, barThreeStyle]} /><AnimatedView style={[styles.soundBar, styles.barCyan, barFourStyle]} /><AnimatedView style={[styles.soundBar, styles.barTeal, barFiveStyle]} /></AnimatedView>
+          <Animated.Text style={[styles.tagline, taglineStyle]}>VOICE <Text className="text-[#34D399]">•</Text> VIBE <Text className="text-[#A78BFA]">•</Text> CONNECT</Animated.Text>
+          <AnimatedView style={[styles.equalizer, equalizerStyle]}><AnimatedView style={[styles.soundBar, barOneStyle]} /><AnimatedView style={[styles.soundBar, barTwoStyle]} /><AnimatedView style={[styles.soundBar, barThreeStyle]} /><AnimatedView style={[styles.soundBar, barFourStyle]} /><AnimatedView style={[styles.soundBar, barFiveStyle]} /></AnimatedView>
         </AnimatedView>
 
-        <View style={styles.footer}>
-          <View style={styles.loadingBlock}><View style={styles.progressTrack}><AnimatedView style={[styles.progressFill, progressStyle]} /></View><Animated.Text style={styles.loadingText}>JOINING ROOM...</Animated.Text></View>
-          <View style={styles.secureBadge}><AppIcon name="check" size={12} color="#34D399" /><Text style={styles.secureText}>Encrypted Audio &amp; Community Lounge</Text></View>
-          <View style={styles.footerMeta}><Text style={styles.version}>Build v2.4.0 (PROD)</Text><View style={styles.replay}><AppIcon name="refresh" size={16} color="rgba(221,214,254,0.65)" /><Text style={styles.replayText}>Replay Effect</Text></View></View>
-          <View style={styles.homeIndicator} />
+        <View className="z-[3] items-center pb-1">
+          <View className="w-[210px] items-center gap-[7px]"><View className="h-[5px] w-full overflow-hidden rounded border border-[#8B5CF633] bg-[#3B0764CC]"><AnimatedView style={[styles.progressFill, progressStyle]} /></View><Animated.Text style={styles.loadingText}>JOINING ROOM...</Animated.Text></View>
+          <View className="mt-[14px] flex-row items-center gap-[6px] rounded-[14px] border border-[#10B98133] bg-[#064E3B4D] px-3 py-1"><AppIcon name="check" size={12} color="#34D399" /><Text className="text-[10px] font-medium text-[#34D399CC]">Encrypted Audio &amp; Community Lounge</Text></View>
+          <View className="mt-[13px] w-full flex-row items-center justify-between border-t border-[#4C1D9540] pt-[9px]"><Text className="text-[10px] text-[#A78BFA80]">Build v2.4.0 (PROD)</Text><View className="flex-row items-center gap-1 px-[6px] py-1"><AppIcon name="refresh" size={16} color="rgba(221,214,254,0.65)" /><Text className="text-[10px] text-[#A78BFA99]">Replay Effect</Text></View></View>
+          <View className="mt-3 h-1 w-32 rounded-[3px] bg-[#FFFFFF33]" />
         </View>
       </LinearGradient>
     </View>
@@ -202,6 +205,7 @@ const SplashScreen = ({onFinish}: SplashScreenProps) => {
 
 export default SplashScreen;
 
+// Reanimated host views require native style objects for their animated transforms.
 const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: '#07050F'},
   viewport: {flex: 1, overflow: 'hidden', paddingHorizontal: 24},
