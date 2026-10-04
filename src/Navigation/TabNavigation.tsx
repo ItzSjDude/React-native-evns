@@ -21,13 +21,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {
-  HomeStack,
-  Nearby,
-  Party,
-  Messages,
-  Profile,
-} from './StackNavigation';
+import {HomeScreen} from '../features/home';
+import {NearbyScreen} from '../features/nearby';
+import {PartyScreen} from '../features/party';
+import {MessagesScreen} from '../features/messages';
+import {ProfileScreen} from '../features/profile';
 
 import {Colors} from '../Constants/Colors';
 import AppIcon, {type IconName} from '../Constants/Icons';
@@ -45,7 +43,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const tabIcons: Record<keyof TabParamList, IconName> = {
   Home: 'home',
   Nearby: 'nearby',
-  Party: 'people',
+  Party: 'party',
   Chat: 'messages',
   Me: 'profile',
 };
@@ -128,6 +126,7 @@ const TabButton = ({
           name={tabIcons[name]}
           size={24}
           color={focused ? Colors.text : Colors.muted}
+          filled={focused}
         />
 
         {focused && (
@@ -236,33 +235,34 @@ const TabNavigation = () => (
   <Tab.Navigator
     initialRouteName="Home"
     tabBar={renderTabBar}
+    detachInactiveScreens={false}
     screenOptions={{
       headerShown: false,
-      animation: 'fade',
+      animation: 'none',
     }}>
     <Tab.Screen
       name="Home"
-      component={HomeStack}
+      component={HomeScreen}
     />
 
     <Tab.Screen
       name="Nearby"
-      component={Nearby}
+      component={NearbyScreen}
     />
 
     <Tab.Screen
       name="Party"
-      component={Party}
+      component={PartyScreen}
     />
 
     <Tab.Screen
       name="Chat"
-      component={Messages}
+      component={MessagesScreen}
     />
 
     <Tab.Screen
       name="Me"
-      component={Profile}
+      component={ProfileScreen}
     />
   </Tab.Navigator>
 );

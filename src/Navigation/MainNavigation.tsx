@@ -1,6 +1,7 @@
 import React, {useEffect} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
+import {Colors} from '../Constants/Colors';
 import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
 import TabNavigation from './TabNavigation';
@@ -58,5 +59,6 @@ export default MainNavigation;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
 });

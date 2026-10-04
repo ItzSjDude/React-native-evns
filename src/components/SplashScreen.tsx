@@ -21,6 +21,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import AppIcon from '../Constants/Icons';
 
 type SplashScreenProps = {
   onFinish: () => void;
@@ -190,8 +191,8 @@ const SplashScreen = ({onFinish}: SplashScreenProps) => {
 
         <View style={styles.footer}>
           <View style={styles.loadingBlock}><View style={styles.progressTrack}><AnimatedView style={[styles.progressFill, progressStyle]} /></View><Animated.Text style={styles.loadingText}>JOINING ROOM...</Animated.Text></View>
-          <View style={styles.secureBadge}><Text style={styles.shield}>✓</Text><Text style={styles.secureText}>Encrypted Audio &amp; Community Lounge</Text></View>
-          <View style={styles.footerMeta}><Text style={styles.version}>Build v2.4.0 (PROD)</Text><View style={styles.replay}><Text style={styles.replayIcon}>↻</Text><Text style={styles.replayText}>Replay Effect</Text></View></View>
+          <View style={styles.secureBadge}><AppIcon name="check" size={12} color="#34D399" /><Text style={styles.secureText}>Encrypted Audio &amp; Community Lounge</Text></View>
+          <View style={styles.footerMeta}><Text style={styles.version}>Build v2.4.0 (PROD)</Text><View style={styles.replay}><AppIcon name="refresh" size={16} color="rgba(221,214,254,0.65)" /><Text style={styles.replayText}>Replay Effect</Text></View></View>
           <View style={styles.homeIndicator} />
         </View>
       </LinearGradient>
@@ -251,12 +252,10 @@ const styles = StyleSheet.create({
   progressFill: {height: '100%', borderRadius: 4, backgroundColor: '#34D399', shadowColor: '#10B981', shadowOpacity: 0.9, shadowRadius: 8, elevation: 4},
   loadingText: {color: 'rgba(196,181,253,0.6)', fontSize: 11, letterSpacing: 2, fontWeight: '500'},
   secureBadge: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, backgroundColor: 'rgba(6,78,59,0.3)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 4},
-  shield: {color: '#34D399', fontSize: 12, fontWeight: '700'},
   secureText: {color: 'rgba(52,211,153,0.8)', fontSize: 10, fontWeight: '500'},
   footerMeta: {width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 13, paddingTop: 9, borderTopWidth: 1, borderTopColor: 'rgba(76,29,149,0.25)'},
   version: {color: 'rgba(167,139,250,0.5)', fontSize: 10},
   replay: {flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 6},
-  replayIcon: {color: 'rgba(221,214,254,0.65)', fontSize: 16},
   replayText: {color: 'rgba(167,139,250,0.6)', fontSize: 10},
   homeIndicator: {width: 128, height: 4, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 12},
 });

@@ -28,12 +28,12 @@ const PostCard = ({author, time, content, likes}: PostCardProps) => (
         <Typography size={17} color={Colors.text} fontWeight="600" style={styles.author}>{author}</Typography>
         <Typography size={12} color={Colors.muted} style={styles.time}>{time}</Typography>
       </View>
-      <Typography size={18} color={Colors.muted} style={styles.more}>•••</Typography>
+      <View style={styles.more}><AppIcon name="menu" size={20} color={Colors.muted} /></View>
     </View>
     <Typography size={16} color={Colors.textBody} style={styles.postText}>{content}</Typography>
     <View style={styles.postActions}>
       <View style={styles.likeGroup}>
-        <Typography size={21} color={Colors.coral} lineHeight={32} style={styles.heart}>♥</Typography>
+        <AppIcon name="heart" size={23} color={Colors.coral} />
         <Typography size={16} color={Colors.muted} style={styles.likeCount}>{likes}</Typography>
       </View>
       <View style={styles.actionGroup}>
@@ -53,11 +53,10 @@ const styles = StyleSheet.create({
   authorBlock: {marginLeft: 14},
   author: {},
   time: {marginTop: 3},
-  more: {letterSpacing: 1, marginLeft: 'auto', marginBottom: 12},
+  more: {marginLeft: 'auto', marginBottom: 12},
   postText: {marginTop: 15},
   postActions: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14},
   likeGroup: {flexDirection: 'row', alignItems: 'center'},
-  heart: {},
   likeCount: {marginLeft: 10},
   actionGroup: {flexDirection: 'row', alignItems: 'center', gap: 12},
   // actionButton: {padding: 2},
