@@ -16,6 +16,7 @@ import IconDotsVertical from '@tabler/icons-react-native/IconDotsVertical';
 import IconDotsVerticalFilled from '@tabler/icons-react-native/IconDotsVerticalFilled';
 import IconEdit from '@tabler/icons-react-native/IconEdit';
 import IconEditFilled from '@tabler/icons-react-native/IconEditFilled';
+import IconFlag from '@tabler/icons-react-native/IconFlag';
 import IconHome from '@tabler/icons-react-native/IconHome';
 import IconHomeFilled from '@tabler/icons-react-native/IconHomeFilled';
 import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
@@ -31,6 +32,7 @@ import IconRadar from '@tabler/icons-react-native/IconRadar';
 import IconRadarFilled from '@tabler/icons-react-native/IconRadarFilled';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconRocket from '@tabler/icons-react-native/IconRocket';
+import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconShieldCheck from '@tabler/icons-react-native/IconShieldCheck';
 import IconShieldCheckFilled from '@tabler/icons-react-native/IconShieldCheckFilled';
@@ -57,11 +59,13 @@ const icons = {
   location: IconMapPin,
   music: IconMusic,
   rocket: IconRocket,
+  search: IconSearch,
   football: IconBallFootball,
   chevron: IconChevronRight,
   people: IconUsers,
   shield: IconShieldCheck,
   edit: IconEdit,
+  flag: IconFlag,
   logout: IconLogout,
   menu: IconDotsVertical,
 };
