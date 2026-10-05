@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, TextInput, View} from 'react-native';
+import {ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, TextInput, useWindowDimensions, View} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
@@ -30,7 +30,7 @@ const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 
 const CreatePostModal = ({
   visible,
   body,
-  image,
+  images,
   saving,
   onChange,
   onPickImage,
@@ -40,15 +40,22 @@ const CreatePostModal = ({
 }: {
   visible: boolean;
   body: string;
-  image: SelectedPostImage | null;
+  images: SelectedPostImage[];
   saving: boolean;
   onChange: (value: string) => void;
   onPickImage: (source: 'camera' | 'gallery') => void;
-  onRemoveImage: () => void;
+  onRemoveImage: (index: number) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) => {
   const insets = useSafeAreaInsets();
+  const {width: screenWidth} = useWindowDimensions();
+  const previewWidth = screenWidth - 40;
+  const [activeImage, setActiveImage] = React.useState(0);
+
+  React.useEffect(() => {
+    if (activeImage >= images.length) setActiveImage(Math.max(0, images.length - 1));
+  }, [activeImage, images.length]);
 
   return (
     <Modal
@@ -132,12 +139,28 @@ const CreatePostModal = ({
               </Pressable>
             </View>
 
-            {image ? (
+            {images.length > 0 ? (
               <View className="mt-[12px] overflow-hidden rounded-[16px]">
-                <Image source={{uri: image.uri}} accessibilityLabel="Selected post image" className="h-[150px] w-full" resizeMode="cover" />
-                <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image" onPress={onRemoveImage} className="absolute right-[10px] top-[10px] rounded-full bg-black/70 px-[10px] py-[6px]">
-                  <Typography size={12} color={Colors.text} fontWeight="600">Remove</Typography>
-                </Pressable>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={event => setActiveImage(Math.round(event.nativeEvent.contentOffset.x / previewWidth))}
+                >
+                  {images.map((image, index) => (
+                    <View key={`${image.uri}-${index}`} style={{width: previewWidth}}>
+                      <Image source={{uri: image.uri}} accessibilityLabel={`Selected post image ${index + 1}`} className="h-[150px] w-full" resizeMode="cover" />
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Remove selected image ${index + 1}`} onPress={() => onRemoveImage(index)} className="absolute right-[10px] top-[10px] rounded-full bg-black/70 px-[10px] py-[6px]">
+                        <Typography size={12} color={Colors.text} fontWeight="600">Remove</Typography>
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+                {images.length > 1 ? (
+                  <View className="absolute bottom-[8px] left-0 right-0 flex-row justify-center">
+                    {images.map((image, index) => <View key={`${image.uri}-dot`} className={`mx-[3px] h-[6px] w-[6px] rounded-full ${index === activeImage ? 'bg-white' : 'bg-white/45'}`} />)}
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -145,7 +168,7 @@ const CreatePostModal = ({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Publish post"
-              disabled={saving || (!body.trim() && !image)}
+              disabled={saving || (!body.trim() && images.length === 0)}
               onPress={onSubmit}
               className="mt-[14px] items-center rounded-full bg-primary py-[13px] active:opacity-70"
             >
@@ -359,7 +382,7 @@ const Home = () => {
   const [error, setError] = useState<string | null>(null);
   const [createVisible, setCreateVisible] = useState(false);
   const [draft, setDraft] = useState('');
-  const [postImage, setPostImage] = useState<SelectedPostImage | null>(null);
+  const [postImages, setPostImages] = useState<SelectedPostImage[]>([]);
   const [saving, setSaving] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState<HomePost | null>(null);
@@ -392,23 +415,28 @@ const Home = () => {
   };
 
   const submitPost = async () => {
-    if ((!draft.trim() && !postImage) || saving) return;
+    if ((!draft.trim() && postImages.length === 0) || saving) return;
     setSaving(true);
     try {
       const post = await createPost({
         body: draft.trim() || undefined,
-        media: postImage ? [{url: postImage.uri, type: 'IMAGE'}] : undefined,
+        media: postImages.length > 0 ? postImages.map(image => ({url: image.uri, type: 'IMAGE' as const})) : undefined,
       });
       setFeedPosts(current => [toHomePost(post), ...current]);
-      setDraft(''); setPostImage(null); setCreateVisible(false);
+      setDraft(''); setPostImages([]); setCreateVisible(false);
     } catch (requestError) {Alert.alert('Could not publish post', messageOf(requestError));}
     finally {setSaving(false);}
   };
 
   const pickImage = async (source: 'camera' | 'gallery') => {
     try {
-      const image = await pickPostImage(source);
-      if (image) setPostImage(image);
+      const images = await pickPostImage(source);
+      if (images.length > 0) {
+        setPostImages(current => {
+          const existingUris = new Set(current.map(image => image.uri));
+          return [...current, ...images.filter(image => !existingUris.has(image.uri))];
+        });
+      }
     } catch (pickerError) {
       Alert.alert('Could not select image', messageOf(pickerError));
     }
@@ -444,7 +472,7 @@ const Home = () => {
 
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     <FlatList data={feedPosts} keyExtractor={item => item.id} renderItem={({item}) => <PostCard {...item as PostCardData} onToggleLike={() => {toggleLike(item);}} onOpenComments={() => {openComments(item);}} />} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {loadFeed(true);}} tintColor={Colors.primary} />} showsVerticalScrollIndicator={false} contentContainerClassName="px-5 pb-[110px]" ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Loading posts" color={Colors.primary} className="mt-[40px]" /> : <Typography size={14} color={error ? Colors.coral : Colors.muted} className="mt-[40px] text-center">{error ?? 'No posts yet.'}</Typography>} ListHeaderComponent={<View className="flex-row items-center justify-between pt-[21px] pb-[20px]"><View><Typography size={28} color={Colors.text} fontWeight="500" className="tracking-[-1px]">Hiva chat</Typography><Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography></View><View className="flex-row items-center"><Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={() => setCreateVisible(true)} className="mr-[8px] rounded-full bg-primary px-[12px] py-[7px] active:opacity-70"><Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Search" className="p-[5px] active:opacity-70"><AppIcon name="search" size={24} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Notifications" className="ml-[5px] p-[5px] active:opacity-70"><AppIcon name="bell" size={27} /></Pressable></View></View>} />
-    <CreatePostModal visible={createVisible} body={draft} image={postImage} saving={saving} onChange={setDraft} onPickImage={pickImage} onRemoveImage={() => setPostImage(null)} onClose={() => setCreateVisible(false)} onSubmit={submitPost} />
+    <CreatePostModal visible={createVisible} body={draft} images={postImages} saving={saving} onChange={setDraft} onPickImage={pickImage} onRemoveImage={index => setPostImages(current => current.filter((_, imageIndex) => imageIndex !== index))} onClose={() => setCreateVisible(false)} onSubmit={submitPost} />
     <CommentsModal visible={commentsVisible} post={activeCommentPost} comments={comments} loading={commentsLoading} error={commentsError} draft={commentDraft} saving={commentSaving} onChangeDraft={setCommentDraft} onClose={closeComments} onSubmit={submitComment} />
   </SafeAreaView>;
 };
