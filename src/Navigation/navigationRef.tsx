@@ -7,6 +7,7 @@ export type RootNavigationParamList = {
   Nearby: undefined;
   Messages: undefined;
   Profile: undefined;
+  Notifications: undefined;
 };
 
 export const navigationRef =

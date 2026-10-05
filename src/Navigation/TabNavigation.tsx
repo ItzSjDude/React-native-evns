@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {
   Pressable,
-  StyleSheet,
   Text,
   View,
   useWindowDimensions,
@@ -100,15 +99,17 @@ const TabButton = ({
   }));
 
   return (
-    <Animated.View style={[styles.tabSlot, containerStyle]}>
+    <Animated.View className="h-[50px] justify-center" style={containerStyle}>
       <Animated.View
         pointerEvents="none"
-        style={[styles.activeGlow, activeStyle]}
+        className="absolute -left-[4px] -right-[4px] bottom-[1px] top-[1px] rounded-[25px] border-[3px] border-[#947FE233]"
+        style={activeStyle}
       />
 
       <Animated.View
         pointerEvents="none"
-        style={[styles.activeTab, activeStyle]}
+        className="absolute bottom-[5px] left-0 right-0 top-[5px] rounded-[20px] border border-[#73679D] bg-[#13111F]"
+        style={activeStyle}
       />
 
       <Pressable
@@ -262,10 +263,3 @@ const TabNavigation = () => (
 );
 
 export default TabNavigation;
-
-// Reanimated needs native style objects for the tab width and fading overlays.
-const styles = StyleSheet.create({
-  tabSlot: {height: 50, justifyContent: 'center'},
-  activeGlow: {position: 'absolute', left: -4, right: -4, top: 1, bottom: 1, borderRadius: 25, borderWidth: 3, borderColor: 'rgba(148, 127, 226, 0.20)'},
-  activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
-});
