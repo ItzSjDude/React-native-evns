@@ -55,6 +55,11 @@ jest.mock('react-native-keychain', () => ({
   resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(),
+  launchImageLibrary: jest.fn(),
+}));
+
 jest.mock('react-native-reanimated', () => {
   const {Animated} = require('react-native');
   return {

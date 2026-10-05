@@ -2,8 +2,7 @@ import React, {useEffect} from 'react';
 import {StatusBar, View} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {navigationRef} from './navigationRef';
-import {AuthStack} from './StackNavigation';
-import TabNavigation from './TabNavigation';
+import {AppStack, AuthStack} from './StackNavigation';
 import {useAppDispatch, useAppSelector} from '../core/store/hooks';
 import {configureApiAuth} from '../core/api/apiClient';
 import {clearSession, clearStoredSession, loadSession, refreshOnce, restoreBackendSession, setSession} from '../features/auth';
@@ -45,7 +44,7 @@ const MainNavigation = () => {
         barStyle="light-content"
       />
       <NavigationContainer ref={navigationRef}>
-        {!isAuthenticated ? <AuthStack initialRouteName="Login" /> : needsOnboarding ? <AuthStack initialRouteName="Onboarding" /> : <TabNavigation />}
+        {!isAuthenticated ? <AuthStack initialRouteName="Login" /> : needsOnboarding ? <AuthStack initialRouteName="Onboarding" /> : <AppStack />}
       </NavigationContainer>
     </View>
   );
