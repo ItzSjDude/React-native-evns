@@ -20,6 +20,12 @@ export type HomeComment = {
 
 export type PostMedia = {url: string; type: 'IMAGE'};
 
+export type SelectedPostImage = {
+  uri: string;
+  type: string;
+  fileName?: string;
+};
+
 export type ApiPost = {
   id: string;
   body: string;

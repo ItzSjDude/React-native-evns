@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, TextInput, View} from 'react-native';
+import {ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, TextInput, View} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
@@ -7,7 +7,8 @@ import AppIcon from '../../Constants/Icons';
 import Typography from '../../Constants/Typography';
 import PostCard, {PostCardData} from '../../Constants/UI/PostCard';
 import {addPostComment, createPost, getPostComments, getPostFeed, likePost, unlikePost} from './homeService';
-import type {ApiPost, HomeComment, HomePost} from './types';
+import {pickPostImage} from './mediaPicker';
+import type {ApiPost, HomeComment, HomePost, SelectedPostImage} from './types';
 
 cssInterop(SafeAreaView, {className: 'style'});
 
@@ -26,18 +27,140 @@ const toHomePost = (post: ApiPost): HomePost => ({
 
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 
-const CreatePostModal = ({visible, body, saving, onChange, onClose, onSubmit}: {visible: boolean; body: string; saving: boolean; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void}) => {
+const CreatePostModal = ({
+  visible,
+  body,
+  image,
+  saving,
+  onChange,
+  onPickImage,
+  onRemoveImage,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  body: string;
+  image: SelectedPostImage | null;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onPickImage: (source: 'camera' | 'gallery') => void;
+  onRemoveImage: () => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => {
   const insets = useSafeAreaInsets();
 
   return (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-    <View className="flex-1 justify-end bg-black/60"><View className="rounded-t-[26px] bg-card px-[20px] pt-[16px]" style={{paddingBottom: insets.bottom + 30}}>
-      <View className="mb-[18px] h-[4px] w-[42px] self-center rounded-full bg-[#514B62]" />
-      <View className="mb-[14px] flex-row items-center justify-between"><Typography size={19} color={Colors.text} fontWeight="700">Create a post</Typography><Pressable accessibilityRole="button" accessibilityLabel="Close create post" onPress={onClose}><Typography size={14} color={Colors.primary} fontWeight="600">Close</Typography></Pressable></View>
-      <TextInput accessibilityLabel="Post body" value={body} onChangeText={onChange} autoFocus multiline maxLength={2000} placeholder="Share something..." placeholderTextColor={Colors.muted} className="min-h-[120px] rounded-[16px] border border-[#4A4659] bg-background px-[14px] py-[12px] text-[16px] text-foreground" />
-      <Pressable accessibilityRole="button" accessibilityLabel="Publish post" disabled={saving || !body.trim()} onPress={onSubmit} className="mt-[14px] items-center rounded-full bg-primary py-[13px] active:opacity-70"><Typography size={15} color={Colors.textDark} fontWeight="700">{saving ? 'Publishing...' : 'Publish'}</Typography></Pressable>
-    </View></View>
-  </Modal>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={{flex: 1}}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={-50}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View
+            className="rounded-t-[26px] bg-card px-[20px] pt-[16px]"
+            style={{
+              paddingBottom: Math.max(insets.bottom, 12) + 20,
+            }}
+          >
+            {/* Handle */}
+            <View className="mb-[18px] h-[4px] w-[42px] self-center rounded-full bg-[#514B62]" />
+
+            {/* Header */}
+            <View className="mb-[14px] flex-row items-center justify-between">
+              <Typography
+                size={19}
+                color={Colors.text}
+                fontWeight="700"
+              >
+                Create a post
+              </Typography>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close create post"
+                onPress={onClose}
+              >
+                <Typography
+                  size={14}
+                  color={Colors.primary}
+                  fontWeight="600"
+                >
+                  Close
+                </Typography>
+              </Pressable>
+            </View>
+
+            {/* Post input */}
+            <TextInput
+              accessibilityLabel="Post body"
+              value={body}
+              onChangeText={onChange}
+              autoFocus
+              multiline
+              maxLength={2000}
+              placeholder="Share something..."
+              placeholderTextColor={Colors.muted}
+              textAlignVertical="top"
+              className="min-h-[120px] rounded-[16px] border border-[#4A4659] bg-background px-[14px] py-[12px] text-[16px] text-foreground"
+            />
+
+            <View className="mt-[14px] flex-row items-center">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose image from gallery"
+                onPress={() => onPickImage('gallery')}
+                className="flex-1 flex-row items-center justify-center rounded-[14px] border border-[#4A4659] py-[11px] active:opacity-70"
+              >
+                <AppIcon name="image" size={19} color={Colors.primary} />
+                <Typography size={13} color={Colors.text} fontWeight="600" className="ml-[7px]">Gallery</Typography>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Take image with camera"
+                onPress={() => onPickImage('camera')}
+                className="ml-[9px] flex-1 flex-row items-center justify-center rounded-[14px] border border-[#4A4659] py-[11px] active:opacity-70"
+              >
+                <AppIcon name="camera" size={19} color={Colors.primary} />
+                <Typography size={13} color={Colors.text} fontWeight="600" className="ml-[7px]">Camera</Typography>
+              </Pressable>
+            </View>
+
+            {image ? (
+              <View className="mt-[12px] overflow-hidden rounded-[16px]">
+                <Image source={{uri: image.uri}} accessibilityLabel="Selected post image" className="h-[150px] w-full" resizeMode="cover" />
+                <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image" onPress={onRemoveImage} className="absolute right-[10px] top-[10px] rounded-full bg-black/70 px-[10px] py-[6px]">
+                  <Typography size={12} color={Colors.text} fontWeight="600">Remove</Typography>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {/* Publish */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Publish post"
+              disabled={saving || (!body.trim() && !image)}
+              onPress={onSubmit}
+              className="mt-[14px] items-center rounded-full bg-primary py-[13px] active:opacity-70"
+            >
+              <Typography
+                size={15}
+                color={Colors.textDark}
+                fontWeight="700"
+              >
+                {saving ? 'Publishing...' : 'Publish'}
+              </Typography>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 };
 
@@ -82,7 +205,7 @@ const CommentsModal = ({
           <View
             className="max-h-[90%] rounded-t-[26px] bg-card px-[20px] pt-[16px]"
             style={{
-              paddingBottom: Math.max(insets.bottom, 12) + 12,
+              paddingBottom: Math.max(insets.bottom, 8) ,
             }}
           >
             {/* Handle */}
@@ -236,6 +359,7 @@ const Home = () => {
   const [error, setError] = useState<string | null>(null);
   const [createVisible, setCreateVisible] = useState(false);
   const [draft, setDraft] = useState('');
+  const [postImage, setPostImage] = useState<SelectedPostImage | null>(null);
   const [saving, setSaving] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState<HomePost | null>(null);
@@ -268,14 +392,26 @@ const Home = () => {
   };
 
   const submitPost = async () => {
-    if (!draft.trim() || saving) return;
+    if ((!draft.trim() && !postImage) || saving) return;
     setSaving(true);
     try {
-      const post = await createPost({body: draft.trim()});
+      const post = await createPost({
+        body: draft.trim() || undefined,
+        media: postImage ? [{url: postImage.uri, type: 'IMAGE'}] : undefined,
+      });
       setFeedPosts(current => [toHomePost(post), ...current]);
-      setDraft(''); setCreateVisible(false);
+      setDraft(''); setPostImage(null); setCreateVisible(false);
     } catch (requestError) {Alert.alert('Could not publish post', messageOf(requestError));}
     finally {setSaving(false);}
+  };
+
+  const pickImage = async (source: 'camera' | 'gallery') => {
+    try {
+      const image = await pickPostImage(source);
+      if (image) setPostImage(image);
+    } catch (pickerError) {
+      Alert.alert('Could not select image', messageOf(pickerError));
+    }
   };
 
   const openComments = async (post: HomePost) => {
@@ -308,7 +444,7 @@ const Home = () => {
 
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     <FlatList data={feedPosts} keyExtractor={item => item.id} renderItem={({item}) => <PostCard {...item as PostCardData} onToggleLike={() => {toggleLike(item);}} onOpenComments={() => {openComments(item);}} />} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {loadFeed(true);}} tintColor={Colors.primary} />} showsVerticalScrollIndicator={false} contentContainerClassName="px-5 pb-[110px]" ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Loading posts" color={Colors.primary} className="mt-[40px]" /> : <Typography size={14} color={error ? Colors.coral : Colors.muted} className="mt-[40px] text-center">{error ?? 'No posts yet.'}</Typography>} ListHeaderComponent={<View className="flex-row items-center justify-between pt-[21px] pb-[20px]"><View><Typography size={28} color={Colors.text} fontWeight="500" className="tracking-[-1px]">Hiva chat</Typography><Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography></View><View className="flex-row items-center"><Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={() => setCreateVisible(true)} className="mr-[8px] rounded-full bg-primary px-[12px] py-[7px] active:opacity-70"><Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Search" className="p-[5px] active:opacity-70"><AppIcon name="search" size={24} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Notifications" className="ml-[5px] p-[5px] active:opacity-70"><AppIcon name="bell" size={27} /></Pressable></View></View>} />
-    <CreatePostModal visible={createVisible} body={draft} saving={saving} onChange={setDraft} onClose={() => setCreateVisible(false)} onSubmit={submitPost} />
+    <CreatePostModal visible={createVisible} body={draft} image={postImage} saving={saving} onChange={setDraft} onPickImage={pickImage} onRemoveImage={() => setPostImage(null)} onClose={() => setCreateVisible(false)} onSubmit={submitPost} />
     <CommentsModal visible={commentsVisible} post={activeCommentPost} comments={comments} loading={commentsLoading} error={commentsError} draft={commentDraft} saving={commentSaving} onChangeDraft={setCommentDraft} onClose={closeComments} onSubmit={submitComment} />
   </SafeAreaView>;
 };

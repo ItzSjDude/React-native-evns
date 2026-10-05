@@ -3,6 +3,7 @@ import {View} from 'react-native';
 import IconBallFootball from '@tabler/icons-react-native/IconBallFootball';
 import IconBell from '@tabler/icons-react-native/IconBell';
 import IconBellFilled from '@tabler/icons-react-native/IconBellFilled';
+import IconCamera from '@tabler/icons-react-native/IconCamera';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconChevronRightFilled from '@tabler/icons-react-native/IconChevronRightFilled';
 import IconCirclePlus from '@tabler/icons-react-native/IconCirclePlus';
@@ -19,6 +20,7 @@ import IconEditFilled from '@tabler/icons-react-native/IconEditFilled';
 import IconFlag from '@tabler/icons-react-native/IconFlag';
 import IconHome from '@tabler/icons-react-native/IconHome';
 import IconHomeFilled from '@tabler/icons-react-native/IconHomeFilled';
+import IconPhoto from '@tabler/icons-react-native/IconPhoto';
 import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
 import IconLogout from '@tabler/icons-react-native/IconLogout';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
@@ -44,6 +46,8 @@ import {Colors} from './Colors';
 
 const icons = {
   bell: IconBell,
+  camera: IconCamera,
+  image: IconPhoto,
   plus: IconCirclePlus,
   check: IconCheck,
   comment: IconMessageCircle,
