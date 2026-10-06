@@ -55,6 +55,25 @@ jest.mock('react-native-keychain', () => ({
   resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('@livekit/react-native', () => {
+  return {
+    AudioSession: {
+      configureAudio: jest.fn().mockResolvedValue(undefined),
+      startAudioSession: jest.fn().mockResolvedValue(undefined),
+      stopAudioSession: jest.fn().mockResolvedValue(undefined),
+      selectAudioOutput: jest.fn().mockResolvedValue(undefined),
+    },
+    AndroidAudioTypePresets: {communication: {}},
+    LiveKitRoom: ({children}) => children,
+    useConnectionState: () => 'connected',
+    useLocalParticipant: () => ({
+      localParticipant: {identity: '', setMicrophoneEnabled: jest.fn().mockResolvedValue(undefined)},
+      isMicrophoneEnabled: false,
+    }),
+    useParticipants: () => [],
+  };
+});
+
 jest.mock('react-native-reanimated', () => {
   const {Animated} = require('react-native');
   return {

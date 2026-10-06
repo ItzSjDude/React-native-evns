@@ -4,6 +4,7 @@ import {NavigationContainer} from '@react-navigation/native';
 import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
 import TabNavigation from './TabNavigation';
+import {PartySessionProvider, PartyLinkCapture, PartyLinkHandler} from '../features/party';
 import {useAppDispatch, useAppSelector} from '../core/store/hooks';
 import {configureApiAuth} from '../core/api/apiClient';
 import {clearSession, clearStoredSession, loadSession, refreshOnce, restoreBackendSession, setSession} from '../features/auth';
@@ -44,8 +45,9 @@ const MainNavigation = () => {
       <StatusBar
         barStyle="light-content"
       />
+      <PartyLinkCapture />
       <NavigationContainer ref={navigationRef}>
-        {!isAuthenticated ? <AuthStack initialRouteName="Login" /> : needsOnboarding ? <AuthStack initialRouteName="Onboarding" /> : <TabNavigation />}
+        {!isAuthenticated ? <AuthStack initialRouteName="Login" /> : needsOnboarding ? <AuthStack initialRouteName="Onboarding" /> : <PartySessionProvider><TabNavigation /><PartyLinkHandler /></PartySessionProvider>}
       </NavigationContainer>
     </View>
   );

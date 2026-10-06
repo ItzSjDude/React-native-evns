@@ -31,6 +31,7 @@ export type ApiPage<T> = {data: T; meta: ApiPageMeta};
 
 export type ApiRequestOptions = RequestInit & {
   auth?: 'none' | 'optional' | 'required';
+  timeoutMs?: number;
 };
 
 /** Supplied by the auth feature so shared infrastructure has no feature imports. */
@@ -101,7 +102,7 @@ async function sendRequest<T, R>(
   return select(body);
 }
 
-async function executeRequest<T, R>(
+async function executeRequestWithAuth<T, R>(
   path: string,
   {auth = 'none', ...options}: ApiRequestOptions,
   select: (envelope: ApiEnvelope<T>) => R,
@@ -141,8 +142,32 @@ async function executeRequest<T, R>(
   }
 }
 
+async function executeRequest<T, R>(path: string, {timeoutMs = 15000, signal, ...options}: ApiRequestOptions, select: (envelope: ApiEnvelope<T>) => R): Promise<R> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener('abort', abort);
+  let timedOut = false;
+  const timer = setTimeout(() => {timedOut = true; controller.abort();}, timeoutMs);
+  try {
+    return await executeRequestWithAuth(path, {...options, signal: controller.signal}, select);
+  } catch (error) {
+    if (timedOut) throw {status: 408, message: 'Request timed out. Check your connection and try again.'} satisfies ApiError;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
 export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   return executeRequest<T, T>(path, options, envelope => envelope.data);
+}
+
+/** Refresh through the normal auth retry path before a websocket handshake. */
+export async function getRealtimeAccessToken(): Promise<string | null> {
+  await apiRequest('/auth/me', {auth: 'required'});
+  return authHandlers?.getAccessToken() ?? null;
 }
 
 export function apiRequestPage<T>(path: string, options: ApiRequestOptions = {}): Promise<ApiPage<T>> {
