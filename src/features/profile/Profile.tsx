@@ -1,16 +1,25 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StatusBar, TextInput, View} from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
+import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import {cssInterop} from 'nativewind';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import Svg, {Defs, RadialGradient, Rect, Stop, Circle} from 'react-native-svg';
+import IconMenu2 from '@tabler/icons-react-native/IconMenu2';
+import IconPencil from '@tabler/icons-react-native/IconPencil';
+import IconShare3 from '@tabler/icons-react-native/IconShare3';
+import IconRefresh from '@tabler/icons-react-native/IconRefresh';
+import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
+import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi} from '../auth';
+import {usePartySession} from '../party';
 import {Colors} from '../../Constants/Colors';
-import AppIcon, {IconName} from '../../Constants/Icons';
-import Typography from '../../Constants/Typography';
-import {getMyProfile, getProfilePage, updateMyProfile} from './profileService';
-import type {ProfileItem, ProfilePost, ProfileTab, UserProfile} from './types';
+import {getGiftSummary, getMyProfile, getProfilePage, updateMyProfile} from './profileService';
+import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
+import {EditProfileSheet} from './ProfileSheets';
+import SettingsScreen from './SettingsScreen';
+import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile} from './types';
 
 cssInterop(LinearGradient, {className: 'style'});
 cssInterop(SafeAreaView, {className: 'style'});
@@ -18,11 +27,10 @@ cssInterop(SafeAreaView, {className: 'style'});
 type ListState = {items: ProfileItem[]; loading: boolean; loaded: boolean; error: string | null; hasMore: boolean; offset: number};
 const emptyList = (): ListState => ({items: [], loading: false, loaded: false, error: null, hasMore: true, offset: 0});
 const tabs: ProfileTab[] = ['posts', 'parties', 'events'];
-const accountItems: {label: string; icon: IconName; message: string}[] = [
-  {label: 'Nearby visibility', icon: 'location', message: 'Nearby visibility settings are coming soon.'},
-  {label: 'Blocked people', icon: 'people', message: 'Blocked people settings are coming soon.'},
-  {label: 'Security', icon: 'shield', message: 'Security settings are coming soon.'},
-];
+type VisibleTab = ProfileTab | 'gifts';
+const tabLabels: Record<VisibleTab, string> = {posts: 'Posts', parties: 'Rooms', events: 'Events', gifts: 'Gifts'};
+const initialsOf = (name?: string | null) => (name || '?').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+const compact = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '')}k` : String(value);
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 
 const Profile = () => {
@@ -32,18 +40,16 @@ const Profile = () => {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const [giftsOpen, setGiftsOpen] = useState(false);
+  const [gifts, setGifts] = useState<{summary: GiftSummary | null; loading: boolean; error: string | null}>({summary: null, loading: false, error: null});
   const [lists, setLists] = useState<Record<ProfileTab, ListState>>({posts: emptyList(), parties: emptyList(), events: emptyList()});
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({name: '', handle: '', bio: '', city: ''});
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'settings' | null>(null);
   const profileRequest = useRef(0);
   const visibleProfile = useRef(profile);
   visibleProfile.current = profile;
   const visibleTab = useRef(activeTab);
   visibleTab.current = activeTab;
   const listsRef = useRef(lists);
-  const editingRef = useRef(false);
   const listOwner = useRef<string | null>(null);
   const listRequests = useRef<Record<ProfileTab, number>>({posts: 0, parties: 0, events: 0});
   const listBusy = useRef(new Set<string>());
@@ -61,7 +67,6 @@ const Profile = () => {
       const value = await getMyProfile();
       if (request !== profileRequest.current) return;
       setProfile(value);
-      if (!editingRef.current) setDraft({name: value.name ?? '', handle: value.handle ?? '', bio: value.bio ?? '', city: value.city ?? ''});
     } catch (error) {
       if (request === profileRequest.current) setProfileError(messageOf(error));
     } finally {
@@ -116,138 +121,200 @@ const Profile = () => {
     }
   }, [profile?.id, activeTab, loadList, updateLists]);
 
+  const loadGifts = async (userId: string) => {
+    setGifts(current => ({...current, loading: true, error: null}));
+    try {setGifts({summary: await getGiftSummary(userId), loading: false, error: null});}
+    catch (cause) {setGifts({summary: null, loading: false, error: messageOf(cause)});}
+  };
   const onRefresh = async () => {
     await loadProfile(true);
-    if (profile?.id) await loadList(profile.id, activeTab);
+    if (profile?.id) await (giftsOpen ? loadGifts(profile.id) : loadList(profile.id, activeTab));
   };
 
-  const startEditing = () => {
+  const saveProfile = async (update: ProfileUpdate) => {
+    const updated = await updateMyProfile(update);
+    profileRequest.current++;
+    setProfile(updated);
+  };
+
+  const logout = async () => {
+    try {await logoutFromApi();}
+    finally {dispatch(clearSession());}
+  };
+
+  const navigation = useNavigation<{navigate: (route: string) => void}>();
+  const {session: liveParty, expand: openLiveParty} = usePartySession();
+  const {width} = useWindowDimensions();
+
+  const shareProfile = () => {
     if (!profile) return;
-    setDraft({name: profile.name ?? '', handle: profile.handle ?? '', bio: profile.bio ?? '', city: profile.city ?? ''});
-    setSaveError(null);
-    editingRef.current = true;
-    setEditing(true);
-  };
-
-  const save = async () => {
-    if (!profile || saving) return;
-    const name = draft.name.trim();
-    const handle = draft.handle.trim().toLowerCase();
-    if (name.length < 2 || name.length > 80) {setSaveError('Name must be 2–80 characters.'); return;}
-    if ((handle || profile.handle) && !/^[a-z0-9_]{3,30}$/.test(handle)) {setSaveError('Handle must be 3–30 letters, numbers, or underscores.'); return;}
-    if (draft.bio.trim().length > 240) {setSaveError('Bio must be 240 characters or less.'); return;}
-    if (draft.city.trim().length > 80) {setSaveError('City must be 80 characters or less.'); return;}
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const updated = await updateMyProfile({name, ...(handle ? {handle} : {}), bio: draft.bio.trim() || null, city: draft.city.trim() || null});
-      profileRequest.current++;
-      setProfile(updated);
-      setDraft({name: updated.name ?? '', handle: updated.handle ?? '', bio: updated.bio ?? '', city: updated.city ?? ''});
-      editingRef.current = false;
-      setEditing(false);
-    } catch (error) {setSaveError(messageOf(error));}
-    finally {setSaving(false);}
-  };
-
-  const handleLogout = () => {
-    Alert.alert('Log out', 'Are you sure you want to log out?', [
-      {text: 'Cancel', style: 'cancel'},
-      {text: 'Log out', style: 'destructive', onPress: async () => {
-        try {await logoutFromApi();}
-        finally {dispatch(clearSession());}
-      }},
-    ]);
+    Share.share({message: `${profile.name}${profile.handle ? ` (@${profile.handle})` : ''} is on Hiva Chat. Come hang out!`}).catch(() => {});
   };
 
   const list = lists[activeTab];
-  const displayName = profile?.name ?? '';
-  const avatar = profile?.avatar_url;
+  // Fans and gifts need the profile-settings backend; until it ships, fall back to the stats every server returns.
+  const social = profile?.stats?.followers !== undefined;
+  const stats = social ? [
+    {label: 'Fans', value: profile?.stats?.followers ?? 0, dot: 'bg-[#8B7CF6]', count: 'border-[#4A3F8C] bg-[#2A2160]', text: 'text-foreground'},
+    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DDC97]', count: 'border-[#1F5A40] bg-[#123224]', text: 'text-foreground'},
+    {label: 'Gifts mile', value: profile?.stats?.giftsReceived ?? 0, dot: 'bg-gold', count: 'border-gold bg-gold', text: 'text-gold-ink'},
+  ] : [
+    {label: 'Posts', value: profile?.stats?.posts ?? 0, dot: 'bg-[#8B7CF6]', count: 'border-[#4A3F8C] bg-[#2A2160]', text: 'text-foreground'},
+    {label: 'Hosted', value: profile?.stats?.hosted ?? 0, dot: 'bg-gold', count: 'border-gold bg-gold', text: 'text-gold-ink'},
+    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DDC97]', count: 'border-[#1F5A40] bg-[#123224]', text: 'text-foreground'},
+  ];
+  const visibleTabs: VisibleTab[] = social ? [...tabs, 'gifts'] : tabs;
+  const currentTab: VisibleTab = giftsOpen && social ? 'gifts' : activeTab;
+  const selectTab = (tab: VisibleTab) => {
+    if (tab === 'gifts') {
+      setGiftsOpen(true);
+      if (profile && !gifts.summary && !gifts.loading) loadGifts(profile.id);
+      return;
+    }
+    setGiftsOpen(false);
+    setActiveTab(tab);
+  };
+  const joined = (profile as {created_at?: string} | null)?.created_at;
+  const meta = [profile?.city, joined ? `Joined ${new Date(joined).toLocaleDateString(undefined, {month: 'short', year: 'numeric'})}` : null].filter(Boolean).join(' · ');
+
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-[125px]"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}>
-        <LinearGradient colors={['#332452', '#171327', Colors.background]} className="h-[142px] overflow-hidden">
-          {profile?.cover_image_url ? <Image source={{uri: profile.cover_image_url}} className="h-full w-full" resizeMode="cover" /> : <View className="absolute bottom-[10px] -right-10 h-[110px] w-[250px] rotate-[-12deg] rounded-[120px] bg-[#5B4086] opacity-20" />}
-        </LinearGradient>
-        <View className="-mt-9 px-5">
-          <View className="flex-row items-center">
-            <LinearGradient colors={['#F5C58D', '#463B75']} className="h-[116px] w-[116px] rounded-[58px] p-[3px]">
-              <View className="flex-1 items-center justify-center rounded-[55px] bg-[#28253B]">{avatar ? <Image source={{uri: avatar}} className="h-full w-full rounded-[55px]" /> : <AppIcon name="user" size={48} color={Colors.text} />}</View>
-            </LinearGradient>
-            <View className="ml-[15px] min-w-0 flex-1 pt-[31px]">
-              {profile ? <><Typography size={24} color={Colors.text} fontWeight="600" numsOfLine={1}>{displayName}</Typography>
-                {profile.handle ? <Typography size={15} color={Colors.muted} numsOfLine={1}>@{profile.handle}</Typography> : null}
-                <Typography size={13} color={Colors.muted} numsOfLine={1}>{profile.email}</Typography></> : null}
-            </View>
-            {profile && !editing ? <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={startEditing} className="mt-7 flex-row items-center rounded-[22px] border border-[#8A6BFF] px-[13px] py-[10px] active:opacity-70"><AppIcon name="edit" size={17} color={Colors.primary} /><Typography size={14} color={Colors.primary} fontWeight="600" className="ml-[5px]">Edit</Typography></Pressable> : null}
-          </View>
-          {profileLoading && !profile ? <ActivityIndicator accessibilityLabel="Loading profile" color={Colors.primary} className="my-[30px]" /> : null}
-          {profileError ? <View className="mt-[15px] gap-3 rounded-[14px] bg-card p-4"><Typography color={Colors.textBody}>{profileError}</Typography><Pressable accessibilityRole="button" onPress={() => loadProfile()}><Typography color={Colors.primary}>Retry</Typography></Pressable></View> : null}
-          {profile && !editing ? <>
-            {profile.bio ? <Typography size={16} color={Colors.muted} className="mt-[17px] leading-[23px]">{profile.bio}</Typography> : null}
-            {profile.interests?.length ? <View className="mt-[13px] flex-row flex-wrap gap-2">{profile.interests.map(interest => <View key={interest} className="flex-row items-center rounded-[22px] border border-[#4A4659] bg-card px-3 py-2"><AppIcon name={interestIcon(interest)} size={17} color={Colors.text} /><Typography size={13} color={Colors.textBody} className="ml-[6px]">{interest}</Typography></View>)}</View> : null}
-            {profile.city ? <View className="mt-[14px] flex-row items-center"><AppIcon name="location" size={19} color={Colors.muted} /><Typography size={15} color={Colors.muted} className="ml-[7px]">{profile.city}</Typography></View> : null}
-            <View className="mt-[18px] flex-row items-center"><Typography size={15} color={Colors.textBody}><Typography size={15} color={Colors.text} fontWeight="600">{profile.stats?.following ?? 0}</Typography> Following</Typography><View className="mx-[22px] h-[22px] w-px bg-[#4A4659]" /><Typography size={15} color={Colors.textBody}><Typography size={15} color={Colors.text} fontWeight="600">{profile.stats?.hosted ?? 0}</Typography> Hosted</Typography></View>
-          </> : null}
-          {profile && editing ? <View className="mt-[22px] gap-[15px]">
-            <Field label="Name" value={draft.name} onChangeText={name => setDraft(current => ({...current, name}))} maxLength={80} />
-            <Field label="Handle" value={draft.handle} onChangeText={handle => setDraft(current => ({...current, handle}))} autoCapitalize="none" maxLength={30} />
-            <Field label="Bio" value={draft.bio} onChangeText={bio => setDraft(current => ({...current, bio}))} multiline maxLength={240} />
-            <Field label="City" value={draft.city} onChangeText={city => setDraft(current => ({...current, city}))} maxLength={80} />
-            {saveError ? <Typography color={Colors.coral}>{saveError}</Typography> : null}
-            <View className="mt-[2px] flex-row gap-[10px]">
-              <Pressable accessibilityRole="button" onPress={() => {editingRef.current = false; setEditing(false); setSaveError(null);}} className="min-h-[44px] flex-1 items-center justify-center rounded-xl bg-card"><Typography color={Colors.textBody}>Cancel</Typography></Pressable>
-              <Pressable accessibilityRole="button" disabled={saving} onPress={() => save()} className="min-h-[44px] flex-1 items-center justify-center rounded-xl bg-primary"><Typography color={Colors.textDark} fontWeight="700">{saving ? 'Saving…' : 'Save changes'}</Typography></Pressable>
-            </View>
-          </View> : null}
-          {profile && !editing ? <>
-            <View className="mt-[22px] flex-row justify-around border-b border-[#363342]">{tabs.map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected: activeTab === tab}} onPress={() => setActiveTab(tab)} className="items-center px-[15px] pb-[11px]"><Typography size={16} color={activeTab === tab ? Colors.primary : Colors.muted} fontWeight={activeTab === tab ? '600' : '400'}>{tab[0].toUpperCase() + tab.slice(1)}</Typography>{activeTab === tab && <View className="absolute -bottom-px h-[3px] w-[62px] rounded-[2px] bg-primary" />}</Pressable>)}</View>
-            {list.items.map(item => <ProfileListItem key={item.id} item={item} tab={activeTab} profile={profile} />)}
-            {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${activeTab}`} color={Colors.primary} className="my-[30px]" /> : null}
-            {list.error ? <View className="mt-[15px] gap-3 rounded-[14px] bg-card p-4"><Typography color={Colors.textBody}>{list.error}</Typography><Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)}><Typography color={Colors.primary}>Retry</Typography></Pressable></View> : null}
-            {!list.loading && !list.error && list.items.length === 0 ? <Typography size={14} color={Colors.muted} className="py-[34px] text-center">No {activeTab} yet.</Typography> : null}
-            {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} className="items-center p-[15px]"><Typography color={Colors.primary} fontWeight="600">Load more</Typography></Pressable> : null}
-          </> : null}
-          <Typography size={18} color={Colors.text} fontWeight="600" className="mb-[11px] mt-[25px]">Account &amp; privacy</Typography>
-          <View className="rounded-[17px] border border-[#363342] bg-card px-[15px]">{accountItems.map((item, index) => <Pressable key={item.label} accessibilityRole="button" onPress={() => Alert.alert(item.label, item.message)} className={`h-[57px] flex-row items-center active:opacity-70 ${index < accountItems.length - 1 ? 'border-b border-[#363342]' : ''}`}><AppIcon name={item.icon} size={23} color={Colors.muted} /><Typography size={15} color={Colors.textBody} className="ml-[15px] flex-1">{item.label}</Typography><AppIcon name="chevron" size={19} color={Colors.muted} /></Pressable>)}</View>
-          <Pressable accessibilityRole="button" onPress={handleLogout} className="mt-[19px] h-[54px] flex-row items-center justify-center rounded-[17px] border border-[#713A48] bg-[#291722] active:opacity-70"><AppIcon name="logout" size={20} color={Colors.coral} /><Typography size={16} color={Colors.coral} fontWeight="600" className="ml-[9px]">Log out</Typography></Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-};
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}>
+        <View>
+          {/* Design hero: violet radial glow from the top-left fading into the page background. */}
+          <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
+            <Defs>
+              <RadialGradient id="hero" cx="20%" cy="0%" rx="120%" ry="90%" fx="20%" fy="0%">
+                <Stop offset="0" stopColor="#3B2A86" /><Stop offset="0.45" stopColor="#1A1338" /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+              </RadialGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#hero)" />
+          </Svg>
+          <SafeAreaView edges={['top']}>
+            <View className="px-5 pb-5 pt-[18px]">
+              <View className="flex-row items-center gap-2">
+                <Text numberOfLines={1} className="flex-1 text-[14px] font-bold text-[#C9C2DA]">{profile?.handle ? `@${profile.handle}` : ''}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setSheet('settings')}
+                  className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
+                  <IconMenu2 size={20} color="#FFFFFF" />
+                </Pressable>
+              </View>
 
-const Field = ({label, ...props}: {label: string} & React.ComponentProps<typeof TextInput>) => <View className="gap-[7px]"><Typography size={13} color={Colors.muted} fontWeight="600">{label}</Typography><TextInput {...props} accessibilityLabel={label} placeholderTextColor={Colors.muted} className={`min-h-[44px] rounded-xl bg-card px-[14px] text-[15px] text-foreground ${props.multiline ? 'min-h-[92px] pt-3' : ''}`} textAlignVertical={props.multiline ? 'top' : undefined} /></View>;
-const interestIcon = (interest: string): IconName => {
-  const value = interest.toLowerCase();
-  if (value.includes('music')) return 'music';
-  if (value.includes('football') || value.includes('sport')) return 'football';
-  if (value.includes('startup') || value.includes('tech')) return 'rocket';
-  return 'plus';
-};
-const dateLabel = (value: string | null) => {
-  if (!value) return '';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
-};
-const ProfileListItem = ({item, tab, profile}: {item: ProfileItem; tab: ProfileTab; profile: UserProfile}) => {
-  const post = tab === 'posts' ? item as ProfilePost : null;
-  const title = post?.body || (item as {title?: string}).title || 'Post';
-  const detail = post ? dateLabel(post.createdAt) : tab === 'parties'
-    ? dateLabel((item as {scheduled_start_at: string | null}).scheduled_start_at)
-    : dateLabel((item as {starts_at: string}).starts_at);
-  return <View className="mt-[14px] rounded-[18px] border border-[#363342] bg-card p-[15px]">
-    <View className="flex-row items-center">
-      <View className="h-[38px] w-[38px] items-center justify-center rounded-[19px] bg-[#453E60]">{profile.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full rounded-[19px]" /> : <AppIcon name="user" size={20} color={Colors.text} />}</View>
-      <View className="ml-[10px] flex-1"><Typography size={15} color={Colors.text} fontWeight="600" numsOfLine={1}>{profile.name}</Typography><Typography size={12} color={Colors.muted} numsOfLine={1}>{profile.handle ? `@${profile.handle}` : profile.email}{detail ? ` · ${detail}` : ''}</Typography></View>
-      <AppIcon name="menu" size={20} color={Colors.muted} />
+              <View className="mt-[30px] flex-row items-center gap-[22px] pl-2.5">
+                <View className="h-[112px] w-[112px] items-center justify-center">
+                  <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-[#5A4F8C]" />
+                  <Svg width={112} height={112} style={StyleSheet.absoluteFill}>
+                    <Circle cx={56} cy={56} r={52} stroke={Colors.gold} strokeWidth={5} fill="none" />
+                  </Svg>
+                  <View className="h-[90px] w-[90px] items-center justify-center overflow-hidden rounded-full bg-[#4A3A8C]">
+                    {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
+                      : <Text className="text-[28px] font-extrabold text-[#F0ECFF]">{initialsOf(profile?.name)}</Text>}
+                  </View>
+                </View>
+                <View className="min-w-0 flex-1 gap-2.5">
+                  {stats.map(stat => <View key={stat.label} className="flex-row items-center gap-2.5">
+                    <View className="h-[30px] w-[92px] flex-row items-center gap-1.5 rounded-full border border-[#3A3168] bg-[#15102C]/80 px-2.5">
+                      <View className={`h-1.5 w-1.5 rounded-full ${stat.dot}`} /><Text className="text-[11px] font-bold text-[#B3ACC4]">{stat.label}</Text>
+                    </View>
+                    <View className={`h-[30px] min-w-[48px] items-center justify-center rounded-full border px-2.5 ${stat.count}`}>
+                      <Text className={`text-[13px] font-extrabold ${stat.text}`}>{compact(stat.value)}</Text>
+                    </View>
+                  </View>)}
+                </View>
+              </View>
+
+              {profileLoading && !profile ? <View className="mt-5 gap-2.5">
+                <View className="h-6 w-40 rounded-lg bg-white/10" /><View className="h-4 w-64 rounded-lg bg-white/10" />
+                <ActivityIndicator accessibilityLabel="Loading profile" color={Colors.gold} className="mt-4" />
+              </View> : null}
+
+              {profileError && !profile ? <View className="mt-5 items-center rounded-[20px] bg-white/5 p-5">
+                <Text className="text-center text-sm text-text-body">{profileError}</Text>
+                <Pressable accessibilityRole="button" onPress={() => loadProfile()} className="mt-3 h-10 flex-row items-center gap-1.5 rounded-full bg-gold px-4 active:opacity-80">
+                  <IconRefresh size={16} color={Colors.goldInk} /><Text className="text-[13px] font-extrabold text-gold-ink">Try again</Text>
+                </Pressable>
+              </View> : null}
+
+              {profile ? <>
+                <View className="mt-5 gap-1.5">
+                  <Text accessibilityRole="header" numberOfLines={1} className="text-[24px] font-extrabold tracking-[-0.3px] text-foreground">{profile.name}</Text>
+                  {profile.bio ? <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>
+                    : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-gold">+ Add a bio</Text></Pressable>}
+                  {!!meta && <Text className="text-[11px] text-[#9C95AE]">{meta}</Text>}
+                  {!!profile.interests?.length && <View className="mt-1 flex-row flex-wrap gap-1.5">
+                    {profile.interests.slice(0, 3).map((interest, i) => <Text key={interest} className={`overflow-hidden rounded-full px-2.5 py-1.5 text-[11px] font-extrabold capitalize ${i === 0 ? 'bg-[#2E2410] text-gold' : 'bg-[#241D4A] text-purple-soft'}`}>{interest}</Text>)}
+                    {profile.interests.length > 3 && <Text className="overflow-hidden rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-extrabold text-[#C9C2DA]">+{profile.interests.length - 3} more</Text>}
+                  </View>}
+                </View>
+
+                <View className="mt-4 flex-row gap-2.5">
+                  <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => setSheet('edit')}
+                    className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full bg-gold active:opacity-80">
+                    <IconPencil size={16} color={Colors.goldInk} /><Text className="text-[13px] font-extrabold text-gold-ink">Edit profile</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Share profile" onPress={shareProfile}
+                    className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-[1.5px] border-purple-line active:opacity-70">
+                    <IconShare3 size={16} color="#E6E0FF" /><Text className="text-[13px] font-extrabold text-[#E6E0FF]">Share profile</Text>
+                  </Pressable>
+                </View>
+              </> : null}
+            </View>
+          </SafeAreaView>
+        </View>
+
+        {liveParty ? <Pressable accessibilityRole="button" accessibilityLabel="Back to your live room" onPress={openLiveParty}
+          className="mx-5 mt-1 flex-row items-center gap-3 rounded-[18px] bg-[#FF5D8F] px-3.5 py-3 active:opacity-90">
+          <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#1A0610]"><IconWaveSine size={20} color="#FF5D8F" /></View>
+          <View className="min-w-0 flex-1">
+            <Text className="text-[11px] font-extrabold tracking-[1px] text-[#1A0610]">YOU'RE IN A ROOM</Text>
+            <Text numberOfLines={1} className="text-[14px] font-extrabold text-[#1A0610]">{liveParty.party.title || 'Audio party'}</Text>
+          </View>
+          <Text className="text-[12px] font-extrabold text-[#1A0610]">Back to room</Text>
+          <IconChevronRight size={16} color="#1A0610" />
+        </Pressable> : null}
+
+        {profile ? <>
+          <View accessibilityRole="tablist" className="mx-5 mt-[18px] flex-row gap-0.5 rounded-full border border-border bg-[#15121E] p-1">
+            {visibleTabs.map(tab => {
+              const selected = currentTab === tab;
+              return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
+                className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? 'bg-gold' : 'active:opacity-70'}`}>
+                <Text className={`text-[13px] font-extrabold ${selected ? 'text-gold-ink' : 'text-[#A9A3B8]'}`}>{tabLabels[tab]}</Text>
+              </Pressable>;
+            })}
+          </View>
+
+          {currentTab === 'gifts' ? <View className="px-5 pb-5 pt-3.5">
+            {gifts.summary ? <GiftPanel summary={gifts.summary} /> : null}
+            {gifts.loading ? <ActivityIndicator accessibilityLabel="Loading gifts" color={Colors.gold} className="my-[30px]" /> : null}
+            {gifts.error ? <Pressable accessibilityRole="button" onPress={() => loadGifts(profile.id)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
+              <Text className="text-sm text-coral">{gifts.error} Tap to retry.</Text>
+            </Pressable> : null}
+          </View> : <View className="px-5 pb-5 pt-3.5">
+            {activeTab === 'posts' && !!list.items.length && <PostGrid posts={list.items as ProfilePost[]} />}
+            {activeTab === 'parties' && (list.loaded || list.items.length > 0) && !list.error && <RoomGrid parties={list.items as ProfileParty[]} onHost={() => navigation.navigate('Party')} />}
+            {activeTab === 'events' && <View className="gap-3">{(list.items as ProfileEvent[]).map(event => <EventCard key={event.id} event={event} />)}</View>}
+            {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={Colors.gold} className="my-[30px]" /> : null}
+            {list.error ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
+              <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
+            </Pressable> : null}
+            {!list.loading && !list.error && list.items.length === 0 && activeTab !== 'parties' ? <View className="items-center py-12">
+              <Text className="text-[16px] font-extrabold text-foreground">No {tabLabels[activeTab].toLowerCase()} yet</Text>
+              <Text className="mt-1 text-[13px] text-muted">{activeTab === 'posts' ? 'Share something from the Home tab.' : 'Events you join show up here.'}</Text>
+            </View> : null}
+            {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} className="mt-3 items-center p-[15px] active:opacity-70">
+              <Text className="text-sm font-extrabold text-gold">Load more</Text>
+            </Pressable> : null}
+          </View>}
+        </> : null}
+      </ScrollView>
+
+      <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
+      <SettingsScreen profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
     </View>
-    <Typography size={16} color={Colors.textBody} className="mt-[14px] leading-[23px]">{title}</Typography>
-    {post ? <View className="mt-[18px] flex-row items-center gap-5"><View className="flex-row items-center gap-1"><AppIcon name="heart" size={18} color={Colors.coral} /><Typography size={14} color={Colors.coral}>{post.reactions?.likeCount ?? 0}</Typography></View><View className="flex-row items-center gap-1"><AppIcon name="comment" size={18} color={Colors.muted} /><Typography size={14} color={Colors.muted}>{post.commentCount ?? 0}</Typography></View><AppIcon name="share" size={20} color={Colors.muted} /></View>
-      : <View className="mt-[18px] flex-row items-center gap-5"><AppIcon name={tab === 'parties' ? 'people' : 'location'} size={18} color={Colors.muted} /><Typography size={14} color={Colors.muted}>{tab === 'parties' ? `${(item as {participant_count: number}).participant_count} participants` : `${(item as {attendee_count: number}).attendee_count} attending`}</Typography></View>}
-  </View>;
+  );
 };
 
 export default Profile;
