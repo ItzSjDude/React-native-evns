@@ -1,2 +1,4 @@
 export {default as MessagesScreen} from './Messages';
-export type {ChatMessage, Conversation} from './types';
+export {default as DirectConversation} from './DirectConversation';
+export {startDirectConversation} from './directService';
+export type {ChatMessage, Conversation, ConversationKind} from './types';
