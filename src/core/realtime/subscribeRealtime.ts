@@ -38,5 +38,11 @@ export function subscribeRealtime({url, getToken, onEvent, onStatus}: Options) {
     } catch {schedule();}
   };
   connect();
-  return () => {stopped = true; clearTimeout(retry); clearInterval(heartbeat); socket?.close();};
+  const stop = () => {stopped = true; clearTimeout(retry); clearInterval(heartbeat); socket?.close();};
+  // Callers keep using the return value as the stop function; `send` writes a client frame when the socket is open.
+  return Object.assign(stop, {send: (frame: Record<string, unknown>) => {
+    if (socket?.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(frame));
+    return true;
+  }});
 }
