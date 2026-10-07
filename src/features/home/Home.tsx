@@ -1,154 +1,277 @@
-import React, {useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View} from 'react-native';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
 import AppIcon from '../../Constants/Icons';
 import Typography from '../../Constants/Typography';
-import PostCard, {PostCardData} from '../../Constants/UI/PostCard';
-import {addPostComment, getPostComments, likePost, unlikePost} from './homeService';
-import type {HomeComment, HomePost} from './types';
+import PostCard from '../../Constants/UI/PostCard';
+import {loadSession} from '../auth';
+import CommentsSheet from './CommentsSheet';
+import ComposePostSheet from './ComposePostSheet';
+import {messageOf, toPostCardData} from './homePresentation';
+import {createPost, deletePost, getFeedPage, likePost, reportPost, unlikePost} from './homeService';
+import {UserProfileModal, type UserPreview} from '../users';
+import {SearchScreen} from '../search';
+import {NotificationsBell, useNotificationNavigator} from '../notifications';
+import {useNavigation} from '@react-navigation/native';
+import {PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
+import IconSearch from '@tabler/icons-react-native/IconSearch';
+import type {ApiPostMedia, HomePost} from './types';
 
 cssInterop(SafeAreaView, {className: 'style'});
 
-const posts: HomePost[] = [
-  {
-    id: '1',
-    author: 'Sachin Jangir',
-    time: '1h',
-    content: 'A perfect day by the sea 🌴',
-    likes: 3257,
-    comments: 47,
-    images: [
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-    ],
-  },
-  {id: '2', author: 'Sachin Jangir', time: '6d', content: 'Weekend plans with good people.', likes: 1, comments: 4},
-  {id: '3', author: 'Sachin Jangir', time: '6d', content: 'Hell', likes: 1},
-];
+type Viewer = {id: string; name: string; avatarUrl: string | null};
+type LoadMode = 'initial' | 'refresh' | 'more';
 
 const PostSeparator = () => <View className="h-[18px]" />;
 
-const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
-
-const CommentsModal = ({visible, post, comments, loading, error, draft, saving, onChangeDraft, onClose, onSubmit}: {
-  visible: boolean;
-  post: HomePost | null;
-  comments: HomeComment[];
-  loading: boolean;
-  error: string | null;
-  draft: string;
-  saving: boolean;
-  onChangeDraft: (value: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-}) => (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end">
-      <Pressable className="flex-1 bg-black/60" onPress={onClose} />
-      <View className="max-h-[78%] rounded-t-[26px] bg-card px-[20px] pb-[18px] pt-[14px]">
-        <View className="mb-[15px] h-[4px] w-[42px] self-center rounded-full bg-[#514B62]" />
-        <View className="mb-[14px] flex-row items-center justify-between">
-          <View>
-            <Typography size={19} color={Colors.text} fontWeight="700">Comments</Typography>
-            {post ? <Typography size={12} color={Colors.muted} className="mt-[3px]">{post.author}'s post</Typography> : null}
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close comments" onPress={onClose} className="p-[6px] active:opacity-70"><Typography size={14} color={Colors.primary} fontWeight="600">Close</Typography></Pressable>
-        </View>
-        {loading ? <ActivityIndicator accessibilityLabel="Loading comments" color={Colors.primary} className="my-[30px]" /> : null}
-        {error ? <Typography size={14} color={Colors.coral} className="mb-[14px]">{error}</Typography> : null}
-        {!loading && !error && comments.length === 0 ? <Typography size={14} color={Colors.muted} className="py-[28px] text-center">No comments yet. Be the first to comment.</Typography> : null}
-        <FlatList
-          data={comments}
-          keyExtractor={item => item.id}
-          className="shrink"
-          showsVerticalScrollIndicator={false}
-          renderItem={({item}) => <View className="mb-[14px] flex-row"><View className="h-[35px] w-[35px] items-center justify-center rounded-full bg-[#453E60]"><Typography size={14} color={Colors.text} fontWeight="700">{item.author.name.slice(0, 1).toUpperCase()}</Typography></View><View className="ml-[10px] flex-1 rounded-[14px] bg-[#252235] px-[12px] py-[9px]"><Typography size={13} color={Colors.text} fontWeight="600">{item.author.name}</Typography><Typography size={14} color={Colors.textBody} className="mt-[3px]">{item.body}</Typography></View></View>}
-        />
-        <View className="mt-[8px] flex-row items-end rounded-[16px] border border-[#4A4659] bg-background px-[12px] py-[7px]">
-          <TextInput accessibilityLabel="New comment" value={draft} onChangeText={onChangeDraft} placeholder="Write a comment..." placeholderTextColor={Colors.muted} multiline maxLength={500} className="max-h-[90px] min-h-[38px] flex-1 px-[2px] text-[15px] text-foreground" />
-          <Pressable accessibilityRole="button" accessibilityLabel="Add comment" disabled={saving || !draft.trim()} onPress={onSubmit} className="ml-[8px] rounded-full bg-primary px-[13px] py-[9px] active:opacity-70"><Typography size={13} color={Colors.textDark} fontWeight="700">{saving ? '...' : 'Send'}</Typography></Pressable>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
-  </Modal>
-);
-
 const Home = () => {
-  const [feedPosts, setFeedPosts] = useState(posts);
-  const [activePost, setActivePost] = useState<HomePost | null>(null);
-  const [comments, setComments] = useState<HomeComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsError, setCommentsError] = useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = useState('');
-  const [commentSaving, setCommentSaving] = useState(false);
+  const [posts, setPosts] = useState<HomePost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [commentsPost, setCommentsPost] = useState<HomePost | null>(null);
+  const [commentsVisible, setCommentsVisible] = useState(false);
+  const [composeVisible, setComposeVisible] = useState(false);
+  const [composeDraft, setComposeDraft] = useState('');
+  const [composeError, setComposeError] = useState<string | null>(null);
+  const listRef = useRef<FlatList<HomePost>>(null);
+  const request = useRef(0);
+  const moreInFlight = useRef(false);
+  const likesInFlight = useRef(new Set<string>());
+
+  const load = useCallback(async (mode: LoadMode, cursor?: string | null) => {
+    const append = mode === 'more';
+    if (append && moreInFlight.current) return;
+    const id = append ? request.current : ++request.current;
+    if (append) {
+      moreInFlight.current = true;
+      setLoadingMore(true);
+      setMoreError(null);
+    } else {
+      if (mode === 'initial') setLoading(true);
+      setError(null);
+      setMoreError(null);
+    }
+    try {
+      const page = await getFeedPage(append ? cursor : null);
+      if (id !== request.current) return;
+      setPosts(current => append
+        ? [...current, ...page.posts.filter(post => !current.some(item => item.id === post.id))]
+        // Keep optimistic posts that are still uploading at the top across a refresh.
+        : [...current.filter(post => post.pending), ...page.posts]);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore && page.nextCursor !== null);
+    } catch (cause) {
+      if (id !== request.current) return;
+      if (append) setMoreError(messageOf(cause)); else setError(messageOf(cause));
+    } finally {
+      if (id === request.current) { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+      if (append) moreInFlight.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    load('initial');
+    const requestRef = request;
+    return () => {requestRef.current++;};
+  }, [load]);
+
+  useEffect(() => {
+    let mounted = true;
+    loadSession().then(session => {
+      if (mounted && session?.user) setViewer({id: session.user.id, name: session.user.name || 'You', avatarUrl: session.user.avatar_url ?? null});
+    }).catch(() => {});
+    return () => {mounted = false;};
+  }, []);
+
+  const updatePost = (postId: string, update: (post: HomePost) => HomePost) =>
+    setPosts(current => current.map(post => post.id === postId ? update(post) : post));
 
   const toggleLike = async (post: HomePost) => {
+    if (post.pending || likesInFlight.current.has(post.id)) return;
+    likesInFlight.current.add(post.id);
     const nextLiked = !post.likedByViewer;
-    setFeedPosts(current => current.map(item => item.id === post.id ? {...item, likedByViewer: nextLiked, likes: item.likes + (nextLiked ? 1 : -1)} : item));
+    updatePost(post.id, item => ({...item, likedByViewer: nextLiked, likes: Math.max(0, item.likes + (nextLiked ? 1 : -1))}));
     try {
-      if (nextLiked) await likePost(post.id); else await unlikePost(post.id);
-    } catch (error) {
-      setFeedPosts(current => current.map(item => item.id === post.id ? {...item, likedByViewer: !nextLiked, likes: item.likes + (nextLiked ? -1 : 1)} : item));
-      Alert.alert('Could not update like', messageOf(error));
+      const reactions = nextLiked ? await likePost(post.id) : await unlikePost(post.id);
+      // The server returns the authoritative count, which may include other people's likes.
+      if (reactions) updatePost(post.id, item => ({...item, likedByViewer: reactions.viewerHasLiked, likes: reactions.likeCount}));
+    } catch (cause) {
+      updatePost(post.id, item => ({...item, likedByViewer: post.likedByViewer, likes: post.likes}));
+      Alert.alert('Could not update like', messageOf(cause));
+    } finally {
+      likesInFlight.current.delete(post.id);
     }
   };
 
-  const openComments = async (post: HomePost) => {
-    setActivePost(post);
-    setComments([]);
-    setCommentsError(null);
-    setCommentDraft('');
-    setCommentsLoading(true);
-    try {setComments(await getPostComments(post.id));}
-    catch (error) {setCommentsError(messageOf(error));}
-    finally {setCommentsLoading(false);}
+  const openComments = (post: HomePost) => {
+    setCommentsPost(post);
+    setCommentsVisible(true);
   };
 
-  const submitComment = async () => {
-    if (!activePost || !commentDraft.trim() || commentSaving) return;
-    const body = commentDraft.trim();
-    setCommentSaving(true);
+  const changeCommentCount = useCallback((postId: string, delta: number) => {
+    setPosts(current => current.map(post => post.id === postId ? {...post, comments: Math.max(0, post.comments + delta)} : post));
+  }, []);
+
+  const openCompose = () => {
+    setComposeError(null);
+    setComposeVisible(true);
+  };
+
+  const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const navigation = useNavigation<{navigate: (route: string) => void}>();
+  // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
+  useNotificationNavigator(target => {
+    if (target.kind === 'user' && 'id' in target) {setViewing({id: target.id, initial: {name: 'Hiva user', avatarUrl: null}}); return true;}
+    if (target.kind === 'conversation') {navigation.navigate('Chat'); return true;}
+    return false;
+  });
+  const [previewRoom, setPreviewRoom] = useState<PartyRoom | null>(null);
+  const {session: partySession, open: openParty, expand: expandParty, promptActiveParty} = usePartySession();
+
+  const submitPost = async (body: string, media: ApiPostMedia[] = []) => {
+    const tempId = `local-${Date.now()}`;
+    const optimistic: HomePost = {
+      id: tempId, authorId: viewer?.id ?? '', author: viewer?.name ?? 'You', authorAvatarUrl: viewer?.avatarUrl ?? null,
+      createdAt: new Date().toISOString(), content: body, images: media.map(item => item.url), likes: 0, likedByViewer: false, comments: 0, shares: 0, pending: true,
+    };
+    setComposeVisible(false);
+    setComposeDraft('');
+    setComposeError(null);
+    setPosts(current => [optimistic, ...current]);
+    listRef.current?.scrollToOffset({offset: 0, animated: true});
     try {
-      const comment = await addPostComment(activePost.id, body);
-      setComments(current => [...current, comment]);
-      setFeedPosts(current => current.map(item => item.id === activePost.id ? {...item, comments: (item.comments ?? 0) + 1} : item));
-      setActivePost(current => current ? {...current, comments: (current.comments ?? 0) + 1} : current);
-      setCommentDraft('');
-    } catch (error) {setCommentsError(messageOf(error));}
-    finally {setCommentSaving(false);}
+      const created = await createPost(body, media);
+      setPosts(current => current.map(post => post.id === tempId ? created : post));
+    } catch (cause) {
+      setPosts(current => current.filter(post => post.id !== tempId));
+      // Hand the text back so nothing the user typed is lost.
+      setComposeDraft(body);
+      setComposeError(`Your post wasn't shared. ${messageOf(cause)}`);
+      setComposeVisible(true);
+    }
   };
 
+  const removePost = async (post: HomePost) => {
+    const index = posts.findIndex(item => item.id === post.id);
+    setPosts(current => current.filter(item => item.id !== post.id));
+    if (commentsPost?.id === post.id) setCommentsVisible(false);
+    try {
+      await deletePost(post.id);
+    } catch (cause) {
+      setPosts(current => {
+        if (current.some(item => item.id === post.id)) return current;
+        const next = [...current];
+        next.splice(Math.min(Math.max(index, 0), next.length), 0, post);
+        return next;
+      });
+      Alert.alert('Could not delete post', messageOf(cause));
+    }
+  };
+
+  const report = async (post: HomePost, reason: string) => {
+    try {
+      await reportPost(post.id, reason);
+      Alert.alert('Report received', 'Thanks for helping keep Hiva safe. Our team will review it.');
+    } catch (cause) {Alert.alert('Could not send report', messageOf(cause));}
+  };
+
+  const refresh = () => {
+    setRefreshing(true);
+    load('refresh');
+  };
+
+  const loadMore = () => {
+    if (hasMore && nextCursor && !loading && !refreshing && !moreError) load('more', nextCursor);
+  };
+
+  const header = (
+    <View className="pt-[21px] pb-[20px]">
+      <View className="flex-row items-center justify-between">
+        <View>
+          <Typography size={28} color={Colors.text} fontWeight="500" className="tracking-[-1px]">Hiva chat</Typography>
+          <Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography>
+        </View>
+        <View className="flex-row items-center">
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} className="rounded-full bg-primary px-[12px] py-[7px] active:opacity-70">
+            <Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)}
+            className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
+            <IconSearch size={18} color={Colors.text} />
+          </Pressable>
+          <NotificationsBell size={20} className="ml-2 bg-card" />
+        </View>
+      </View>
+      {error && posts.length > 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing feed" onPress={refresh} className="mt-[14px] rounded-[14px] bg-coral/10 px-[14px] py-[10px] active:opacity-70">
+          <Typography size={13} color={Colors.coral}>Couldn't refresh the feed. Tap to retry.</Typography>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  const empty = loading ? (
+    <View className="items-center pt-16"><ActivityIndicator accessibilityLabel="Loading feed" color={Colors.primary} /></View>
+  ) : error ? (
+    <View className="items-center px-6 pt-16">
+      <Typography size={16} color={Colors.text} fontWeight="600" className="text-center">Couldn't load your feed</Typography>
+      <Typography size={14} color={Colors.muted} className="mt-2 text-center">{error}</Typography>
+      <Pressable accessibilityRole="button" accessibilityLabel="Retry loading feed" onPress={() => load('initial')} className="mt-5 rounded-full bg-primary px-5 py-[10px] active:opacity-70">
+        <Typography size={14} color={Colors.textDark} fontWeight="700">Try again</Typography>
+      </Pressable>
+    </View>
+  ) : (
+    <View className="items-center px-6 pt-16">
+      <AppIcon name="comment" size={44} color={Colors.muted} filled={false} />
+      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">No posts yet</Typography>
+      <Typography size={14} color={Colors.muted} className="mt-2 text-center">Be the first to share something with everyone.</Typography>
+    </View>
+  );
+
+  const footer = loadingMore ? <ActivityIndicator className="my-4" color={Colors.primary} /> : moreError ? (
+    <Pressable accessibilityRole="button" accessibilityLabel="Retry loading more posts" onPress={() => load('more', nextCursor)} className="my-4 items-center active:opacity-70">
+      <Typography size={13} color={Colors.coral}>Couldn't load more posts. Tap to retry.</Typography>
+    </Pressable>
+  ) : undefined;
+
+  const viewerId = viewer?.id ?? null;
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     <FlatList
-      data={feedPosts}
+      ref={listRef}
+      data={posts}
+      extraData={viewerId}
       keyExtractor={item => item.id}
-      renderItem={({item}) => <PostCard {...item as PostCardData} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} />}
+      renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
+        onReport={reason => report(item, reason)}
+        onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
       showsVerticalScrollIndicator={false}
       contentContainerClassName="px-5 pb-[110px]"
       ItemSeparatorComponent={PostSeparator}
-      ListHeaderComponent={(
-        <View className="flex-row items-center justify-between pt-[21px] pb-[20px]">
-          <View>
-            <Typography size={28} color={Colors.text} fontWeight="500" className="tracking-[-1px]">Hiva chat</Typography>
-            <Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography>
-          </View>
-          <View className="flex-row items-center">
-            <Pressable accessibilityRole="button" accessibilityLabel="Create a post" className="mr-[8px] rounded-full bg-primary px-[12px] py-[7px] active:opacity-70">
-              <Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Search" className="p-[5px] active:opacity-70">
-              <AppIcon name="search" size={24} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Notifications" className="ml-[5px] p-[5px] active:opacity-70">
-              <AppIcon name="bell" size={27} />
-            </Pressable>
-          </View>
-        </View>
-      )}
+      ListHeaderComponent={header}
+      ListEmptyComponent={empty}
+      ListFooterComponent={footer}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} colors={[Colors.primary]} />}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
     />
-    <CommentsModal visible={activePost !== null} post={activePost} comments={comments} loading={commentsLoading} error={commentsError} draft={commentDraft} saving={commentSaving} onChangeDraft={setCommentDraft} onClose={() => setActivePost(null)} onSubmit={submitComment} />
+    <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
+    <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost} />
+    <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
+    {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}
+      onClose={() => setPreviewRoom(null)} onResume={() => {setPreviewRoom(null); expandParty();}}
+      onBlocked={() => promptActiveParty(() => setPreviewRoom(null))}
+      onJoined={next => {setPreviewRoom(null); openParty(next);}} />}
+    {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)}
+      onBlocked={id => {setViewing(null); setPosts(current => current.filter(post => post.authorId !== id));}} />}
   </SafeAreaView>;
 };
 
