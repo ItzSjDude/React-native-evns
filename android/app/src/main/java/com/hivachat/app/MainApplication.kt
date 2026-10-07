@@ -2,6 +2,7 @@ package com.hivachat.app
 
 import android.app.Application
 import com.hivachat.app.audio.PartyAudioPackage
+import com.hivachat.app.notifications.NotificationChannels
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -26,6 +27,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    NotificationChannels.createDefault(this)
     LiveKitReactNative.setup(this, AudioType.CommunicationAudioType())
     loadReactNative(this)
   }

@@ -1,6 +1,9 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -15,6 +18,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Android 13+: runtime-requested after sign-in by src/features/notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
       android:name=".MainApplication"
@@ -25,6 +30,19 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <!-- Lets Google Play services install the backported Photo Picker on Android 11-12 (minSdk < 30).
+           Photo picking (react-native-image-picker) needs no storage/media permissions on any version. -->
+      <service android:name="com.google.android.gms.metadata.ModuleDependencies" android:enabled="false" android:exported="false" tools:ignore="MissingClass">
+        <intent-filter>
+          <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+        </intent-filter>
+        <meta-data android:name="photopicker_activity:0:required" android:value="" />
+      </service>
+      <!-- FCM defaults for pushes that arrive while the app is backgrounded. The channel is
+           created in MainApplication (NotificationChannels.kt); the API targets gathr_default. -->
+      <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="gathr_default" tools:replace="android:value" />
+      <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_notification" />
+      <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_accent" tools:replace="android:resource" />
       <service android:name=".audio.PartyAudioService" android:exported="false" android:foregroundServiceType="mediaPlayback|microphone" />
       <activity
         android:name=".MainActivity"
@@ -42,6 +60,34 @@
           <category android:name="android.intent.category.DEFAULT" />
           <category android:name="android.intent.category.BROWSABLE" />
           <data android:scheme="hiva" android:host="party" />
+        </intent-filter>
+        <!-- gathr-api sends android.notification.click_action = <notification type>
+             (src/services/fcm.service.js). Android resolves the tap intent by that action,
+             so each type must map to this activity or tapping a background push does nothing.
+             Keep in sync with NOTIFICATION_TYPE on the API. -->
+        <intent-filter>
+          <action android:name="EVENT_PUBLISHED" />
+          <action android:name="EVENT_REMINDER" />
+          <action android:name="EVENT_CANCELLED" />
+          <action android:name="WORKSPACE_INVITE" />
+          <action android:name="PURCHASE_REQUESTED" />
+          <action android:name="NEW_MESSAGE" />
+          <action android:name="PAYMENT_CARD_SHARED" />
+          <action android:name="PAYMENT_MARKED_PAID" />
+          <action android:name="TICKET_ISSUED" />
+          <action android:name="TICKET_CANCELLED" />
+          <action android:name="TICKET_TRANSFERRED" />
+          <action android:name="CREDITS_PURCHASED" />
+          <action android:name="CREDITS_LOW" />
+          <action android:name="WAITLIST_OFFER" />
+          <action android:name="WAITLIST_OFFER_EXPIRED" />
+          <action android:name="USER_ARRIVED" />
+          <action android:name="PARTY_INVITE" />
+          <action android:name="PARTY_REMINDER" />
+          <action android:name="PARTY_SCHEDULED_START" />
+          <action android:name="PARTY_CANCELLED" />
+          <action android:name="VIBE_NOTE_NEARBY" />
+          <category android:name="android.intent.category.DEFAULT" />
         </intent-filter>
       </activity>
     </application>

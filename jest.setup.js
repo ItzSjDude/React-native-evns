@@ -55,6 +55,14 @@ jest.mock('react-native-keychain', () => ({
   resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('@react-native-community/geolocation', () => ({
+  __esModule: true,
+  default: {
+    setRNConfiguration: jest.fn(),
+    getCurrentPosition: jest.fn(),
+  },
+}));
+
 jest.mock('@livekit/react-native', () => {
   return {
     AudioSession: {
@@ -89,5 +97,33 @@ jest.mock('react-native-reanimated', () => {
     withRepeat: animation => animation,
     withSequence: (...animations) => animations[animations.length - 1],
     withTiming: value => value,
+  };
+});
+
+// Native picker module is unavailable under Jest. Default to "cancelled";
+// tests override with launchImageLibrary.mockResolvedValueOnce({assets: [...]}).
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn().mockResolvedValue({didCancel: true}),
+  launchCamera: jest.fn().mockResolvedValue({didCancel: true}),
+}));
+
+// Firebase Cloud Messaging (modular API). Listener subscriptions return unsubscribe
+// functions; tests capture listeners via e.g. `onTokenRefresh.mock.calls[0][1]`.
+jest.mock('@react-native-firebase/messaging', () => {
+  const messagingInstance = {};
+  return {
+    __esModule: true,
+    AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2, EPHEMERAL: 3},
+    getMessaging: jest.fn(() => messagingInstance),
+    getToken: jest.fn().mockResolvedValue('mock-fcm-token-0001'),
+    deleteToken: jest.fn().mockResolvedValue(undefined),
+    onTokenRefresh: jest.fn(() => jest.fn()),
+    onMessage: jest.fn(() => jest.fn()),
+    onNotificationOpenedApp: jest.fn(() => jest.fn()),
+    getInitialNotification: jest.fn().mockResolvedValue(null),
+    requestPermission: jest.fn().mockResolvedValue(1),
+    hasPermission: jest.fn().mockResolvedValue(1),
+    registerDeviceForRemoteMessages: jest.fn().mockResolvedValue(undefined),
+    setBackgroundMessageHandler: jest.fn(),
   };
 });
