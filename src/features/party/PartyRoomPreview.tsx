@@ -10,7 +10,11 @@ import {PartyColors, roomCover, roomTags, roomTitle, startsAt, tagClasses} from 
 import {loadSession} from '../auth';
 import {cancelScheduledParty, getPartyRoom, setPartyReminder, startScheduledParty, joinParty, type JoinedParty, type PartyRoom} from './partyService';
 
-const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, onResume}: {room: PartyRoom; onClose: () => void; onJoined: (session: JoinedParty) => void; activePartyId?: string; onResume?: () => void}) => {
+const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, onResume, onBlocked}: {
+  room: PartyRoom; onClose: () => void; onJoined: (session: JoinedParty) => void; activePartyId?: string; onResume?: () => void;
+  /** Called instead of joining when the user is already in a different party. */
+  onBlocked?: () => void;
+}) => {
   const [room,setRoom]=useState(initialRoom);
   const [isHost,setIsHost]=useState(false);
   const [reminded,setReminded]=useState(false);
@@ -21,7 +25,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
   const join = async () => {
     if (joining || room.kind !== 'AUDIO') return;
     if(activePartyId===room.id){onResume?.();return;}
-    if(activePartyId){setError('Leave your current party before joining another.');return;}
+    if(activePartyId){setError('You’re already in a party. Leave it before joining another.');onBlocked?.();return;}
     if(room.status!=='ACTIVE')return;
     setJoining(true);
     setError(null);
@@ -62,9 +66,9 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
           <Text className="mt-3 text-sm text-muted">{room.seatCount || 8} speaker seats · {room.visibility==='PRIVATE' ? 'Invite-only' : 'Public'}</Text>
           {!!room.language && <Text className="mt-3 text-sm text-muted">Language: {room.language}</Text>}
           {room.status==='SCHEDULED' && isHost && <Pressable accessibilityRole="button" disabled={joining} onPress={()=>{setJoining(true);cancelScheduledParty(room.id).then(onClose).catch(cause=>setError(cause.message || 'Could not cancel party.')).finally(()=>setJoining(false));}} className="mt-4 min-h-11 justify-center"><Text className="text-coral">Cancel scheduled party</Text></Pressable>}
-          {!!error && <Text className="mt-6 text-center text-sm leading-5 text-coral">{error}</Text>}
         </ScrollView>
         <View className="absolute bottom-0 left-0 right-0 border-t border-border/60 bg-background px-5 pb-5 pt-3">
+          {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="mb-2 text-center text-sm leading-5 text-coral">{error}</Text>}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={label}

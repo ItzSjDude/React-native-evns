@@ -45,7 +45,7 @@ const Party = () => {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<PartyRoom | null>(null);
-  const {session: activeAudioRoom, open: openAudioRoom, expand: expandAudioRoom} = usePartySession();
+  const {session: activeAudioRoom, open: openAudioRoom, expand: expandAudioRoom, promptActiveParty} = usePartySession();
   const [menuRoom, setMenuRoom] = useState<PartyRoom | null>(null);
   const request = useRef(0);
   const moreInFlight = useRef(false);
@@ -145,7 +145,7 @@ const Party = () => {
         ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={PartyColors.accent} /> : undefined}
       />
       {createOpen && <PartyCreateSheet onClose={() => setCreateOpen(false)} onCreated={onCreated} />}
-      {selectedRoom && <PartyRoomPreview room={selectedRoom} activePartyId={activeAudioRoom?.party.id} onResume={() => {setSelectedRoom(null); expandAudioRoom();}} onClose={() => setSelectedRoom(null)} onJoined={session => { setSelectedRoom(null); openAudioRoom(session); }} />}
+      {selectedRoom && <PartyRoomPreview room={selectedRoom} activePartyId={activeAudioRoom?.party.id} onResume={() => {setSelectedRoom(null); expandAudioRoom();}} onBlocked={() => promptActiveParty(() => setSelectedRoom(null))} onClose={() => setSelectedRoom(null)} onJoined={session => { setSelectedRoom(null); openAudioRoom(session); }} />}
 
       {!!menuRoom && <Modal visible transparent animationType="fade" onRequestClose={() => setMenuRoom(null)}>
         <View className="flex-1 justify-end bg-black/60">

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Share, Text, TextInput, View} from 'react-native';
+import {Alert, AppState, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Share, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useConnectionState, useLocalParticipant, useParticipants, useRoomContext} from '@livekit/react-native';
 import {ConnectionState, RoomEvent} from 'livekit-client';
@@ -15,12 +15,17 @@ import IconMicrophone from '@tabler/icons-react-native/IconMicrophone';
 import IconMicrophoneOff from '@tabler/icons-react-native/IconMicrophoneOff';
 import IconVolume from '@tabler/icons-react-native/IconVolume';
 import IconSend from '@tabler/icons-react-native/IconSend';
+import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
+import IconDoorExit from '@tabler/icons-react-native/IconDoorExit';
+import IconRefresh from '@tabler/icons-react-native/IconRefresh';
+import IconCheck from '@tabler/icons-react-native/IconCheck';
+import {UserProfileModal, type UserPreview} from '../users';
 import AudioPartyStage from './AudioPartyStage';
 import RoomChatStream from './RoomChatStream';
-import PartyRoomPanel, {type RoomAction, type RoomActionTarget, type RoomPanel} from './PartyRoomPanel';
+import PartyRoomPanel, {type ReportTarget, type RoomAction, type RoomActionTarget, type RoomPanel} from './PartyRoomPanel';
 import {usePartyRoomState} from './usePartyRoomState';
 import {PartyColors, roomTitle} from './partyPresentation';
-import {deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty} from './partyService';
+import {deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty, type PartyRoomSettings} from './partyService';
 
 export default function AudioRoomStage({session, onClose, closeRequest, connectionError, expanded, onMinimize, onExpand}: {
   session: JoinedParty; onClose: () => void; expanded: boolean; onMinimize: () => void; onExpand: () => void; closeRequest: React.MutableRefObject<(() => void) | null>; connectionError: string | null;
@@ -38,6 +43,7 @@ export default function AudioRoomStage({session, onClose, closeRequest, connecti
   const [error, setError] = useState<string | null>(null);
   const [chatText, setChatText] = useState('');
   const [outputOpen,setOutputOpen]=useState(false);
+  const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [chatBusy,setChatBusy]=useState(false);
   const chatBusyRef=useRef(false);
   const [keyboard, setKeyboard] = useState(false);
@@ -75,12 +81,15 @@ export default function AudioRoomStage({session, onClose, closeRequest, connecti
   }, [refresh]);
 
   const reconnecting = useRef(false);
+  const connectedOnce = useRef(false);
+  useEffect(() => {if (connection === ConnectionState.Connected) connectedOnce.current = true;}, [connection]);
   const restoreAudio = useCallback(async () => {
     if (reconnecting.current || !mounted.current) return;
     reconnecting.current = true;
     try {
       const next = await refresh(true);
-      if (!next || !mounted.current || room.state !== ConnectionState.Disconnected) return;
+      if (!mounted.current || room.state !== ConnectionState.Disconnected) return;
+      if (!next) {setError('Audio disconnected. Tap Retry audio.'); return;}
       const current = next.participants.find(p => p.userId === identity);
       if (!current?.active || intentionalExit.current) return;
       const rejoined = await joinParty(partyId);
@@ -92,44 +101,46 @@ export default function AudioRoomStage({session, onClose, closeRequest, connecti
     let timer: ReturnType<typeof setTimeout> | undefined;
     const disconnected = () => {if (!intentionalExit.current) timer = setTimeout(() => restoreAudio(), 500);};
     room.on(RoomEvent.Disconnected, disconnected);
-    return () => {clearTimeout(timer); room.off(RoomEvent.Disconnected, disconnected);};
+    // Coming back from the background: the media connection may have dropped while we were away
+    // (or a reconnect attempt failed without an activity); try again instead of leaving a dead room.
+    const appState = AppState.addEventListener('change', state => {
+      if (state === 'active' && connectedOnce.current && !intentionalExit.current && room.state === ConnectionState.Disconnected) restoreAudio();
+    });
+    return () => {clearTimeout(timer); room.off(RoomEvent.Disconnected, disconnected); appState.remove();};
   }, [restoreAudio, room]);
 
-  const act = (action: RoomAction, target?: RoomActionTarget) => {
-    if (action === 'report') {
-      Alert.alert('Report participant', 'Choose a reason for the report.', [...['Inappropriate behavior', 'Spam'].map(reason => ({text: reason, onPress: () => {run(async () => {await reportPartyParticipant(partyId, String(target), reason); setPanel(null); Alert.alert('Report received', 'Thanks for helping keep this room safe.');});}})), {text: 'Cancel', style: 'cancel'}]);
-      return;
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {if (!notice) return; const timer = setTimeout(() => setNotice(null), 2600); return () => clearTimeout(timer);}, [notice]);
+
+  // Destructive person actions (remove/block/transfer) are confirmed inside the sheet before they reach here.
+  const act = (action: RoomAction, target?: RoomActionTarget) => run(async () => {
+    switch (action) {
+      case 'approve': if (freeSeat === undefined) throw new Error('No open speaker seat. Unlock or free one first.'); await approvePartySeat(partyId, String(target), freeSeat); break;
+      case 'deny': await denyPartySeat(partyId, String(target)); break;
+      case 'cancel': if (ownRequest) await cancelPartySeatRequest(partyId, ownRequest.id); break;
+      case 'request': await requestPartySeat(partyId); setPanel(null); setNotice('Hand raised. The host will see your request.'); break;
+      case 'lock': await patchPartySeat(partyId, Number(target), {locked: !snapshot.lockedSeats.includes(Number(target))}); break;
+      case 'mute': await patchPartySeat(partyId, Number(target), {muted: true}); break;
+      case 'kick': await movePartySpeakerToAudience(partyId, Number(target)); break;
+      case 'stepdown': await localParticipant.setMicrophoneEnabled(false); await releasePartySeat(partyId); setPanel(null); break;
+      case 'invite': if (freeSeat === undefined) throw new Error('No open speaker seat.'); await inviteToPartySeat(partyId, String(target), freeSeat); setNotice('Invite sent.'); break;
+      case 'cohost': await setPartyCoHost(partyId, String(target), snapshot.participants.find(p => p.userId === target)?.role !== 'CO_HOST'); break;
+      case 'remove': await removePartyParticipant(partyId, String(target)); setPanel(null); break;
+      case 'block': await blockPartyParticipant(partyId, String(target)); setPanel(null); setNotice('Participant blocked.'); break;
+      case 'report': {const {userId, reason} = target as ReportTarget; await reportPartyParticipant(partyId, userId, reason); setPanel(null); setNotice('Report received. Thanks for keeping the room safe.'); break;}
+      case 'delete-message': await deletePartyChat(partyId, String(target)); setPanel(null); break;
+      case 'share': await Share.share({message:await partyShareMessage(snapshot.party)}); break;
+      case 'chat-toggle': await updatePartySettings(partyId,{chatEnabled:snapshot.party.chatEnabled===false}); break;
+      case 'requests-toggle': await updatePartySettings(partyId,{requestsEnabled:snapshot.party.requestsEnabled===false}); break;
+      case 'slow-mode': await updatePartySettings(partyId,{slowModeSeconds:snapshot.party.slowModeSeconds ? 0 : 10}); break;
+      case 'edit': await updatePartySettings(partyId,target as PartyRoomSettings); setPanel({kind:'info'}); break;
+      case 'transfer': await transferPartyHost(partyId,String(target)); setPanel(null); setNotice('Host role transferred.'); break;
+      case 'accept-invite': await respondPartyInvitation(partyId,String(target),true); break;
+      case 'decline-invite': await respondPartyInvitation(partyId,String(target),false); break;
+      case 'disconnect': intentionalExit.current=true; await localParticipant.setMicrophoneEnabled(false); await room.disconnect(); onClose(); break;
+      case 'exit': intentionalExit.current = true; await localParticipant.setMicrophoneEnabled(false); try {await (host ? endParty(partyId) : leaveParty(partyId)); await room.disconnect(); onClose();} catch (cause) {intentionalExit.current = false; throw cause;} break;
     }
-    const perform = () => run(async () => {
-      switch (action) {
-        case 'approve': if (freeSeat === undefined) throw new Error('No open speaker seat. Unlock or free one first.'); await approvePartySeat(partyId, String(target), freeSeat); break;
-        case 'deny': await denyPartySeat(partyId, String(target)); break;
-        case 'cancel': if (ownRequest) await cancelPartySeatRequest(partyId, ownRequest.id); break;
-        case 'request': await requestPartySeat(partyId); break;
-        case 'lock': await patchPartySeat(partyId, Number(target), {locked: !snapshot.lockedSeats.includes(Number(target))}); break;
-        case 'mute': await patchPartySeat(partyId, Number(target), {muted: true}); break;
-        case 'kick': await movePartySpeakerToAudience(partyId, Number(target)); break;
-        case 'stepdown': await localParticipant.setMicrophoneEnabled(false); await releasePartySeat(partyId); break;
-        case 'invite': if (freeSeat === undefined) throw new Error('No open speaker seat.'); await inviteToPartySeat(partyId, String(target), freeSeat); break;
-        case 'cohost': await setPartyCoHost(partyId, String(target), snapshot.participants.find(p => p.userId === target)?.role !== 'CO_HOST'); break;
-        case 'remove': await removePartyParticipant(partyId, String(target)); setPanel(null); break;
-        case 'block': await blockPartyParticipant(partyId, String(target)); setPanel(null); Alert.alert('Participant blocked'); break;
-        case 'share': await Share.share({message:await partyShareMessage(snapshot.party)}); break;
-        case 'chat-toggle': await updatePartySettings(partyId,{chatEnabled:snapshot.party.chatEnabled===false}); break;
-        case 'requests-toggle': await updatePartySettings(partyId,{requestsEnabled:snapshot.party.requestsEnabled===false}); break;
-        case 'slow-mode': await updatePartySettings(partyId,{slowModeSeconds:snapshot.party.slowModeSeconds ? 0 : 10}); break;
-        case 'edit': await updatePartySettings(partyId,target as import('./partyService').PartyRoomSettings); setPanel({kind:'info'}); break;
-        case 'transfer': await transferPartyHost(partyId,String(target)); setPanel(null); break;
-        case 'accept-invite': await respondPartyInvitation(partyId,String(target),true); break;
-        case 'decline-invite': await respondPartyInvitation(partyId,String(target),false); break;
-        case 'disconnect': intentionalExit.current=true; await localParticipant.setMicrophoneEnabled(false); await room.disconnect(); onClose(); break;
-        case 'exit': intentionalExit.current = true; await localParticipant.setMicrophoneEnabled(false); try {await (host ? endParty(partyId) : leaveParty(partyId)); await room.disconnect(); onClose();} catch (cause) {intentionalExit.current = false; throw cause;} break;
-      }
-    });
-    if (action === 'transfer') Alert.alert('Transfer host role?', 'The selected co-host will control this party. You can leave without ending it.', [{text:'Cancel',style:'cancel'},{text:'Make host',onPress:perform}]);
-    else if (action === 'remove' || action === 'block') Alert.alert(action === 'remove' ? 'Remove from this room?' : 'Block this participant?', 'Confirm this action for the selected participant.', [{text: 'Cancel', style: 'cancel'}, {text: action === 'remove' ? 'Remove' : 'Block', style: 'destructive', onPress: perform}]);
-    else perform();
-  };
+  });
   const sendChat = async () => {
     const body=chatText.trim();
     if(!body || chatBusyRef.current || snapshot.party.chatEnabled===false)return;
@@ -138,58 +149,86 @@ export default function AudioRoomStage({session, onClose, closeRequest, connecti
     catch(cause){if(mounted.current)setError((cause as Error).message || 'Message failed. Your draft is saved; try again.');}
     finally{chatBusyRef.current=false;if(mounted.current)setChatBusy(false);}
   };
-  const messageActions = (message: import('./partyService').PartyChatMessage) => {
-    const buttons: import('react-native').AlertButton[]=[];
-    if(manager || message.userId===identity)buttons.push({text:'Delete message',style:'destructive',onPress:()=>run(async()=>{await deletePartyChat(partyId,message.id);})});
-    if(message.userId!==identity)buttons.push({text:'Report message',onPress:()=>run(async()=>{await reportPartyParticipant(partyId,message.userId,`Inappropriate room message: ${message.body.slice(0,200)}`);Alert.alert('Report received');})});
-    buttons.push({text:'Cancel',style:'cancel'});Alert.alert('Message options',message.name,buttons);
-  };
   const invitation=snapshot.seatInvitations?.find(item=>Date.parse(item.expiresAt)>Date.now());
+  const live = connection === ConnectionState.Connected;
+  const status = live ? 'Live' : connection === ConnectionState.Reconnecting ? 'Reconnecting…' : connection === ConnectionState.Disconnected ? 'Audio disconnected' : 'Connecting…';
+  const micLabel = canSpeak ? micPending ? 'Cancel' : isMicrophoneEnabled ? 'Mute' : 'Unmute' : ownRequest ? 'Hand raised' : snapshot.party.requestsEnabled === false ? 'Paused' : 'Raise hand';
+  const micDisabled = canSpeak ? !isMicrophoneEnabled && !micPending && !live : busy || !live || (!ownRequest && snapshot.party.requestsEnabled === false);
+  const micActive = canSpeak ? isMicrophoneEnabled : !!ownRequest;
+  const chatPaused = snapshot.party.chatEnabled === false;
   return <>
-    {!expanded && <View className="absolute bottom-[90px] left-4 right-4 flex-row items-center rounded-[20px] border border-border bg-card p-2">
-      <Pressable accessibilityRole="button" accessibilityLabel="Return to audio party" onPress={onExpand} className="min-h-11 min-w-0 flex-1 justify-center px-2"><Text numberOfLines={1} className="text-sm font-semibold text-foreground">{roomTitle(snapshot.party)}</Text><Text className="mt-1 text-xs text-muted">{connection===ConnectionState.Connected ? canSpeak ? isMicrophoneEnabled ? 'Mic on' : 'Mic off' : 'Listening' : 'Audio disconnected · Open to retry'}</Text></Pressable>
-      {canSpeak && <Pressable accessibilityRole="button" accessibilityLabel={isMicrophoneEnabled || micPending ? 'Mute microphone' : 'Unmute microphone'} onPress={toggleMic} className="h-11 w-11 items-center justify-center">{isMicrophoneEnabled ? <IconMicrophone size={22} color={PartyColors.accent} /> : <IconMicrophoneOff size={22} color={PartyColors.coral} />}</Pressable>}
-      <Pressable accessibilityRole="button" accessibilityLabel="Leave audio party" onPress={()=>{onExpand();setPanel({kind:'exit'});}} className="h-11 w-11 items-center justify-center"><IconX size={22} color={PartyColors.coral} /></Pressable>
+    {!expanded && <View className="absolute bottom-[90px] left-4 right-4 flex-row items-center gap-1 rounded-[22px] border border-border bg-card py-2 pl-2 pr-1">
+      <Pressable accessibilityRole="button" accessibilityLabel="Return to audio party" onPress={onExpand} className="min-h-11 min-w-0 flex-1 flex-row items-center gap-3 active:opacity-70">
+        <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-dark"><IconHeadphones size={20} color={PartyColors.accent} /></View>
+        <View className="min-w-0 flex-1">
+          <Text numberOfLines={1} className="text-sm font-semibold text-foreground">{roomTitle(snapshot.party)}</Text>
+          <View className="mt-0.5 flex-row items-center gap-1.5"><View className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-glow-green' : 'bg-coral'}`} /><Text numberOfLines={1} className="text-xs text-muted">{live ? canSpeak ? isMicrophoneEnabled ? 'Mic on' : 'Mic off' : 'Listening' : 'Audio disconnected · Open to retry'}</Text></View>
+        </View>
+      </Pressable>
+      {canSpeak && <Pressable accessibilityRole="button" accessibilityLabel={isMicrophoneEnabled || micPending ? 'Mute microphone' : 'Unmute microphone'} onPress={toggleMic} className={`h-11 w-11 items-center justify-center rounded-full ${isMicrophoneEnabled ? 'bg-primary' : 'bg-background'}`}>{isMicrophoneEnabled ? <IconMicrophone size={20} color={PartyColors.ink} /> : <IconMicrophoneOff size={20} color={PartyColors.coral} />}</Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Leave audio party" onPress={()=>{onExpand();setPanel({kind:'exit'});}} className="h-11 w-11 items-center justify-center rounded-full active:bg-background"><IconX size={20} color={PartyColors.muted} /></Pressable>
     </View>}
-    <Modal visible={expanded} animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>setPanel({kind:'exit'})}>
+    <Modal visible={expanded} animationType="slide" presentationStyle="fullScreen" onRequestClose={onMinimize}>
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View className="flex-row items-center px-4 py-2">
-        <View className="min-w-0 flex-1"><Text numberOfLines={1} className="text-[17px] font-semibold text-foreground">{roomTitle(snapshot.party)}</Text><Text className="mt-1 text-[11px] text-muted">{connection === ConnectionState.Connected ? 'Live audio' : connection === ConnectionState.Reconnecting ? 'Reconnecting audio…' : 'Connecting audio…'}</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Minimize audio party" onPress={onMinimize} className="mr-2 h-11 w-11 items-center justify-center rounded-full bg-card"><IconChevronDown size={23} color={PartyColors.text} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Room controls" onPress={() => setPanel({kind: 'info'})} className="h-11 w-11 items-center justify-center rounded-full bg-card"><IconDots size={23} color={PartyColors.text} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={host ? 'End party' : 'Leave party'} onPress={() => setPanel({kind: 'exit'})} className="ml-2 h-11 w-11 items-center justify-center rounded-full bg-card"><IconX size={21} color={PartyColors.coral} /></Pressable>
+      <View className="flex-row items-center gap-2 px-3 pb-1 pt-1">
+        <Pressable accessibilityRole="button" accessibilityLabel="Minimize audio party" onPress={onMinimize} className="h-11 w-11 items-center justify-center rounded-full active:bg-card"><IconChevronDown size={26} color={PartyColors.text} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Room details" onPress={() => setPanel({kind: 'info'})} className="min-w-0 flex-1 items-center active:opacity-70">
+          <Text numberOfLines={1} className="text-[16px] font-bold tracking-[-0.2px] text-foreground">{roomTitle(snapshot.party)}</Text>
+          <View className="mt-0.5 flex-row items-center gap-1.5">
+            <View className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-glow-green' : 'bg-coral'}`} />
+            <Text accessibilityLiveRegion="polite" className="text-xs text-muted">{status} · {speakers.length + audience.length} in room</Text>
+          </View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Room controls" onPress={() => setPanel({kind: 'info'})} className="h-11 w-11 items-center justify-center rounded-full active:bg-card"><IconDots size={24} color={PartyColors.text} /></Pressable>
       </View>
-      <View className="mx-5 mt-2 flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-xs text-muted">{speakers.length} speakers · {seatCount} seats</Text>
-        {manager && <Pressable accessibilityRole="button" accessibilityLabel={`Requests to speak ${requests.length}`} onPress={() => setPanel({kind: 'requests'})} className="h-11 flex-row items-center gap-1.5 rounded-full bg-primary-dark px-3"><IconHandStop size={16} color={PartyColors.accent} /><Text className="text-xs font-semibold text-primary">Requests {requests.length || ''}</Text></Pressable>}
-        <Pressable accessibilityRole="button" accessibilityLabel="People in room" onPress={() => setPanel({kind: 'people'})} className="h-11 flex-row items-center gap-1.5 rounded-full bg-card px-3"><IconUsers size={16} color={PartyColors.text} /><Text className="text-xs text-foreground">{audience.length}</Text></Pressable>
-      </View>
+      {!!snapshot.party.topic && !keyboard && <Text numberOfLines={2} className="mx-8 text-center text-[13px] leading-5 text-muted">{snapshot.party.topic}</Text>}
       {!keyboard && <AudioPartyStage seatCount={seatCount} speakers={speakers} liveById={liveById} localIdentity={identity} lockedSeats={snapshot.lockedSeats}
         onSeatPress={(person, index) => setPanel(person ? {kind: 'person', personId: person.userId} : {kind: 'seat', seatIndex: index})} />}
-      {invitation && <View className="mx-4 mb-2 rounded-2xl bg-card p-3"><Text accessibilityLiveRegion="polite" className="text-sm text-foreground">You’re invited to speak · Seat {invitation.seatIndex+1}</Text><View className="mt-2 flex-row gap-3"><Pressable accessibilityRole="button" disabled={busy} onPress={()=>act('accept-invite',invitation.id)} className="min-h-11 flex-1 items-center justify-center rounded-full bg-primary"><Text className="font-semibold text-text-dark">Accept</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={()=>act('decline-invite',invitation.id)} className="min-h-11 flex-1 items-center justify-center"><Text className="text-muted">Decline</Text></Pressable></View><Text className="mt-2 text-xs text-muted">Your microphone stays off until you unmute.</Text></View>}
-      <RoomChatStream messages={messages} identity={identity} onMessagePress={messageActions} />
+      {invitation && <View className="mx-4 mb-2 flex-row items-center gap-3 rounded-2xl border border-primary/40 bg-primary-dark p-3">
+        <View className="h-10 w-10 items-center justify-center rounded-full bg-primary"><IconMicrophone size={20} color={PartyColors.ink} /></View>
+        <View className="min-w-0 flex-1"><Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-foreground">You’re invited to speak</Text><Text className="mt-0.5 text-xs text-muted">Seat {invitation.seatIndex+1} · mic stays off until you unmute</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Decline" disabled={busy} onPress={()=>act('decline-invite',invitation.id)} className="h-9 justify-center px-2"><Text className="text-[13px] font-semibold text-muted">Later</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Accept" disabled={busy} onPress={()=>act('accept-invite',invitation.id)} className="h-9 justify-center rounded-full bg-primary px-4"><Text className="text-[13px] font-bold text-text-dark">Join</Text></Pressable>
+      </View>}
+      <RoomChatStream messages={messages} identity={identity} onMessagePress={message => setPanel({kind: 'message', message})} />
       {!!(error || syncError || connectionError) && <Text accessibilityRole="alert" className="px-5 py-1 text-center text-xs text-coral">{error || syncError || connectionError}</Text>}
-      {connection === ConnectionState.Disconnected && <Pressable accessibilityRole="button" onPress={restoreAudio} className="h-11 items-center justify-center"><Text className="text-sm font-semibold text-primary">Retry audio</Text></Pressable>}
-      <View className="border-t border-border/50 bg-nav-background px-4 pb-2 pt-3">
+      {connection === ConnectionState.Disconnected && <Pressable accessibilityRole="button" onPress={restoreAudio} className="mx-auto mb-1 h-9 flex-row items-center gap-1.5 rounded-full bg-card px-4"><IconRefresh size={15} color={PartyColors.accent} /><Text className="text-[13px] font-semibold text-primary">Retry audio</Text></Pressable>}
+      <View className="border-t border-border/60 bg-nav-background px-3 pb-2 pt-2.5">
         <View className="h-11 flex-row items-center rounded-full border border-border bg-card pl-4 pr-1">
-          <TextInput accessibilityLabel="Send a room message" value={chatText} onChangeText={setChatText} maxLength={4000} editable={!chatBusy && snapshot.party.chatEnabled!==false} onSubmitEditing={sendChat} returnKeyType="send" placeholder={snapshot.party.chatEnabled===false ? 'Chat paused by host' : 'Say something…'} placeholderTextColor={PartyColors.muted} className="h-full flex-1 text-sm text-foreground" />
-          <Pressable accessibilityRole="button" accessibilityLabel="Send room message" onPress={sendChat} disabled={chatBusy || !chatText.trim() || snapshot.party.chatEnabled===false} className="h-11 w-11 items-center justify-center rounded-full bg-primary"><IconSend size={17} color={PartyColors.ink} /></Pressable>
+          <TextInput accessibilityLabel="Send a room message" value={chatText} onChangeText={setChatText} maxLength={4000} editable={!chatBusy && !chatPaused} onSubmitEditing={sendChat} returnKeyType="send" placeholder={chatPaused ? 'Chat paused by host' : 'Say something…'} placeholderTextColor={PartyColors.muted} className="h-full flex-1 text-sm text-foreground" />
+          {!!chatText.trim() && <Pressable accessibilityRole="button" accessibilityLabel="Send room message" onPress={sendChat} disabled={chatBusy || chatPaused} className="h-9 w-9 items-center justify-center rounded-full bg-primary"><IconSend size={16} color={PartyColors.ink} /></Pressable>}
         </View>
-        <View className="mt-2 flex-row items-center justify-center gap-6">
-          <Pressable accessibilityRole="button" accessibilityLabel="Choose audio device" onPress={()=>setOutputOpen(true)} className="min-h-12 min-w-12 items-center justify-center gap-1"><IconVolume size={21} color={PartyColors.accent} /><Text className="text-xs text-muted">Audio</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={canSpeak ? isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone' : ownRequest ? 'Cancel request to speak' : 'Request to speak'} disabled={canSpeak ? !isMicrophoneEnabled && !micPending && connection!==ConnectionState.Connected : busy || connection!==ConnectionState.Connected || (!ownRequest && snapshot.party.requestsEnabled===false)} onPress={canSpeak ? toggleMic : () => act(ownRequest ? 'cancel' : 'request')} className="min-h-12 min-w-24 items-center justify-center gap-1">
-            {canSpeak ? isMicrophoneEnabled ? <IconMicrophone size={24} color={PartyColors.accent} /> : <IconMicrophoneOff size={24} color={PartyColors.coral} /> : <IconHandStop size={24} color={ownRequest ? PartyColors.accent : PartyColors.text} />}
-            <Text className="text-xs text-foreground">{canSpeak ? micPending ? 'Cancel unmute' : isMicrophoneEnabled ? 'Mute' : 'Unmute' : ownRequest ? 'Hand raised · Cancel' : snapshot.party.requestsEnabled===false ? 'Requests paused' : 'Raise hand'}</Text>
+        {!keyboard && <View className="mt-2.5 flex-row items-center gap-2">
+          <Pressable accessibilityRole="button" accessibilityLabel={host ? 'End party' : 'Leave party'} onPress={() => setPanel({kind: 'exit'})} className="h-11 flex-row items-center gap-1.5 rounded-full bg-coral/15 px-4 active:opacity-70">
+            <IconDoorExit size={18} color={PartyColors.coral} /><Text className="text-[13px] font-bold text-coral">{host ? 'End' : 'Leave'}</Text>
           </Pressable>
-          {canSpeak && !host && <Pressable accessibilityRole="button" accessibilityLabel="Move to audience" disabled={busy} onPress={() => act('stepdown')} className="min-h-12 items-center justify-center gap-1"><IconUsers size={22} color={PartyColors.muted} /><Text className="text-xs text-muted">Step down</Text></Pressable>}
-        </View>
+          <View className="flex-1" />
+          <DockButton label="Choose audio device" onPress={() => setOutputOpen(true)}><IconVolume size={21} color={PartyColors.text} /></DockButton>
+          <DockButton label={`People in room ${speakers.length + audience.length}`} onPress={() => setPanel({kind: 'people'})}><IconUsers size={21} color={PartyColors.text} /></DockButton>
+          {manager && <DockButton label={`Requests to speak ${requests.length}`} badge={requests.length} onPress={() => setPanel({kind: 'requests'})}><IconHandStop size={21} color={requests.length ? PartyColors.accent : PartyColors.text} /></DockButton>}
+          <Pressable accessibilityRole="button" accessibilityLabel={canSpeak ? isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone' : ownRequest ? 'Cancel request to speak' : 'Request to speak'}
+            accessibilityState={{disabled: micDisabled}} disabled={micDisabled} onPress={canSpeak ? toggleMic : () => act(ownRequest ? 'cancel' : 'request')}
+            className={`h-12 min-w-[112px] flex-row items-center justify-center gap-2 rounded-full px-4 active:opacity-80 ${micActive ? 'bg-primary' : canSpeak ? 'border border-coral/50 bg-coral/15' : 'bg-card'} ${micDisabled ? 'opacity-50' : ''}`}>
+            {canSpeak ? isMicrophoneEnabled ? <IconMicrophone size={20} color={PartyColors.ink} /> : <IconMicrophoneOff size={20} color={PartyColors.coral} /> : <IconHandStop size={20} color={micActive ? PartyColors.ink : PartyColors.text} />}
+            <Text className={`text-[14px] font-bold ${micActive ? 'text-text-dark' : canSpeak ? 'text-coral' : 'text-foreground'}`}>{micLabel}</Text>
+          </Pressable>
+        </View>}
       </View>
     </KeyboardAvoidingView>
+    {!!notice && <View pointerEvents="none" className="absolute left-0 right-0 top-16 items-center px-6"><View className="flex-row items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5"><IconCheck size={16} color={PartyColors.accent} /><Text accessibilityLiveRegion="polite" className="text-[13px] font-semibold text-foreground">{notice}</Text></View></View>}
     <PartyRoomPanel panel={panel} onClose={() => setPanel(null)} onSelect={setPanel} participants={snapshot.participants} requests={snapshot.seatRequests} lockedSeats={snapshot.lockedSeats} seatCount={seatCount} identity={identity} busy={busy} error={error}
-      onAction={act} title={roomTitle(snapshot.party)} topic={snapshot.party.topic} ownRequest={ownRequest} settings={snapshot.party} />
+      onAction={act} onOpenAudio={() => {setPanel(null); setOutputOpen(true);}}
+      onViewProfile={person => {setPanel(null); setViewing({id: person.userId, initial: {name: person.name || 'Guest', avatarUrl: person.avatarUrl ?? null}});}} title={roomTitle(snapshot.party)} topic={snapshot.party.topic} ownRequest={ownRequest} settings={snapshot.party} />
     <AudioOutputSheet visible={outputOpen} onClose={()=>setOutputOpen(false)} />
+    {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)} />}
   </SafeAreaView>
   </Modal>
   </>;
 }
+
+const DockButton = ({label, onPress, badge, children}: {label: string; onPress: () => void; badge?: number; children: React.ReactNode}) =>
+  <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className="h-11 w-11 items-center justify-center rounded-full bg-card active:opacity-70">
+    {children}
+    {!!badge && <View className="absolute -right-0.5 -top-0.5 min-w-[18px] items-center rounded-full border-2 border-nav-background bg-primary px-1"><Text className="text-[10px] font-bold text-text-dark">{badge > 9 ? '9+' : badge}</Text></View>}
+  </Pressable>;

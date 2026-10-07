@@ -20,7 +20,7 @@ export function PartyLinkCapture() {
   return null;
 }
 export function PartyLinkHandler() {
-  const {session,open,expand}=usePartySession();
+  const {session,open,expand,promptActiveParty}=usePartySession();
   const [token,setToken]=useState(pending);
   const [room,setRoom]=useState<PartyRoom | null>(null);
   const [loading,setLoading]=useState(false);
@@ -35,7 +35,7 @@ export function PartyLinkHandler() {
     return ()=>{cancelled=true;};
   },[token,attempt]);
   const close=()=>{pending=null;setToken(null);setRoom(null);setError(null);};
-  if (room) return <PartyRoomPreview room={room} activePartyId={session?.party.id} onResume={expand} onClose={close} onJoined={next=>{close();open(next);}} />;
+  if (room) return <PartyRoomPreview room={room} activePartyId={session?.party.id} onResume={()=>{close();expand();}} onBlocked={()=>promptActiveParty(close)} onClose={close} onJoined={next=>{close();open(next);}} />;
   return <Modal visible={!!token && (loading || !!error)} animationType="slide" onRequestClose={close}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-6">
       {loading ? <ActivityIndicator /> : <Text accessibilityRole="alert" className="text-center text-foreground">{error}</Text>}
