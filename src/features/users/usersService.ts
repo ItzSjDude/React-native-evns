@@ -7,10 +7,10 @@ import type {
 const user = (userId: string) => `/users/${encodeURIComponent(userId)}`;
 
 /**
- * Flip once the backend serves `GET /users/:userId/profile`. Until then the modal works from the
- * caller's preview plus the paged endpoints; calling a missing route would 404 and read as "blocked".
+ * `GET /users/:userId/profile` is live. Set this to false only to run against an older server, where the
+ * route would 404 and read as "blocked"; the modal then works from the caller's preview and the paged endpoints.
  */
-export const PUBLIC_PROFILE_ENDPOINT_ENABLED = false;
+export const PUBLIC_PROFILE_ENDPOINT_ENABLED = true;
 
 export const getUserProfile = (userId: string) =>
   apiRequest<PublicUserProfile>(`${user(userId)}/profile`, {auth: 'required'});

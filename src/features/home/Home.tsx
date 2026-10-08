@@ -10,12 +10,12 @@ import {loadSession} from '../auth';
 import CommentsSheet from './CommentsSheet';
 import ComposePostSheet from './ComposePostSheet';
 import {messageOf, toPostCardData} from './homePresentation';
-import {createPost, deletePost, getFeedPage, likePost, reportPost, unlikePost} from './homeService';
+import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost} from './homeService';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
 import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
-import {PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
+import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import type {ApiPostMedia, HomePost} from './types';
 
@@ -132,6 +132,14 @@ const Home = () => {
   useNotificationNavigator(target => {
     if (target.kind === 'user' && 'id' in target) {setViewing({id: target.id, initial: {name: 'Hiva user', avatarUrl: null}}); return true;}
     if (target.kind === 'conversation') {navigation.navigate('Chat'); return true;}
+    if (target.kind === 'party' && 'id' in target) {
+      getPartyRoom(target.id).then(snapshot => setPreviewRoom(snapshot.party)).catch(() => Alert.alert('Room not available', 'This party has ended or is no longer open.'));
+      return true;
+    }
+    if (target.kind === 'post' && 'id' in target) {
+      getPost(target.id).then(openComments).catch(() => Alert.alert('Post not available', 'This post was removed or you can no longer see it.'));
+      return true;
+    }
     return false;
   });
   const [previewRoom, setPreviewRoom] = useState<PartyRoom | null>(null);
@@ -201,7 +209,7 @@ const Home = () => {
           <Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography>
         </View>
         <View className="flex-row items-center">
-          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} className="rounded-full bg-primary px-[12px] py-[7px] active:opacity-70">
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} className="rounded-full bg-gold px-[12px] py-[7px] active:opacity-70">
             <Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)}
@@ -225,7 +233,7 @@ const Home = () => {
     <View className="items-center px-6 pt-16">
       <Typography size={16} color={Colors.text} fontWeight="600" className="text-center">Couldn't load your feed</Typography>
       <Typography size={14} color={Colors.muted} className="mt-2 text-center">{error}</Typography>
-      <Pressable accessibilityRole="button" accessibilityLabel="Retry loading feed" onPress={() => load('initial')} className="mt-5 rounded-full bg-primary px-5 py-[10px] active:opacity-70">
+      <Pressable accessibilityRole="button" accessibilityLabel="Retry loading feed" onPress={() => load('initial')} className="mt-5 rounded-full bg-gold px-5 py-[10px] active:opacity-70">
         <Typography size={14} color={Colors.textDark} fontWeight="700">Try again</Typography>
       </Pressable>
     </View>

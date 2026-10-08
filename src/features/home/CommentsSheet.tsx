@@ -110,7 +110,7 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
       {actionError ? <Typography size={13} color={Colors.coral} className="mb-[8px]">{actionError}</Typography> : null}
       <View className="flex-row items-end rounded-[16px] border border-border-muted bg-background px-[12px] py-[7px]">
         <TextInput accessibilityLabel="New comment" value={draft} onChangeText={setDraft} placeholder="Write a comment..." placeholderTextColor={Colors.muted} multiline maxLength={COMMENT_BODY_MAX_LENGTH} className="max-h-[90px] min-h-[38px] flex-1 px-[2px] text-[15px] text-foreground" />
-        <Pressable accessibilityRole="button" accessibilityLabel="Add comment" accessibilityState={{disabled: saving || !draft.trim(), busy: saving}} disabled={saving || !draft.trim()} onPress={submit} className={`ml-[8px] rounded-full bg-primary px-[13px] py-[9px] active:opacity-70 ${saving || !draft.trim() ? 'opacity-50' : ''}`}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add comment" accessibilityState={{disabled: saving || !draft.trim(), busy: saving}} disabled={saving || !draft.trim()} onPress={submit} className={`ml-[8px] rounded-full bg-gold px-[13px] py-[9px] active:opacity-70 ${saving || !draft.trim() ? 'opacity-50' : ''}`}>
           <Typography size={13} color={Colors.textDark} fontWeight="700">{saving ? '...' : 'Send'}</Typography>
         </Pressable>
       </View>

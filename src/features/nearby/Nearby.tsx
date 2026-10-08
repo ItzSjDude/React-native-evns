@@ -226,14 +226,14 @@ const Nearby = () => {
               <Text className="text-[15px] font-semibold text-foreground">{visible === null ? 'Checking visibility' : visible ? "You're visible" : 'Discovery is off'}</Text>
               <Text className="mt-1 text-xs leading-[17px] text-muted">{visible ? 'People nearby can find you while your location is fresh.' : 'Go visible to find people and let them find you.'}</Text>
             </View>
-            {visible !== null && <Pressable accessibilityRole="button" accessibilityLabel={visible ? 'Go invisible' : 'Go visible'} disabled={busy} onPress={toggleVisibility} className={`ml-3 min-h-10 items-center justify-center rounded-full px-3 ${visible ? 'border border-border' : 'bg-primary'} ${busy ? 'opacity-50' : 'active:opacity-70'}`}>
+            {visible !== null && <Pressable accessibilityRole="button" accessibilityLabel={visible ? 'Go invisible' : 'Go visible'} disabled={busy} onPress={toggleVisibility} className={`ml-3 min-h-10 items-center justify-center rounded-full px-3 ${visible ? 'border border-border' : 'bg-gold'} ${busy ? 'opacity-50' : 'active:opacity-70'}`}>
               {busy ? <ActivityIndicator size="small" color={visible ? Colors.primary : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
             </Pressable>}
           </View>
 
           {showList && !locationNotice && <>
             <View className="mb-6 flex-row gap-2">
-              {radii.map(option => <Pressable key={option.meters} accessibilityRole="button" accessibilityState={{selected: radius === option.meters}} onPress={() => { setRadius(option.meters); radiusRef.current = option.meters; loadPeople(option.meters); }} className={`h-9 min-w-[70px] items-center justify-center rounded-full px-4 ${radius === option.meters ? 'bg-primary' : 'bg-card'} active:opacity-70`}>
+              {radii.map(option => <Pressable key={option.meters} accessibilityRole="button" accessibilityState={{selected: radius === option.meters}} onPress={() => { setRadius(option.meters); radiusRef.current = option.meters; loadPeople(option.meters); }} className={`h-9 min-w-[70px] items-center justify-center rounded-full px-4 ${radius === option.meters ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
                 <Text className={`text-[13px] font-semibold ${radius === option.meters ? 'text-text-dark' : 'text-muted'}`}>{option.label}</Text>
               </Pressable>)}
             </View>
@@ -245,7 +245,7 @@ const Nearby = () => {
           {showList && locationNotice && <View className="rounded-[20px] bg-card px-5 py-5">
             <Text className="text-[16px] font-semibold text-foreground">Update your location</Text>
             <Text className="mt-2 text-sm leading-5 text-muted">{locationNotice} Your old position may no longer be nearby.</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Allow location access" onPress={allowLocation} disabled={busy} className="mt-5 h-11 items-center justify-center rounded-full bg-primary active:opacity-70">
+            <Pressable accessibilityRole="button" accessibilityLabel="Allow location access" onPress={allowLocation} disabled={busy} className="mt-5 h-11 items-center justify-center rounded-full bg-gold active:opacity-70">
               {busy ? <ActivityIndicator size="small" color={Colors.textDark} /> : <Text className="text-sm font-bold text-text-dark">Allow location</Text>}
             </Pressable>
           </View>}

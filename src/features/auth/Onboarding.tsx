@@ -165,7 +165,7 @@ const Onboarding = () => {
               <Text className="text-[15px] font-semibold text-foreground">Back</Text>
             </Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish' : 'Next'} accessibilityState={{disabled: busy, busy: saving}} disabled={busy} onPress={next}
-              className={`h-12 flex-[2] items-center justify-center rounded-full bg-primary ${busy ? 'opacity-40' : 'active:opacity-70'}`}>
+              className={`h-12 flex-[2] items-center justify-center rounded-full bg-gold ${busy ? 'opacity-40' : 'active:opacity-70'}`}>
               {saving ? <ActivityIndicator color={Colors.textDark} /> : <Text className="text-[15px] font-bold text-text-dark">{isLast ? 'Finish' : 'Next'}</Text>}
             </Pressable>
           </View>

@@ -22,9 +22,9 @@ export const searchErrorMessage = (error: unknown) =>
 type PersonRow = {id: string; name: string | null; handle?: string | null; avatarUrl?: string | null; isFollowing?: boolean};
 
 /**
- * People search. Needs the backend to add `GET /users/search?q=&limit=&offset=`
- * -> `[{id, name, handle, avatarUrl, isFollowing}]`. Until it ships the server answers 404 and the
- * screen shows "People search is coming soon" (see `isSearchUnavailable`).
+ * People search: `GET /users/search?q=&limit=&offset=` -> `[{id, name, handle, avatarUrl, isFollowing}]`.
+ * An older server without the route answers 404 and the screen shows "People search is coming soon"
+ * (see `isSearchUnavailable`).
  */
 export async function searchPeople(query: string, {limit = 20, offset = 0, signal}: SearchRequestOptions = {}): Promise<PersonResult[]> {
   const q = encodeURIComponent(query.trim().slice(0, SEARCH_MAX_LENGTH));

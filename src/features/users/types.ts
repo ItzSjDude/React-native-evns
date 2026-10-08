@@ -13,8 +13,10 @@ export type PublicUserProfile = {
   bio: string | null;
   city: string | null;
   interests: string[];
+  coverImageUrl?: string | null;
   isPrivate: boolean;
   isFollowing: boolean;
+  followsYou?: boolean;
   stats: {followers: number; following: number; posts: number; giftsReceived: number};
 };
 

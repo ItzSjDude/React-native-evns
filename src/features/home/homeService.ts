@@ -55,6 +55,8 @@ export const reportPost = (postId: string, reason: string) => apiRequest<{id: st
   auth: 'required', method: 'POST', body: JSON.stringify({targetType: 'post', targetId: postId, reason}),
 });
 
+export const getPost = async (postId: string): Promise<HomePost> => mapPost(await apiRequest<ApiPost>(postPath(postId), {auth: 'required'}));
+
 export const deletePost = (postId: string) => apiRequest<void>(postPath(postId), {auth: 'required', method: 'DELETE'});
 
 export const likePost = (postId: string) => apiRequest<ApiPostReactions>(`${postPath(postId)}/reactions/like`, {

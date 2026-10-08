@@ -7,7 +7,7 @@ import type {OnboardingFieldErrors} from './types';
 export const ProgressDots = ({step, total}: {step: number; total: number}) => (
   <View accessibilityRole="progressbar" accessibilityLabel={`Step ${step + 1} of ${total}`} className="flex-row items-center gap-2">
     {Array.from({length: total}, (_, index) => (
-      <View key={index} className={index === step ? 'h-2 w-6 rounded-full bg-primary' : index < step ? 'h-2 w-2 rounded-full bg-primary' : 'h-2 w-2 rounded-full bg-border'} />
+      <View key={index} className={index === step ? 'h-2 w-6 rounded-full bg-gold' : index < step ? 'h-2 w-2 rounded-full bg-gold' : 'h-2 w-2 rounded-full bg-border'} />
     ))}
   </View>
 );
@@ -69,7 +69,7 @@ export const InterestsStep = ({selected, error, disabled, onToggle}: InterestsPr
           const blocked = disabled || (atLimit && !isSelected);
           return (
             <Pressable key={interest} accessibilityRole="checkbox" accessibilityLabel={`Interest ${interest}`} accessibilityState={{checked: isSelected, disabled: blocked}} disabled={blocked} onPress={() => onToggle(interest)}
-              className={`min-h-11 justify-center rounded-full border px-4 py-2 ${isSelected ? 'border-primary bg-primary' : 'border-border bg-card'} ${blocked ? 'opacity-40' : 'active:opacity-70'}`}>
+              className={`min-h-11 justify-center rounded-full border px-4 py-2 ${isSelected ? 'border-primary bg-gold' : 'border-border bg-card'} ${blocked ? 'opacity-40' : 'active:opacity-70'}`}>
               <Text className={isSelected ? 'text-sm font-semibold capitalize text-text-dark' : 'text-sm font-semibold capitalize text-muted'}>{interest}</Text>
             </Pressable>
           );

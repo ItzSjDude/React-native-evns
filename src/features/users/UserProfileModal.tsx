@@ -297,7 +297,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
               </View>
 
               <View className="mt-5 gap-1.5">
-                {name ? <Text accessibilityRole="header" numberOfLines={1} className="text-[24px] font-extrabold tracking-[-0.3px] text-foreground">{name}</Text>
+                {name ? <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
                   : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
                 {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>}
                 {!!profile?.city && showContent && <Text className="text-[11px] text-[#9C95AE]">{profile.city}</Text>}

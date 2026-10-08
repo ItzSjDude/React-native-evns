@@ -173,7 +173,7 @@ const DirectConversation = ({
                 const body = messageText(item);
                 return (
                   <View className={`mb-4 max-w-[82%] ${mine ? 'self-end items-end' : 'self-start items-start'}`}>
-                    <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-primary' : 'rounded-bl-[5px] bg-card'}`}>
+                    <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-gold' : 'rounded-bl-[5px] bg-card'}`}>
                       <Text className={`text-[15px] leading-[21px] ${mine ? 'text-text-dark' : 'text-foreground'}`}>{body}</Text>
                     </View>
                     <Text className="mt-1 px-1 text-[11px] text-muted">{timeOf(item.created_at)}</Text>
@@ -200,7 +200,7 @@ const DirectConversation = ({
               multiline
               textAlignVertical="center"
             />
-            <Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={send} className={`h-11 w-11 items-center justify-center rounded-full bg-primary ${draft.trim() && !sending ? 'active:opacity-70' : 'opacity-40'}`}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={send} className={`h-11 w-11 items-center justify-center rounded-full bg-gold ${draft.trim() && !sending ? 'active:opacity-70' : 'opacity-40'}`}>
               {sending ? <ActivityIndicator color={Colors.textDark} size="small" /> : <IconSend2 size={21} color={Colors.textDark} />}
             </Pressable>
           </View>

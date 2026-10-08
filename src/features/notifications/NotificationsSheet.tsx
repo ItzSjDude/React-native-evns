@@ -142,7 +142,7 @@ export default function NotificationsSheet({visible, onClose}: NotificationsShee
       <View className="items-center py-12">
         <Text className="text-center text-[15px] font-semibold text-foreground">Couldn't load notifications</Text>
         {!!error && <Text className="mt-1 text-center text-[13px] text-muted">{error}</Text>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Retry loading notifications" onPress={() => loadFirstPage()} className="mt-4 rounded-full bg-primary px-5 py-2.5 active:opacity-70">
+        <Pressable accessibilityRole="button" accessibilityLabel="Retry loading notifications" onPress={() => loadFirstPage()} className="mt-4 rounded-full bg-gold px-5 py-2.5 active:opacity-70">
           <Text className="text-[14px] font-bold text-text-dark">Try again</Text>
         </Pressable>
       </View>

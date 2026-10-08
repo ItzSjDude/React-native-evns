@@ -85,7 +85,7 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
         {TABS.map(item => {
           const active = item.key === tab;
           return <Pressable key={item.key} accessibilityRole="tab" accessibilityLabel={`${item.label} results`} accessibilityState={{selected: active}}
-            onPress={() => setTab(item.key)} className={`flex-1 items-center rounded-full py-2 ${active ? 'bg-primary' : 'active:bg-white/5'}`}>
+            onPress={() => setTab(item.key)} className={`flex-1 items-center rounded-full py-2 ${active ? 'bg-gold' : 'active:bg-white/5'}`}>
             <Text className={`text-[13px] font-bold ${active ? 'text-icon-dark' : 'text-muted'}`}>{item.label}</Text>
           </Pressable>;
         })}

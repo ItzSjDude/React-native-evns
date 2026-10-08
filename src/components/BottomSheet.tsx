@@ -128,7 +128,7 @@ export const SheetButton = ({label, onPress, variant = 'primary', busy, disabled
   label: string; onPress: () => void; variant?: 'primary' | 'destructive' | 'ghost' | 'danger'; busy?: boolean; disabled?: boolean;
 }) => {
   const off = busy || disabled;
-  const surface = variant === 'primary' ? 'bg-primary' : variant === 'destructive' ? 'bg-coral' : variant === 'danger' ? 'bg-coral/10' : 'bg-transparent';
+  const surface = variant === 'primary' ? 'bg-gold' : variant === 'destructive' ? 'bg-coral' : variant === 'danger' ? 'bg-coral/10' : 'bg-transparent';
   const text = variant === 'ghost' ? 'text-foreground' : variant === 'danger' ? 'text-coral' : 'text-text-dark';
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled: !!off, busy: !!busy}} disabled={off} onPress={onPress}
     className={`my-1 min-h-[50px] items-center justify-center rounded-full px-5 active:opacity-80 ${surface} ${off ? 'opacity-50' : ''}`}>
@@ -143,9 +143,9 @@ export const SheetTile = ({icon: Icon, label, onPress, badge, active, destructiv
   const tint = destructive ? Colors.coral : active ? Colors.textDark : Colors.primary;
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel || label} accessibilityState={{disabled: !!disabled, selected: !!active}} disabled={disabled} onPress={onPress}
     className={`min-w-0 flex-1 items-center gap-1.5 py-1 active:opacity-70 ${disabled ? 'opacity-40' : ''}`}>
-    <View className={`h-14 w-14 items-center justify-center rounded-[20px] ${active ? 'bg-primary' : destructive ? 'bg-coral/15' : 'bg-card'}`}>
+    <View className={`h-14 w-14 items-center justify-center rounded-[20px] ${active ? 'bg-gold' : destructive ? 'bg-coral/15' : 'bg-card'}`}>
       <Icon size={24} color={tint} />
-      {!!badge && <View className="absolute -right-1 -top-1 min-w-[20px] items-center rounded-full border-2 border-sheet bg-primary px-1"><Text className="text-[10px] font-bold text-text-dark">{badge > 9 ? '9+' : badge}</Text></View>}
+      {!!badge && <View className="absolute -right-1 -top-1 min-w-[20px] items-center rounded-full border-2 border-sheet bg-gold px-1"><Text className="text-[10px] font-bold text-text-dark">{badge > 9 ? '9+' : badge}</Text></View>}
     </View>
     <Text numberOfLines={2} className={`text-center text-[12px] font-semibold leading-4 ${destructive ? 'text-coral' : 'text-text-body'}`}>{label}</Text>
   </Pressable>;

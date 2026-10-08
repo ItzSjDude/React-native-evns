@@ -92,8 +92,8 @@ export const RoomGrid = ({parties, onHost}: {parties: ProfileParty[]; onHost: ()
   </View>;
 };
 
-export const EventCard = ({event}: {event: ProfileEvent}) =>
-  <View className="overflow-hidden rounded-[22px] border border-border bg-card">
+export const EventCard = ({event, onPress}: {event: ProfileEvent; onPress?: () => void}) =>
+  <Pressable disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={onPress ? `Open event ${event.title}` : undefined} className="overflow-hidden rounded-[22px] border border-border bg-card">
     {!!event.cover_url && /^https?:\/\//i.test(event.cover_url) && <Image source={{uri: event.cover_url}} className="h-28 w-full bg-background" resizeMode="cover" />}
     <View className="p-4">
       <Text numberOfLines={2} className="text-[15px] font-extrabold text-foreground">{event.title}</Text>
@@ -103,7 +103,7 @@ export const EventCard = ({event}: {event: ProfileEvent}) =>
         <View className="flex-row items-center gap-1.5"><IconUsers size={15} color={Colors.muted} /><Text className="text-[12px] font-semibold text-muted">{event.attendee_count} going</Text></View>
       </View>
     </View>
-  </View>;
+  </Pressable>;
 
 // The backend stores free-text gift types with no catalogue, so known ones get the design's icon and colours here.
 const GIFT_STYLES: Record<string, {label: string; emoji: string; bg: string}> = {

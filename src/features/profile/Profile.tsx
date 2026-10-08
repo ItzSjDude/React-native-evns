@@ -219,7 +219,7 @@ const Profile = () => {
                       <View className={`h-1.5 w-1.5 rounded-full ${stat.dot}`} /><Text className="text-[11px] font-bold text-[#B3ACC4]">{stat.label}</Text>
                     </View>
                     <View className={`h-[30px] min-w-[48px] items-center justify-center rounded-full border px-2.5 ${stat.count}`}>
-                      <Text className={`text-[13px] font-extrabold ${stat.text}`}>{compact(stat.value)}</Text>
+                      <Text className={`font-display text-[13px] ${stat.text}`}>{compact(stat.value)}</Text>
                     </View>
                   </View>)}
                 </View>
@@ -239,7 +239,7 @@ const Profile = () => {
 
               {profile ? <>
                 <View className="mt-5 gap-1.5">
-                  <Text accessibilityRole="header" numberOfLines={1} className="text-[24px] font-extrabold tracking-[-0.3px] text-foreground">{profile.name}</Text>
+                  <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[24px] tracking-[-0.3px] text-foreground">{profile.name}</Text>
                   {profile.bio ? <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>
                     : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-gold">+ Add a bio</Text></Pressable>}
                   {!!meta && <Text className="text-[11px] text-[#9C95AE]">{meta}</Text>}

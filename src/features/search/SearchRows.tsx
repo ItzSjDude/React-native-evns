@@ -92,7 +92,7 @@ export function SectionMessage({title, body, action, onAction, busy}: {title: st
       <Text className="text-center text-[15px] font-semibold text-foreground">{title}</Text>
       {body ? <Text className="mt-1.5 text-center text-[13px] leading-[19px] text-muted">{body}</Text> : null}
       {action && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={onAction}
-        className="mt-4 rounded-full bg-primary px-5 py-2.5 active:opacity-70">
+        className="mt-4 rounded-full bg-gold px-5 py-2.5 active:opacity-70">
         <Text className="text-[14px] font-bold text-text-dark">{action}</Text>
       </Pressable> : null}
     </>}

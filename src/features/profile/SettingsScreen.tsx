@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient as SvgGradient, Stop, Circle} from 'react-native-svg';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
@@ -8,11 +8,14 @@ import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconBrandGoogle from '@tabler/icons-react-native/IconBrandGoogle';
 import IconLogout from '@tabler/icons-react-native/IconLogout';
 import {Colors} from '../../Constants/Colors';
+import {PRIVACY_POLICY_URL, TERMS_URL} from '../../core/config/env';
 import IconEyeOff from '@tabler/icons-react-native/IconEyeOff';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconBan from '@tabler/icons-react-native/IconBan';
 import IconUserPlus from '@tabler/icons-react-native/IconUserPlus';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
+import IconShieldLock from '@tabler/icons-react-native/IconShieldLock';
+import IconFileText from '@tabler/icons-react-native/IconFileText';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
 import type {BlockedUser, SeatInvitesFrom, UserProfile, UserSettings} from './types';
@@ -23,6 +26,7 @@ const SEAT_INVITE_OPTIONS: {value: SeatInvitesFrom; label: string; hint: string}
   {value: 'nobody', label: 'Nobody', hint: 'You only join the stage by raising your hand'},
 ];
 
+const openLink = (url: string) => {Linking.openURL(url).catch(() => {});};
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 const initialsOf = (name?: string | null) => (name || '?').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 
@@ -75,6 +79,9 @@ const RingAvatar = ({profile}: {profile: UserProfile | null}) =>
 export default function SettingsScreen({profile, visible, onClose, onEditProfile, onLogout}: {
   profile: UserProfile | null; visible: boolean; onClose: () => void; onEditProfile: () => void; onLogout: () => Promise<void>;
 }) {
+  // Local copies so the links keep their narrowed `string` type inside the callbacks below.
+  const privacyUrl = PRIVACY_POLICY_URL;
+  const termsUrl = TERMS_URL;
   const [nearby, setNearby] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +142,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
           className="h-11 w-11 items-center justify-center rounded-[14px] border border-border bg-[#15121E] active:opacity-70">
           <IconChevronLeft size={20} color={Colors.text} />
         </Pressable>
-        <Text accessibilityRole="header" className="flex-1 text-[22px] font-extrabold text-foreground">Settings</Text>
+        <Text accessibilityRole="header" className="flex-1 font-display text-[22px] text-foreground">Settings</Text>
       </View>
 
       <ScrollView contentContainerClassName="gap-[18px] px-4 pb-6 pt-3.5">
@@ -170,6 +177,11 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         <Group title="ACCOUNT">
           <Row first icon={IconBrandGoogle} tint="#C9C2DA" tintBg="#211D2C" label="Signed in with Google" hint={profile?.email} />
         </Group>
+
+        {(privacyUrl || termsUrl) && <Group title="LEGAL">
+          {privacyUrl && <Row first icon={IconShieldLock} tint="#C9C2DA" tintBg="#211D2C" label="Privacy policy" onPress={() => openLink(privacyUrl)} />}
+          {termsUrl && <Row first={!privacyUrl} icon={IconFileText} tint="#C9C2DA" tintBg="#211D2C" label="Terms of service" onPress={() => openLink(termsUrl)} />}
+        </Group>}
 
         {confirmLogout ? <View className="gap-2.5 rounded-[18px] border border-[#4A2226] bg-[#22121A] p-4">
           <Text className="text-center text-[15px] font-extrabold text-foreground">Log out?</Text>

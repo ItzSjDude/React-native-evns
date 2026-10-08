@@ -4,6 +4,16 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['BricolageGrotesque-ExtraBold'],
+        'display-bold': ['BricolageGrotesque-Bold'],
+        'display-semibold': ['BricolageGrotesque-SemiBold'],
+        body: ['Manrope-Regular'],
+        'body-medium': ['Manrope-Medium'],
+        'body-semibold': ['Manrope-SemiBold'],
+        'body-bold': ['Manrope-Bold'],
+        'body-extrabold': ['Manrope-ExtraBold'],
+      },
       colors: {
         background: '#0B0914',
         foreground: '#F7F5FF',

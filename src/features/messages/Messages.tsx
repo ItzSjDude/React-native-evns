@@ -54,7 +54,7 @@ const ConversationRow = ({conversation, latest, onPress}: {conversation: Convers
         <View className="mt-1 flex-row items-center justify-between gap-3">
           <Text className={`flex-1 text-sm ${unread ? 'font-semibold text-foreground' : 'text-muted'}`} numberOfLines={1}>{previewOf(conversation, latest)}</Text>
           {unread > 0 && (
-            <View testID={`unread-${conversation.id}`} className="h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1">
+            <View testID={`unread-${conversation.id}`} className="h-5 min-w-[20px] items-center justify-center rounded-full bg-gold px-1">
               <Text className="text-[11px] font-bold text-text-dark">{unread > 99 ? '99+' : unread}</Text>
             </View>
           )}
@@ -194,7 +194,7 @@ const Messages = () => {
         <View className="items-center px-6 pt-20">
           <Text className="text-center text-base font-semibold text-foreground">Couldn't load conversations</Text>
           <Text className="mt-2 text-center text-sm text-muted">{error}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversations" onPress={() => load('initial')} className="mt-5 h-11 items-center justify-center rounded-full bg-primary px-6 active:opacity-70">
+          <Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversations" onPress={() => load('initial')} className="mt-5 h-11 items-center justify-center rounded-full bg-gold px-6 active:opacity-70">
             <Text className="text-sm font-bold text-text-dark">Try again</Text>
           </Pressable>
         </View>
