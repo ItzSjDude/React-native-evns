@@ -1,5 +1,7 @@
-/** Set this at build time for the environment being used by the app. */
-export const API_BASE_URL = 'https://api-ede.itzsjdude.in';
+import {API_BASE_URL} from '../config/env';
+
+/** Re-exported for existing callers. Set `HIVA_API_URL` at build time to target another environment. */
+export {API_BASE_URL};
 
 export type ApiErrorDetail = {
   field?: string;

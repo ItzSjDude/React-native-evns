@@ -127,3 +127,11 @@ jest.mock('@react-native-firebase/messaging', () => {
     setBackgroundMessageHandler: jest.fn(),
   };
 });
+
+jest.mock('@react-native-firebase/crashlytics', () => ({
+  getCrashlytics: jest.fn(() => ({})),
+  log: jest.fn(),
+  recordError: jest.fn(),
+  setUserId: jest.fn().mockResolvedValue(null),
+  setCrashlyticsCollectionEnabled: jest.fn().mockResolvedValue(null),
+}));

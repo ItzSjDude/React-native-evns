@@ -2,6 +2,7 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
+apply plugin: "com.google.firebase.crashlytics"
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -60,6 +61,12 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -83,8 +90,10 @@ android {
         applicationId "com.hivachat.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Play Store rejects an upload whose versionCode isn't higher than the last one, so bump it per release:
+        //   HIVA_VERSION_CODE=2 HIVA_VERSION_NAME=1.0.1 ./gradlew bundleRelease
+        versionCode = Integer.parseInt(System.getenv('HIVA_VERSION_CODE') ?: '1')
+        versionName = System.getenv('HIVA_VERSION_NAME') ?: '1.0.0'
     }
     signingConfigs {
         debug {
@@ -93,15 +102,29 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // android/keystore.properties (git-ignored) points at the real upload key; see keystore.properties.example.
+        if (keystorePropertiesFile.exists()) {
+            release {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Falls back to the debug key when no keystore.properties exists, so local release builds still work
+            // but are NOT uploadable to the Play Store.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('WARNING: android/keystore.properties not found; signing the release build with the DEBUG key.')
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
