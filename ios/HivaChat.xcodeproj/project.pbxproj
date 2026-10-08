@@ -8,43 +8,43 @@
 
 /* Begin PBXBuildFile section */
 		02B818945613310FCA3A15A8 /* Pods_HivaChat.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD93C293EF0A7FA206DF7736 /* Pods_HivaChat.framework */; };
+		053B4A9CE6DC4BA3B43236C7 /* Manrope-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */; };
+		07F7E9062637492BBF0DAC7F /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2226D1D75D6B4E75B86175CA /* BricolageGrotesque-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */; };
+		4604596404424F029E96ADA7 /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */; };
+		50CE63C4D72A4935845455B1 /* BricolageGrotesque-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */; };
+		590E3A776F59490C81E9D50F /* BricolageGrotesque-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		86B7FDF91F6205452A966359 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		9EC7502089C2467BB27A67AD /* Manrope-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 50A474FADFC34FEE9DC58EAD /* Manrope-Medium.ttf */; };
 		B7CD453BF7CC4F6F9E8B6A60 /* Manrope-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5FFE7F3E4C064343863215AA /* Manrope-SemiBold.ttf */; };
-		590E3A776F59490C81E9D50F /* BricolageGrotesque-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */; };
-		50CE63C4D72A4935845455B1 /* BricolageGrotesque-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */; };
-		F75EB5DA97EE415492FAE690 /* Manrope-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */; };
-		4604596404424F029E96ADA7 /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */; };
 		BCF9F0E949F149BDACB99F62 /* BricolageGrotesque-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */; };
-		07F7E9062637492BBF0DAC7F /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */; };
-		053B4A9CE6DC4BA3B43236C7 /* Manrope-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */; };
-		2226D1D75D6B4E75B86175CA /* BricolageGrotesque-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */; };
+		F75EB5DA97EE415492FAE690 /* Manrope-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-ExtraBold.ttf"; path = "../assets/fonts/Manrope-ExtraBold.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* HivaChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HivaChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HivaChat/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = HivaChat/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = HivaChat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-SemiBold.ttf"; path = "../assets/fonts/BricolageGrotesque-SemiBold.ttf"; sourceTree = "<group>"; };
+		1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-OFL.txt"; path = "../assets/fonts/Manrope-OFL.txt"; sourceTree = "<group>"; };
+		35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-Bold.ttf"; path = "../assets/fonts/Manrope-Bold.ttf"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-HivaChat.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HivaChat.debug.xcconfig"; path = "Target Support Files/Pods-HivaChat/Pods-HivaChat.debug.xcconfig"; sourceTree = "<group>"; };
+		50A474FADFC34FEE9DC58EAD /* Manrope-Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-Medium.ttf"; path = "../assets/fonts/Manrope-Medium.ttf"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-HivaChat.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HivaChat.release.xcconfig"; path = "Target Support Files/Pods-HivaChat/Pods-HivaChat.release.xcconfig"; sourceTree = "<group>"; };
+		5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-Regular.ttf"; path = "../assets/fonts/Manrope-Regular.ttf"; sourceTree = "<group>"; };
+		5FFE7F3E4C064343863215AA /* Manrope-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-SemiBold.ttf"; path = "../assets/fonts/Manrope-SemiBold.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = HivaChat/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = HivaChat/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-Bold.ttf"; path = "../assets/fonts/BricolageGrotesque-Bold.ttf"; sourceTree = "<group>"; };
+		AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-OFL.txt"; path = "../assets/fonts/BricolageGrotesque-OFL.txt"; sourceTree = "<group>"; };
 		BD93C293EF0A7FA206DF7736 /* Pods_HivaChat.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_HivaChat.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		50A474FADFC34FEE9DC58EAD /* Manrope-Medium.ttf */ = {isa = PBXFileReference; name = "Manrope-Medium.ttf"; path = "../assets/fonts/Manrope-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		5FFE7F3E4C064343863215AA /* Manrope-SemiBold.ttf */ = {isa = PBXFileReference; name = "Manrope-SemiBold.ttf"; path = "../assets/fonts/Manrope-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */ = {isa = PBXFileReference; name = "BricolageGrotesque-ExtraBold.ttf"; path = "../assets/fonts/BricolageGrotesque-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */ = {isa = PBXFileReference; name = "BricolageGrotesque-SemiBold.ttf"; path = "../assets/fonts/BricolageGrotesque-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */ = {isa = PBXFileReference; name = "Manrope-ExtraBold.ttf"; path = "../assets/fonts/Manrope-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */ = {isa = PBXFileReference; name = "Manrope-Regular.ttf"; path = "../assets/fonts/Manrope-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */ = {isa = PBXFileReference; name = "BricolageGrotesque-Bold.ttf"; path = "../assets/fonts/BricolageGrotesque-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */ = {isa = PBXFileReference; name = "Manrope-Bold.ttf"; path = "../assets/fonts/Manrope-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */ = {isa = PBXFileReference; name = "Manrope-OFL.txt"; path = "../assets/fonts/Manrope-OFL.txt"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */ = {isa = PBXFileReference; name = "BricolageGrotesque-OFL.txt"; path = "../assets/fonts/BricolageGrotesque-OFL.txt"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-ExtraBold.ttf"; path = "../assets/fonts/BricolageGrotesque-ExtraBold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +78,24 @@
 				BD93C293EF0A7FA206DF7736 /* Pods_HivaChat.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		45936A2E832F4DE2BCC4AD01 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				50A474FADFC34FEE9DC58EAD /* Manrope-Medium.ttf */,
+				5FFE7F3E4C064343863215AA /* Manrope-SemiBold.ttf */,
+				F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */,
+				151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */,
+				017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */,
+				5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */,
+				A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */,
+				35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */,
+				1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */,
+				AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */,
+			);
+			name = Resources;
+			path = "";
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -119,24 +137,6 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		45936A2E832F4DE2BCC4AD01 /* Resources */ = {
-			isa = "PBXGroup";
-			children = (
-				50A474FADFC34FEE9DC58EAD /* Manrope-Medium.ttf */,
-				5FFE7F3E4C064343863215AA /* Manrope-SemiBold.ttf */,
-				F956804707B0417DAEF4BF73 /* BricolageGrotesque-ExtraBold.ttf */,
-				151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */,
-				017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */,
-				5DD5EBAA36AD456C86B8AF3C /* Manrope-Regular.ttf */,
-				A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */,
-				35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */,
-				1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */,
-				AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */,
-			);
-			name = Resources;
-			sourceTree = "<group>";
-			path = "";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -152,6 +152,7 @@
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
 				AC550E4F943EE68119B90B5F /* [CP-User] [RNFB] Core Configuration */,
+				8AA82B712C4A4AEDE45107B0 /* [CP-User] [RNFB] Crashlytics Configuration */,
 			);
 			buildRules = (
 			);
@@ -249,6 +250,20 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HivaChat/Pods-HivaChat-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		8AA82B712C4A4AEDE45107B0 /* [CP-User] [RNFB] Crashlytics Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "[CP-User] [RNFB] Crashlytics Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\nset -e\n\nif [[ ${PODS_ROOT} && -f \"${PODS_ROOT}/FirebaseCrashlytics/run\" ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from Pods\"\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelif [[ -f \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\" ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from framework\"\n  \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\"\nelse\n  # SPM: upload-symbols is at a known path in the SourcePackages checkout.\n  # BUILD_DIR is typically DerivedData/Project-hash/Build/Products — strip from /Build onward\n  # to get the DerivedData project root where SourcePackages lives.\n  SPM_CRASHLYTICS_DIR=\"${BUILD_DIR%Build/*}SourcePackages/checkouts/firebase-ios-sdk/Crashlytics\"\n  SPM_UPLOAD_SYMBOLS=\"${SPM_CRASHLYTICS_DIR}/upload-symbols\"\n  if [[ -x \"${SPM_UPLOAD_SYMBOLS}\" ]]; then\n    echo \"info: Exec FirebaseCrashlytics upload-symbols from SPM\"\n    \"${SPM_UPLOAD_SYMBOLS}\" -gsp \"${PROJECT_DIR}/GoogleService-Info.plist\" -p ios \"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\"\n  elif [[ -f \"${SPM_UPLOAD_SYMBOLS}\" ]]; then\n    echo \"info: Exec FirebaseCrashlytics upload-symbols from SPM (chmod +x)\"\n    chmod +x \"${SPM_UPLOAD_SYMBOLS}\"\n    \"${SPM_UPLOAD_SYMBOLS}\" -gsp \"${PROJECT_DIR}/GoogleService-Info.plist\" -p ios \"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\"\n  else\n    echo \"warning: FirebaseCrashlytics run script not found at CocoaPods, framework, or SPM paths. Skipping dSYM upload.\"\n    echo \"warning: Checked: \\${PODS_ROOT}/FirebaseCrashlytics/run, \\${PROJECT_DIR}/FirebaseCrashlytics.framework/run, ${SPM_UPLOAD_SYMBOLS}\"\n  fi\nfi\n";
 		};
 		AC550E4F943EE68119B90B5F /* [CP-User] [RNFB] Core Configuration */ = {
 			isa = PBXShellScriptBuildPhase;

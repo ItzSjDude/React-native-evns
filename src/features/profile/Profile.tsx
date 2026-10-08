@@ -16,6 +16,7 @@ import {clearSession, logoutFromApi} from '../auth';
 import {usePartySession} from '../party';
 import {Colors} from '../../Constants/Colors';
 import {getGiftSummary, getMyProfile, getProfilePage, updateMyProfile} from './profileService';
+import {EventDetailSheet} from '../events';
 import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
 import {EditProfileSheet} from './ProfileSheets';
 import SettingsScreen from './SettingsScreen';
@@ -41,6 +42,7 @@ const Profile = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const [giftsOpen, setGiftsOpen] = useState(false);
+  const [openEvent, setOpenEvent] = useState<ProfileEvent | null>(null);
   const [gifts, setGifts] = useState<{summary: GiftSummary | null; loading: boolean; error: string | null}>({summary: null, loading: false, error: null});
   const [lists, setLists] = useState<Record<ProfileTab, ListState>>({posts: emptyList(), parties: emptyList(), events: emptyList()});
   const [sheet, setSheet] = useState<'edit' | 'settings' | null>(null);
@@ -295,7 +297,7 @@ const Profile = () => {
           </View> : <View className="px-5 pb-5 pt-3.5">
             {activeTab === 'posts' && !!list.items.length && <PostGrid posts={list.items as ProfilePost[]} />}
             {activeTab === 'parties' && (list.loaded || list.items.length > 0) && !list.error && <RoomGrid parties={list.items as ProfileParty[]} onHost={() => navigation.navigate('Party')} />}
-            {activeTab === 'events' && <View className="gap-3">{(list.items as ProfileEvent[]).map(event => <EventCard key={event.id} event={event} />)}</View>}
+            {activeTab === 'events' && <View className="gap-3">{(list.items as ProfileEvent[]).map(event => <EventCard key={event.id} event={event} onPress={() => setOpenEvent(event)} />)}</View>}
             {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={Colors.gold} className="my-[30px]" /> : null}
             {list.error ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
               <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
@@ -311,6 +313,7 @@ const Profile = () => {
         </> : null}
       </ScrollView>
 
+      <EventDetailSheet eventId={openEvent?.id ?? null} initial={openEvent} visible={!!openEvent} onClose={() => setOpenEvent(null)} />
       <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
       <SettingsScreen profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
     </View>

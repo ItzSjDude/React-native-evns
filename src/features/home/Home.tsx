@@ -13,6 +13,7 @@ import {messageOf, toPostCardData} from './homePresentation';
 import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost} from './homeService';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
+import {EventDetailSheet} from '../events';
 import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
@@ -127,11 +128,13 @@ const Home = () => {
 
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [eventId, setEventId] = useState<string | null>(null);
   const navigation = useNavigation<{navigate: (route: string) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
     if (target.kind === 'user' && 'id' in target) {setViewing({id: target.id, initial: {name: 'Hiva user', avatarUrl: null}}); return true;}
     if (target.kind === 'conversation') {navigation.navigate('Chat'); return true;}
+    if (target.kind === 'event' && 'id' in target) {setEventId(target.id); return true;}
     if (target.kind === 'party' && 'id' in target) {
       getPartyRoom(target.id).then(snapshot => setPreviewRoom(snapshot.party)).catch(() => Alert.alert('Room not available', 'This party has ended or is no longer open.'));
       return true;
@@ -273,6 +276,7 @@ const Home = () => {
     />
     <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost} />
+    <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} />
     <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
     {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}
       onClose={() => setPreviewRoom(null)} onResume={() => {setPreviewRoom(null); expandParty();}}

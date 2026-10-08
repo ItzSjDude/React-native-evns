@@ -11,6 +11,7 @@ import {initialsOf, isOwnMessage, messageText, relativeTime} from './conversatio
 import {CONVERSATIONS_PAGE_SIZE, getConversations, markConversationRead} from './messagesService';
 import {applyRealtimeToConversations, isMessageEvent} from './realtimeEvents';
 import type {ApiMessage, Conversation, MessagesRealtimeEvent} from './types';
+import {OnlineDot, usePresence} from './presence';
 import {useMessagesRealtime} from './useMessagesRealtime';
 
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Could not load conversations.';
@@ -39,13 +40,19 @@ const previewOf = (conversation: Conversation, latest: ApiMessage | null) => {
 
 const ConversationRow = ({conversation, latest, onPress}: {conversation: Conversation; latest: ApiMessage | null; onPress: () => void}) => {
   const unread = conversation.unreadCount;
+  // Direct chats only: event/organiser threads have no single person to be "online".
+  const presence = usePresence(conversation.contactId ? [conversation.contactId] : []);
+  const online = !!conversation.contactId && presence[conversation.contactId]?.online === true;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open conversation with ${conversation.title}${unread ? `, ${unread} unread` : ''}`}
       onPress={onPress}
       className="min-h-[76px] flex-row items-center gap-3 border-b border-border py-3 active:opacity-70">
-      <Avatar conversation={conversation} />
+      <View>
+        <Avatar conversation={conversation} />
+        {online && <View className="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-background"><OnlineDot online size={12} /></View>}
+      </View>
       <View className="min-w-0 flex-1">
         <View className="flex-row items-center justify-between gap-2">
           <Text className="flex-1 text-[16px] font-semibold text-foreground" numberOfLines={1}>{conversation.title}</Text>
