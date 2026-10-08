@@ -13,6 +13,7 @@ jest.mock('../../party', () => ({
   PartyRoomPreview: () => null,
 }));
 jest.mock('../../search', () => ({SearchScreen: () => null}));
+jest.mock('../../events', () => ({EventsScreen: () => null, EventDetailSheet: () => null}));
 jest.mock('../../notifications', () => ({NotificationsBell: () => null, useNotificationNavigator: jest.fn()}));
 jest.mock('@react-navigation/native', () => ({useNavigation: () => ({navigate: jest.fn()})}));
 jest.mock('../homeService', () => ({

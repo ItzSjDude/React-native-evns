@@ -13,7 +13,8 @@ import {messageOf, toPostCardData} from './homePresentation';
 import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost} from './homeService';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
-import {EventDetailSheet} from '../events';
+import {EventDetailSheet, EventsScreen} from '../events';
+import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
@@ -129,6 +130,7 @@ const Home = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
+  const [eventsOpen, setEventsOpen] = useState(false);
   const navigation = useNavigation<{navigate: (route: string) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
@@ -215,6 +217,10 @@ const Home = () => {
           <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} className="rounded-full bg-gold px-[12px] py-[7px] active:opacity-70">
             <Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography>
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)}
+            className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
+            <IconCalendarEvent size={18} color={Colors.text} />
+          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)}
             className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
             <IconSearch size={18} color={Colors.text} />
@@ -276,6 +282,7 @@ const Home = () => {
     />
     <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost} />
+    <EventsScreen visible={eventsOpen} onClose={() => setEventsOpen(false)} />
     <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} />
     <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
     {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}
