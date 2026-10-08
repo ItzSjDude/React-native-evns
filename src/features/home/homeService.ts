@@ -30,8 +30,11 @@ export const mapPost = (post: ApiPost): HomePost => ({
   shares: post.shareCount ?? 0,
 });
 
-export const getFeedPage = async (cursor?: string | null, limit = FEED_PAGE_SIZE): Promise<HomeFeedPage> => {
-  const query = `limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+export type FeedScope = 'all' | 'following';
+
+/** `scope=following` limits the feed to people the viewer follows (the Following tab); `all` is everyone. */
+export const getFeedPage = async (cursor?: string | null, limit = FEED_PAGE_SIZE, scope: FeedScope = 'all'): Promise<HomeFeedPage> => {
+  const query = `limit=${limit}${scope === 'following' ? '&scope=following' : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
   const response = await apiRequest<ApiFeedResponse>(`/posts/feed?${query}`, {auth: 'required'});
   return {
     posts: response.posts.map(mapPost),

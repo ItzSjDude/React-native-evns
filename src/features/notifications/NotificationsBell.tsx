@@ -6,6 +6,8 @@ import {Colors} from '../../Constants/Colors';
 import {useNotifications} from './notificationsContext';
 
 export type NotificationsBellProps = {
+  /** Show a small dot for any unread notification instead of the count badge. */
+  dot?: boolean;
   /** Defaults to opening the notifications sheet. */
   onPress?: () => void;
   size?: number;
@@ -20,7 +22,7 @@ export const formatBadgeCount = (count: number) => (count > 99 ? '99+' : String(
  * on mount, whenever its screen gains focus, and (via the provider) on each push
  * and app foreground. Renders without a badge outside NotificationsProvider.
  */
-export default function NotificationsBell({onPress, size = 22, color = Colors.text, className = ''}: NotificationsBellProps) {
+export default function NotificationsBell({onPress, size = 22, color = Colors.text, className = '', dot = false}: NotificationsBellProps) {
   const {unreadCount, refreshUnreadCount, openNotifications, enabled} = useNotifications();
   // Optional: the bell also works outside a navigator (no focus refresh there).
   const navigation = useContext(NavigationContext);
@@ -40,7 +42,8 @@ export default function NotificationsBell({onPress, size = 22, color = Colors.te
       hitSlop={6}
       className={`h-10 w-10 items-center justify-center rounded-full active:opacity-70 ${className}`}>
       <IconBell size={size} color={color} />
-      {unreadCount > 0 && (
+      {dot && unreadCount > 0 && <View testID="notifications-dot" pointerEvents="none" className="absolute right-2 top-2 h-[9px] w-[9px] rounded-full border-[1.5px] border-background bg-primary" />}
+      {!dot && unreadCount > 0 && (
         <View testID="notifications-badge" pointerEvents="none" className="absolute -right-1 -top-1 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-gold px-1">
           <Text className="text-[10px] font-bold leading-3 text-gold-ink">{formatBadgeCount(unreadCount)}</Text>
         </View>

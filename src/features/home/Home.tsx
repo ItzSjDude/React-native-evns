@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, View} from 'react-native';
+import {ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Share, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
@@ -10,7 +10,8 @@ import {loadSession} from '../auth';
 import CommentsSheet from './CommentsSheet';
 import ComposePostSheet from './ComposePostSheet';
 import {messageOf, toPostCardData} from './homePresentation';
-import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost} from './homeService';
+import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost, type FeedScope} from './homeService';
+import PostFollowButton from './PostFollowButton';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
 import {EventDetailSheet, EventsScreen} from '../events';
@@ -19,6 +20,8 @@ import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
+import IconArrowDown from '@tabler/icons-react-native/IconArrowDown';
+import IconPencil from '@tabler/icons-react-native/IconPencil';
 import type {ApiPostMedia, HomePost} from './types';
 
 cssInterop(SafeAreaView, {className: 'style'});
@@ -26,7 +29,10 @@ cssInterop(SafeAreaView, {className: 'style'});
 type Viewer = {id: string; name: string; avatarUrl: string | null};
 type LoadMode = 'initial' | 'refresh' | 'more';
 
-const PostSeparator = () => <View className="h-[18px]" />;
+const VIEWABILITY = {itemVisiblePercentThreshold: 50};
+/** The part of FlatList's viewability callback this screen reads. */
+type ViewableChange = {viewableItems: {index?: number | null}[]};
+const initialsOf = (name: string) => name.trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
 
 const Home = () => {
   const [posts, setPosts] = useState<HomePost[]>([]);
@@ -43,6 +49,9 @@ const Home = () => {
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState('');
   const [composeError, setComposeError] = useState<string | null>(null);
+  const [scope, setScope] = useState<FeedScope>('all');
+  const scopeRef = useRef<FeedScope>('all');
+  const [topIndex, setTopIndex] = useState(0);
   const listRef = useRef<FlatList<HomePost>>(null);
   const request = useRef(0);
   const moreInFlight = useRef(false);
@@ -62,7 +71,7 @@ const Home = () => {
       setMoreError(null);
     }
     try {
-      const page = await getFeedPage(append ? cursor : null);
+      const page = await getFeedPage(append ? cursor : null, undefined, scopeRef.current);
       if (id !== request.current) return;
       setPosts(current => append
         ? [...current, ...page.posts.filter(post => !current.some(item => item.id === post.id))]
@@ -72,7 +81,10 @@ const Home = () => {
       setHasMore(page.hasMore && page.nextCursor !== null);
     } catch (cause) {
       if (id !== request.current) return;
-      if (append) setMoreError(messageOf(cause)); else setError(messageOf(cause));
+      // A server without the Following filter rejects the unknown query param with a 400.
+      const unsupported = scopeRef.current === 'following' && (cause as {status?: number})?.status === 400;
+      const message = unsupported ? 'The Following feed isn’t available on this server yet.' : messageOf(cause);
+      if (append) setMoreError(message); else setError(message);
     } finally {
       if (id === request.current) { setLoading(false); setRefreshing(false); setLoadingMore(false); }
       if (append) moreInFlight.current = false;
@@ -197,6 +209,31 @@ const Home = () => {
     } catch (cause) {Alert.alert('Could not send report', messageOf(cause));}
   };
 
+  const changeScope = (next: FeedScope) => {
+    if (next === scopeRef.current) return;
+    scopeRef.current = next;
+    setScope(next);
+    setPosts([]);
+    setNextCursor(null);
+    setHasMore(false);
+    setTopIndex(0);
+    load('initial');
+  };
+
+  const sharePost = (post: HomePost) => {
+    Share.share({message: `${post.author}: ${post.content || 'Check out this post on Hiva'}`}).catch(() => {});
+  };
+
+  const onViewableItemsChanged = useRef(({viewableItems}: ViewableChange) => {
+    const first = viewableItems.find(item => item.index !== null && item.index !== undefined);
+    if (first && first.index !== null && first.index !== undefined) setTopIndex(first.index);
+  }).current;
+
+  const nextPost = () => {
+    const index = Math.min(topIndex + 1, posts.length - 1);
+    listRef.current?.scrollToIndex({index, animated: true});
+  };
+
   const refresh = () => {
     setRefreshing(true);
     load('refresh');
@@ -206,30 +243,44 @@ const Home = () => {
     if (hasMore && nextCursor && !loading && !refreshing && !moreError) load('more', nextCursor);
   };
 
-  const header = (
-    <View className="pt-[21px] pb-[20px]">
-      <View className="flex-row items-center justify-between">
-        <View>
-          <Typography size={28} color={Colors.text} fontWeight="500" className="tracking-[-1px]">Hiva chat</Typography>
-          <Typography size={13} color={Colors.primary} fontWeight="600" className="mt-1 tracking-[2px]">FOR YOU</Typography>
-        </View>
+  const topBar = (
+    <View>
+      <View className="flex-row items-center justify-between px-5 pb-1 pt-3">
+        <Text accessibilityRole="header" className="font-display text-[34px] tracking-[-1px] text-foreground">hiva<Text className="text-primary">.</Text></Text>
         <View className="flex-row items-center">
-          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} className="rounded-full bg-gold px-[12px] py-[7px] active:opacity-70">
-            <Typography size={14} color={Colors.iconDark} fontWeight="700">Post +</Typography>
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
+            <IconSearch size={24} color={Colors.textBody} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)}
-            className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
-            <IconCalendarEvent size={18} color={Colors.text} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
+            <IconCalendarEvent size={24} color={Colors.textBody} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)}
-            className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
-            <IconSearch size={18} color={Colors.text} />
-          </Pressable>
-          <NotificationsBell size={20} className="ml-2 bg-card" />
+          <NotificationsBell dot size={24} color={Colors.textBody} />
         </View>
       </View>
+      <View accessibilityRole="tablist" className="flex-row gap-7 border-b border-border/60 px-5">
+        {([['all', 'For you'], ['following', 'Following']] as const).map(([key, label]) => {
+          const selected = scope === key;
+          return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => changeScope(key)} className="pb-3 pt-2 active:opacity-70">
+            <Text className={`font-body-bold text-[18px] ${selected ? 'text-foreground' : 'text-muted'}`}>{label}</Text>
+            {selected && <View className="absolute -bottom-px left-0 right-0 h-[3px] rounded-full bg-primary" />}
+          </Pressable>;
+        })}
+      </View>
+    </View>
+  );
+
+  const listHeader = (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose}
+        className="mx-5 mb-1 mt-4 flex-row items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 active:opacity-70">
+        <View className="h-[34px] w-[34px] items-center justify-center rounded-full bg-primary-dark">
+          <Text className="font-body-bold text-[12px] text-purple-soft">{initialsOf(viewer?.name ?? 'Me')}</Text>
+        </View>
+        <Text className="flex-1 font-body text-[15px] text-muted">Share something with Hiva…</Text>
+        <IconPencil size={18} color={Colors.muted} />
+      </Pressable>
       {error && posts.length > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing feed" onPress={refresh} className="mt-[14px] rounded-[14px] bg-coral/10 px-[14px] py-[10px] active:opacity-70">
+        <Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing feed" onPress={refresh} className="mx-5 mt-3 rounded-[14px] bg-coral/10 px-[14px] py-[10px] active:opacity-70">
           <Typography size={13} color={Colors.coral}>Couldn't refresh the feed. Tap to retry.</Typography>
         </Pressable>
       ) : null}
@@ -249,8 +300,8 @@ const Home = () => {
   ) : (
     <View className="items-center px-6 pt-16">
       <AppIcon name="comment" size={44} color={Colors.muted} filled={false} />
-      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">No posts yet</Typography>
-      <Typography size={14} color={Colors.muted} className="mt-2 text-center">Be the first to share something with everyone.</Typography>
+      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">{scope === 'following' ? 'Nothing here yet' : 'No posts yet'}</Typography>
+      <Typography size={14} color={Colors.muted} className="mt-2 text-center">{scope === 'following' ? 'Follow people and their posts will show up here.' : 'Be the first to share something with everyone.'}</Typography>
     </View>
   );
 
@@ -262,24 +313,34 @@ const Home = () => {
 
   const viewerId = viewer?.id ?? null;
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    {topBar}
     <FlatList
       ref={listRef}
       data={posts}
       extraData={viewerId}
       keyExtractor={item => item.id}
       renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
-        onReport={reason => report(item, reason)}
+        onReport={reason => report(item, reason)} onShare={() => sharePost(item)} viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl}
+        headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
         onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
       showsVerticalScrollIndicator={false}
-      contentContainerClassName="px-5 pb-[110px]"
-      ItemSeparatorComponent={PostSeparator}
-      ListHeaderComponent={header}
+      contentContainerClassName="pb-[130px]"
+      ListHeaderComponent={listHeader}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} colors={[Colors.primary]} />}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={VIEWABILITY}
+      onScrollToIndexFailed={({index, averageItemLength}) => listRef.current?.scrollToOffset({offset: index * averageItemLength, animated: true})}
     />
+    {posts.length > 1 && topIndex < posts.length - 1 && (
+      <Pressable accessibilityRole="button" accessibilityLabel="Next post" onPress={nextPost}
+        className="absolute bottom-[112px] h-12 w-12 items-center justify-center self-center rounded-full border border-border bg-card shadow-lg active:opacity-70">
+        <IconArrowDown size={22} color={Colors.text} />
+      </Pressable>
+    )}
     <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost} />
     <EventsScreen visible={eventsOpen} onClose={() => setEventsOpen(false)} />

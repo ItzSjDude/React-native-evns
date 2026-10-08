@@ -56,7 +56,7 @@ beforeEach(() => {
 test('renders the feed from the API with a working search button', async () => {
   feed.mockResolvedValue({posts: [post(), post({id: 'p2', content: 'Second post', author: 'Ravi'})], hasMore: false, nextCursor: null});
   const renderer = await render();
-  expect(feed).toHaveBeenCalledWith(null);
+  expect(feed).toHaveBeenCalledWith(null, undefined, 'all');
   const shown = texts(renderer);
   expect(shown).toContain('From the API');
   expect(shown).toContain('Second post');
@@ -100,7 +100,7 @@ test('requests the next page with the cursor on end reached', async () => {
   const renderer = await render();
   const list = renderer.root.findByProps({onEndReachedThreshold: 0.5});
   await ReactTestRenderer.act(async () => { list.props.onEndReached(); });
-  expect(feed).toHaveBeenLastCalledWith('next');
+  expect(feed).toHaveBeenLastCalledWith('next', undefined, 'all');
   expect(texts(renderer)).toContain('Older post');
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
@@ -150,5 +150,28 @@ test('reports someone else\'s post with the chosen reason', async () => {
   await ReactTestRenderer.act(async () => { renderer.root.findByProps({label: 'Spam'}).props.onPress(); });
   expect(report).toHaveBeenCalledWith('theirs', 'Spam');
   expect(Alert.alert).toHaveBeenCalledWith('Report received', expect.any(String));
+  await ReactTestRenderer.act(async () => { renderer.unmount(); });
+});
+
+test('the Following tab loads the following scope and explains an unsupported or empty feed', async () => {
+  feed.mockResolvedValue({posts: [post()], hasMore: false, nextCursor: null});
+  const renderer = await render();
+  const tab = (index: number) => renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function')[index];
+
+  // A server without the filter rejects the unknown query param.
+  feed.mockRejectedValueOnce({status: 400, message: 'Invalid request query'});
+  await ReactTestRenderer.act(async () => { tab(1).props.onPress(); });
+  expect(feed).toHaveBeenLastCalledWith(null, undefined, 'following');
+  expect(texts(renderer)).toContain('The Following feed isn’t available on this server yet.');
+
+  // Once supported, an empty list explains itself.
+  feed.mockResolvedValueOnce({posts: [], hasMore: false, nextCursor: null});
+  await ReactTestRenderer.act(async () => { renderer.root.findByProps({accessibilityLabel: 'Retry loading feed'}).props.onPress(); });
+  expect(texts(renderer)).toContain('Follow people and their posts will show up here.');
+
+  feed.mockResolvedValueOnce({posts: [post({id: 'p9', content: 'Back on For you'})], hasMore: false, nextCursor: null});
+  await ReactTestRenderer.act(async () => { tab(0).props.onPress(); });
+  expect(feed).toHaveBeenLastCalledWith(null, undefined, 'all');
+  expect(texts(renderer)).toContain('Back on For you');
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });

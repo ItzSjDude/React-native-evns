@@ -1,11 +1,14 @@
 import React, {useState} from 'react';
-import {Image, Pressable, ScrollView, useWindowDimensions, View} from 'react-native';
+import {Image, Pressable, ScrollView, Text, useWindowDimensions, View} from 'react-native';
+import IconDots from '@tabler/icons-react-native/IconDots';
 import IconFlag from '@tabler/icons-react-native/IconFlag';
+import IconHeart from '@tabler/icons-react-native/IconHeart';
+import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
+import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
+import IconSend from '@tabler/icons-react-native/IconSend';
 import IconTrash from '@tabler/icons-react-native/IconTrash';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../Colors';
-import AppIcon from '../Icons';
-import Typography from '../Typography';
 
 export type PostCardData = {
   id: string;
@@ -32,26 +35,25 @@ type PostCardProps = PostCardData & {
   onPressAuthor?: () => void;
   /** Sends a report for this post with the chosen reason. */
   onReport?: (reason: string) => void;
+  onShare?: () => void;
+  /** Rendered between the author and the ⋯ menu, e.g. a Follow button. */
+  headerAction?: React.ReactNode;
+  /** The signed-in user, shown beside the "Add a reply…" prompt. */
+  viewerName?: string;
+  viewerAvatarUrl?: string | null;
 };
 
-const Avatar = ({name, url}: {name: string; url?: string | null}) => url
-  ? <Image source={{uri: url}} accessibilityLabel={`${name}'s avatar`} className="h-[43px] w-[43px] rounded-[22px] bg-[#77717C]" />
-  : (
-    <View className="h-[43px] w-[43px] items-center justify-center rounded-[22px] bg-[#77717C]">
-      <AppIcon name="user" size={24} color={Colors.iconDark} />
-    </View>
-  );
+const initialsOf = (name: string) => name.trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
 
-const StatButton = ({icon, count, color = Colors.muted, filled = false, onPress, label, disabled}: {icon: 'heart' | 'comment'; count: number; color?: string; filled?: boolean; onPress?: () => void; label: string; disabled?: boolean}) => (
-  <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress} className="mr-[8px] flex-row items-center rounded-full border border-[#363342] px-[11px] py-[7px] active:opacity-70">
-    <AppIcon name={icon} size={19} color={color} filled={filled} />
-    <Typography size={13} color={color} fontWeight="600" className="ml-[7px]">{count}</Typography>
-  </Pressable>
-);
+const Avatar = ({name, url, size = 38}: {name: string; url?: string | null; size?: number}) => url
+  ? <Image source={{uri: url}} accessibilityLabel={`${name}'s avatar`} style={{width: size, height: size, borderRadius: size / 2}} className="bg-primary-dark" />
+  : <View style={{width: size, height: size, borderRadius: size / 2}} className="items-center justify-center bg-primary-dark">
+    <Text style={{fontSize: size * 0.34}} className="font-body-bold text-purple-soft">{initialsOf(name)}</Text>
+  </View>;
 
-/** One sheet with two steps so the confirmation never stacks a second modal over the first. */
 const REPORT_REASONS = ['Spam', 'Hate or harassment', 'Nudity or sexual content', 'Violence', 'False information'];
 
+/** One sheet with steps so confirmation and reasons never stack a second modal over the first. */
 const PostOptionsSheet = ({visible, confirming, reporting, canDelete, onClose, onConfirmStep, onReportStep, onDelete, onReport}: {
   visible: boolean; confirming: boolean; reporting: boolean; canDelete: boolean; onClose: () => void; onConfirmStep: () => void;
   onReportStep: () => void; onDelete?: () => void; onReport?: (reason: string) => void;
@@ -79,40 +81,57 @@ const PostOptionsSheet = ({visible, confirming, reporting, canDelete, onClose, o
   </BottomSheet>
 );
 
-const PostCard = ({author, authorAvatarUrl, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false, onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport}: PostCardProps) => {
+const ActionButton = ({icon: Icon, label, count, color, accessibilityLabel, onPress, disabled}: {
+  icon: typeof IconHeart; label?: string; count?: number; color: string; accessibilityLabel: string; onPress?: () => void; disabled?: boolean;
+}) => (
+  <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress}
+    className="h-12 flex-row items-center gap-2 px-4 active:opacity-60">
+    <Icon size={22} color={color} />
+    {!!label && <Text className="font-body-semibold text-[15px] text-foreground">{label}</Text>}
+    {!!count && <Text className="font-body-semibold text-[13px] text-muted">{count}</Text>}
+  </Pressable>
+);
+
+const PostCard = ({author, authorAvatarUrl, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
+  onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, headerAction, viewerName = 'Me', viewerAvatarUrl}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
-  const cardWidth = screenWidth - 40;
+  const mediaWidth = screenWidth - 40;
+  const hasMedia = images.length > 0;
+  const caption = !!content && (
+    <Text selectable className={`px-5 font-body text-foreground ${hasMedia ? 'mt-3.5 text-[16px] leading-[23px]' : 'mt-3 text-[17px] leading-[25px]'}`}>{content}</Text>
+  );
 
   return (
-    <View className={`overflow-hidden rounded-[20px] border border-[#363342] bg-card ${pending ? 'opacity-60' : ''}`}>
-      <View className="px-[15px] pb-[16px] pt-[15px]">
-        <View className="flex-row items-center">
-          <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
-            disabled={!onPressAuthor} onPress={onPressAuthor} className="flex-1 flex-row items-center active:opacity-70">
-            <Avatar name={author} url={authorAvatarUrl} />
-            <View className="ml-[12px] flex-1">
-              <Typography size={16} color={Colors.text} fontWeight="700">{author}</Typography>
-              <Typography size={12} color={Colors.muted} className="mt-[3px]">{time}</Typography>
-            </View>
+    <View className={`border-b border-border/60 pb-4 pt-4 ${pending ? 'opacity-60' : ''}`}>
+      <View className="flex-row items-center px-5">
+        <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
+          disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
+          <Avatar name={author} url={authorAvatarUrl} size={40} />
+          <View className="ml-3 min-w-0 flex-1">
+            <Text numberOfLines={1} className="font-body-bold text-[16px] text-foreground">{author}</Text>
+            <Text className="mt-0.5 font-body text-[13px] text-muted">{time}</Text>
+          </View>
+        </Pressable>
+        {headerAction}
+        {!pending && (
+          <Pressable accessibilityRole="button" accessibilityLabel="More post options" hitSlop={8} className="ml-1 h-10 w-10 items-center justify-center active:opacity-60"
+            onPress={() => { setConfirmingDelete(false); setReporting(false); setMenuVisible(true); }}>
+            <IconDots size={22} color={Colors.muted} />
           </Pressable>
-          {!pending && (
-            <Pressable accessibilityRole="button" accessibilityLabel="More post options" className="p-[6px] active:opacity-70" onPress={() => { setConfirmingDelete(false); setReporting(false); setMenuVisible(true); }}>
-              <AppIcon name="menu" size={22} color={Colors.text} />
-            </Pressable>
-          )}
-        </View>
-        {!!content && <Typography size={16} color={Colors.textBody} className="mt-[16px]">{content}</Typography>}
+        )}
       </View>
 
-      {images.length > 0 && (
-        <View>
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setActiveImage(Math.round(event.nativeEvent.contentOffset.x / cardWidth))}>
+      {!hasMedia && caption}
+
+      {hasMedia && (
+        <View className="mx-5 mt-3.5 overflow-hidden rounded-[20px] bg-card">
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setActiveImage(Math.round(event.nativeEvent.contentOffset.x / mediaWidth))}>
             {images.map((image, index) => (
-              <Image key={`${image}-${index}`} source={{uri: image}} accessibilityLabel={`Post image ${index + 1}`} className="h-[270px]" style={{width: cardWidth}} resizeMode="cover" />
+              <Image key={`${image}-${index}`} source={{uri: image}} accessibilityLabel={`Post image ${index + 1}`} className="h-[270px]" style={{width: mediaWidth}} resizeMode="cover" />
             ))}
           </ScrollView>
           {images.length > 1 && (
@@ -123,14 +142,25 @@ const PostCard = ({author, authorAvatarUrl, time, content, likes, likedByViewer 
         </View>
       )}
 
-      <View className="flex-row items-center px-[15px] py-[14px]">
-        <StatButton icon="heart" count={likes} color={likedByViewer ? Colors.coral : Colors.muted} filled={likedByViewer} label={likedByViewer ? 'Unlike post' : 'Like post'} onPress={onToggleLike} disabled={pending} />
-        <StatButton icon="comment" count={comments} label="View comments" onPress={onOpenComments} disabled={pending} />
-        <View className="flex-1" />
-        <Pressable accessibilityRole="button" accessibilityLabel="Share post" className="p-[6px] active:opacity-70">
-          <AppIcon name="share" size={22} color={Colors.muted} />
-        </Pressable>
+      <View className="mx-5 mt-3.5 flex-row items-center">
+        <View className="flex-row items-center overflow-hidden rounded-2xl border border-border bg-card">
+          <ActionButton icon={likedByViewer ? IconHeartFilled : IconHeart} label="Like" count={likes} color={likedByViewer ? Colors.coral : Colors.text}
+            accessibilityLabel={likedByViewer ? 'Unlike post' : 'Like post'} onPress={onToggleLike} disabled={pending} />
+          <View className="h-6 w-px bg-border" />
+          <ActionButton icon={IconMessageCircle} label="Reply" count={comments} color={Colors.text} accessibilityLabel="View comments" onPress={onOpenComments} disabled={pending} />
+          <View className="h-6 w-px bg-border" />
+          <ActionButton icon={IconSend} color={Colors.text} accessibilityLabel="Share post" onPress={onShare} disabled={pending || !onShare} />
+        </View>
       </View>
+
+      {hasMedia && caption}
+
+      {!pending && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Add a reply" onPress={onOpenComments} className="mx-5 mt-3.5 flex-row items-center gap-3 active:opacity-70">
+          <Avatar name={viewerName} url={viewerAvatarUrl} size={34} />
+          <Text className="font-body text-[15px] text-muted">Add a reply…</Text>
+        </Pressable>
+      )}
 
       <PostOptionsSheet visible={menuVisible} confirming={confirmingDelete} reporting={reporting} canDelete={canDelete && !!onDelete} onClose={() => setMenuVisible(false)}
         onConfirmStep={() => setConfirmingDelete(true)} onReportStep={() => setReporting(true)} onDelete={onDelete} onReport={onReport} />
