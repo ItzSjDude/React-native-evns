@@ -42,7 +42,7 @@ export default function NotificationsBell({onPress, size = 22, color = Colors.te
       hitSlop={6}
       className={`h-10 w-10 items-center justify-center rounded-full active:opacity-70 ${className}`}>
       <IconBell size={size} color={color} />
-      {dot && unreadCount > 0 && <View testID="notifications-dot" pointerEvents="none" className="absolute right-2 top-2 h-[9px] w-[9px] rounded-full border-[1.5px] border-background bg-primary" />}
+      {dot && unreadCount > 0 && <View testID="notifications-dot" pointerEvents="none" className="absolute right-[9px] top-[9px] h-[9px] w-[9px] rounded-full border-[1.5px] border-feed-bg bg-feed-accent" />}
       {!dot && unreadCount > 0 && (
         <View testID="notifications-badge" pointerEvents="none" className="absolute -right-1 -top-1 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-gold px-1">
           <Text className="text-[10px] font-bold leading-3 text-gold-ink">{formatBadgeCount(unreadCount)}</Text>

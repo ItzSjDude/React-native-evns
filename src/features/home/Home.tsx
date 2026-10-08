@@ -12,6 +12,8 @@ import ComposePostSheet from './ComposePostSheet';
 import {messageOf, toPostCardData} from './homePresentation';
 import {createPost, deletePost, getFeedPage, getPost, likePost, reportPost, unlikePost, type FeedScope} from './homeService';
 import PostFollowButton from './PostFollowButton';
+import {FeedColors} from './feedTheme';
+import {useSavedPosts} from './savedPosts';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
 import {EventDetailSheet, EventsScreen} from '../events';
@@ -21,7 +23,7 @@ import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconArrowDown from '@tabler/icons-react-native/IconArrowDown';
-import IconPencil from '@tabler/icons-react-native/IconPencil';
+import IconPlus from '@tabler/icons-react-native/IconPlus';
 import type {ApiPostMedia, HomePost} from './types';
 
 cssInterop(SafeAreaView, {className: 'style'});
@@ -32,7 +34,6 @@ type LoadMode = 'initial' | 'refresh' | 'more';
 const VIEWABILITY = {itemVisiblePercentThreshold: 50};
 /** The part of FlatList's viewability callback this screen reads. */
 type ViewableChange = {viewableItems: {index?: number | null}[]};
-const initialsOf = (name: string) => name.trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
 
 const Home = () => {
   const [posts, setPosts] = useState<HomePost[]>([]);
@@ -52,6 +53,7 @@ const Home = () => {
   const [scope, setScope] = useState<FeedScope>('all');
   const scopeRef = useRef<FeedScope>('all');
   const [topIndex, setTopIndex] = useState(0);
+  const {saved: savedPosts, toggle: toggleSaved} = useSavedPosts();
   const listRef = useRef<FlatList<HomePost>>(null);
   const request = useRef(0);
   const moreInFlight = useRef(false);
@@ -245,47 +247,43 @@ const Home = () => {
 
   const topBar = (
     <View>
-      <View className="flex-row items-center justify-between px-5 pb-1 pt-3">
-        <Text accessibilityRole="header" className="font-display text-[34px] tracking-[-1px] text-foreground">hiva<Text className="text-primary">.</Text></Text>
+      <View className="flex-row items-center justify-between px-[19px] pb-1 pt-3">
+        <Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-feed-text">hiva<Text className="text-feed-accent">.</Text></Text>
         <View className="flex-row items-center">
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
-            <IconSearch size={24} color={Colors.textBody} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)} hitSlop={4} className="h-11 w-11 items-center justify-center active:opacity-60">
+            <IconCalendarEvent size={23} color={FeedColors.label} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
-            <IconCalendarEvent size={24} color={Colors.textBody} />
-          </Pressable>
-          <NotificationsBell dot size={24} color={Colors.textBody} />
+          <NotificationsBell dot size={23} color={FeedColors.label} />
         </View>
       </View>
-      <View accessibilityRole="tablist" className="flex-row gap-7 border-b border-border/60 px-5">
-        {([['all', 'For you'], ['following', 'Following']] as const).map(([key, label]) => {
-          const selected = scope === key;
-          return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => changeScope(key)} className="pb-3 pt-2 active:opacity-70">
-            <Text className={`font-body-bold text-[18px] ${selected ? 'text-foreground' : 'text-muted'}`}>{label}</Text>
-            {selected && <View className="absolute -bottom-px left-0 right-0 h-[3px] rounded-full bg-primary" />}
-          </Pressable>;
-        })}
+      <View className="flex-row items-end justify-between border-b border-feed-line px-[19px]">
+        <View accessibilityRole="tablist" className="flex-row gap-[26px]">
+          {([['all', 'For you'], ['following', 'Following']] as const).map(([key, label]) => {
+            const selected = scope === key;
+            return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => changeScope(key)} className="pb-3 pt-2 active:opacity-70">
+              <Text className={`font-body-semibold text-[17px] ${selected ? 'text-feed-text' : 'text-feed-muted'}`}>{label}</Text>
+              {selected && <View className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-feed-accent" />}
+            </Pressable>;
+          })}
+        </View>
+        {/* Not in the feed design, but search and posting need an entry point; they sit in the tab row's free space. */}
+        <View className="flex-row items-center pb-1">
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
+            <IconSearch size={21} color={FeedColors.muted} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
+            <IconPlus size={22} color={FeedColors.accent} />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 
-  const listHeader = (
-    <View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose}
-        className="mx-5 mb-1 mt-4 flex-row items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 active:opacity-70">
-        <View className="h-[34px] w-[34px] items-center justify-center rounded-full bg-primary-dark">
-          <Text className="font-body-bold text-[12px] text-purple-soft">{initialsOf(viewer?.name ?? 'Me')}</Text>
-        </View>
-        <Text className="flex-1 font-body text-[15px] text-muted">Share something with Hiva…</Text>
-        <IconPencil size={18} color={Colors.muted} />
-      </Pressable>
-      {error && posts.length > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing feed" onPress={refresh} className="mx-5 mt-3 rounded-[14px] bg-coral/10 px-[14px] py-[10px] active:opacity-70">
-          <Typography size={13} color={Colors.coral}>Couldn't refresh the feed. Tap to retry.</Typography>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  const listHeader = error && posts.length > 0 ? (
+    <Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing feed" onPress={refresh} className="mx-[19px] mt-3 rounded-[14px] bg-coral/10 px-[14px] py-[10px] active:opacity-70">
+      <Typography size={13} color={Colors.coral}>Couldn't refresh the feed. Tap to retry.</Typography>
+    </Pressable>
+  ) : null;
 
   const empty = loading ? (
     <View className="items-center pt-16"><ActivityIndicator accessibilityLabel="Loading feed" color={Colors.primary} /></View>
@@ -312,7 +310,7 @@ const Home = () => {
   ) : undefined;
 
   const viewerId = viewer?.id ?? null;
-  return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+  return <SafeAreaView className="flex-1 bg-feed-bg" edges={['top']}>
     {topBar}
     <FlatList
       ref={listRef}
@@ -321,14 +319,15 @@ const Home = () => {
       keyExtractor={item => item.id}
       renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
         onReport={reason => report(item, reason)} onShare={() => sharePost(item)} viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl}
+        saved={savedPosts.has(item.id)} onToggleSave={() => toggleSaved(item.id)}
         headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
         onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
       showsVerticalScrollIndicator={false}
       contentContainerClassName="pb-[130px]"
-      ListHeaderComponent={listHeader}
+      ListHeaderComponent={listHeader ?? undefined}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} colors={[Colors.primary]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={FeedColors.accent} colors={[FeedColors.accent]} />}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       onViewableItemsChanged={onViewableItemsChanged}
@@ -337,8 +336,8 @@ const Home = () => {
     />
     {posts.length > 1 && topIndex < posts.length - 1 && (
       <Pressable accessibilityRole="button" accessibilityLabel="Next post" onPress={nextPost}
-        className="absolute bottom-[112px] h-12 w-12 items-center justify-center self-center rounded-full border border-border bg-card shadow-lg active:opacity-70">
-        <IconArrowDown size={22} color={Colors.text} />
+        className="absolute bottom-[112px] h-[44px] w-[44px] items-center justify-center self-center rounded-full border border-feed-line bg-feed-card shadow-lg active:opacity-70">
+        <IconArrowDown size={21} color={FeedColors.label} />
       </Pressable>
     )}
     <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
