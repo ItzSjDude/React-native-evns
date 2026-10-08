@@ -74,7 +74,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
             accessibilityLabel={label}
             disabled={joining || !['ACTIVE','SCHEDULED'].includes(room.status) || room.kind!=='AUDIO'}
             onPress={room.status==='SCHEDULED' ? scheduleAction : join}
-            className={`h-11 flex-row items-center justify-center rounded-[18px] ${room.kind === 'AUDIO' && room.status === 'ACTIVE' ? 'bg-primary active:opacity-80' : 'bg-card'}`}>
+            className={`h-11 flex-row items-center justify-center rounded-[18px] ${room.kind === 'AUDIO' && room.status === 'ACTIVE' ? 'bg-gold active:opacity-80' : 'bg-card'}`}>
             {joining ? <ActivityIndicator color={PartyColors.ink} /> : <MediaIcon size={19} color={room.kind === 'AUDIO' && room.status === 'ACTIVE' ? PartyColors.ink : PartyColors.muted} />}
             {!joining && <Text className={`ml-2 text-sm font-bold ${room.kind === 'AUDIO' && room.status === 'ACTIVE' ? 'text-text-dark' : 'text-muted'}`}>
               {label}

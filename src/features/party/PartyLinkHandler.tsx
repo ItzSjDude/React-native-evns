@@ -39,7 +39,7 @@ export function PartyLinkHandler() {
   return <Modal visible={!!token && (loading || !!error)} animationType="slide" onRequestClose={close}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-6">
       {loading ? <ActivityIndicator /> : <Text accessibilityRole="alert" className="text-center text-foreground">{error}</Text>}
-      {!!error && <Pressable accessibilityRole="button" onPress={()=>setAttempt(value=>value+1)} className="mt-4 h-11 justify-center rounded-full bg-primary px-6"><Text className="font-semibold text-text-dark">Retry</Text></Pressable>}
+      {!!error && <Pressable accessibilityRole="button" onPress={()=>setAttempt(value=>value+1)} className="mt-4 h-11 justify-center rounded-full bg-gold px-6"><Text className="font-semibold text-text-dark">Retry</Text></Pressable>}
       <Pressable accessibilityRole="button" onPress={close} className="mt-4 h-11 justify-center px-6"><Text className="text-muted">Close</Text></Pressable>
     </SafeAreaView>
   </Modal>;

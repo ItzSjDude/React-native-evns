@@ -108,7 +108,7 @@ const Party = () => {
           <Text className="text-[32px] font-bold tracking-[-0.5px] text-foreground">Party</Text>
           <View className="flex-row items-center gap-2">
             <Pressable accessibilityRole="button" accessibilityLabel="Search parties" onPress={() => setSearchOpen(value => !value)} className="h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70"><IconSearch size={23} color={PartyColors.text} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open create party" onPress={() => setCreateOpen(true)} className="h-10 flex-row items-center justify-center gap-1.5 rounded-[18px] bg-primary px-4 active:opacity-70"><IconPlus size={21} color={PartyColors.ink} /><Text className="text-[13px] font-bold text-text-dark">Create</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open create party" onPress={() => setCreateOpen(true)} className="h-10 flex-row items-center justify-center gap-1.5 rounded-[18px] bg-gold px-4 active:opacity-70"><IconPlus size={21} color={PartyColors.ink} /><Text className="text-[13px] font-bold text-text-dark">Create</Text></Pressable>
           </View>
         </View>
         <Text className="mt-1 text-[14px] leading-[20px] text-muted">Join live audio parties, meet new people{ '\n' }and enjoy the vibe.</Text>
@@ -118,14 +118,14 @@ const Party = () => {
           <Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => { setSearch(''); setSearchOpen(false); }} className="h-10 w-8 items-center justify-center"><IconX size={18} color={PartyColors.muted} /></Pressable>
         </View>}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="mt-4 gap-2">
-          {([['all','For you'],['trending','Trending'],['following','Following'],['nearby','Nearby']] as const).map(([value,label])=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:filter===value}} onPress={()=>setFilter(value)} className={filter===value?'min-h-11 justify-center rounded-full bg-primary px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={filter===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{label}</Text></Pressable>)}
+          {([['all','For you'],['trending','Trending'],['following','Following'],['nearby','Nearby']] as const).map(([value,label])=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:filter===value}} onPress={()=>setFilter(value)} className={filter===value?'min-h-11 justify-center rounded-full bg-gold px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={filter===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{label}</Text></Pressable>)}
         </ScrollView>
         <View className="mb-4 mt-5">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
             {partyCategories.map(option => {
               const CategoryIcon = categoryIcons[option.key];
               const active = category === option.key;
-              return <Pressable key={option.key} accessibilityRole="button" accessibilityLabel={option.label + ' parties'} accessibilityState={{selected: active}} onPress={() => changeCategory(option.key)} className={active ? 'h-9 flex-row items-center gap-1.5 rounded-full border border-primary bg-primary px-3.5' : 'h-9 flex-row items-center gap-1.5 rounded-full border border-border bg-card px-3.5'}><CategoryIcon size={17} color={active ? PartyColors.ink : PartyColors.text} /><Text className={active ? 'text-[12px] font-bold text-text-dark' : 'text-[12px] font-medium text-foreground'}>{option.label}</Text></Pressable>;
+              return <Pressable key={option.key} accessibilityRole="button" accessibilityLabel={option.label + ' parties'} accessibilityState={{selected: active}} onPress={() => changeCategory(option.key)} className={active ? 'h-9 flex-row items-center gap-1.5 rounded-full border border-primary bg-gold px-3.5' : 'h-9 flex-row items-center gap-1.5 rounded-full border border-border bg-card px-3.5'}><CategoryIcon size={17} color={active ? PartyColors.ink : PartyColors.text} /><Text className={active ? 'text-[12px] font-bold text-text-dark' : 'text-[12px] font-medium text-foreground'}>{option.label}</Text></Pressable>;
             })}
           </ScrollView>
         </View>

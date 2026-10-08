@@ -11,6 +11,8 @@ export const PartyColors = {
   muted: Colors.muted,
   ink: Colors.textDark,
   coral: Colors.coral,
+  gold: Colors.gold,
+  goldInk: Colors.goldInk,
 } as const;
 
 export type PartyCategory = 'all' | 'music' | 'chill' | 'gaming' | 'talk' | 'study' | 'travel' | 'sports';

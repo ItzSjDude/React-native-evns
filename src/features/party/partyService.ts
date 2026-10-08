@@ -122,7 +122,7 @@ export const joinParty = (partyId: string) => apiRequest<JoinedParty>(`/parties/
   auth: 'required', method: 'POST',
 });
 
-export const setPartyState = (partyId: string, state: {muted: boolean}) => apiRequest<{muted: boolean; videoEnabled: boolean}>(`/parties/${partyId}/state`, {
+export const setPartyState = (partyId: string, state: {muted?: boolean; videoEnabled?: boolean}) => apiRequest<{muted: boolean; videoEnabled: boolean}>(`/parties/${partyId}/state`, {
   auth: 'required', method: 'PATCH', body: JSON.stringify(state),
 });
 

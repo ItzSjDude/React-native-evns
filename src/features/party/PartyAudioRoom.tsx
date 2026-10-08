@@ -4,7 +4,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {AudioSession, AndroidAudioTypePresets, LiveKitRoom} from '@livekit/react-native';
 import {loadSession} from '../auth';
 import AudioRoomStage from './AudioRoomStage';
-import {PARTY_AUDIO_ROOM_OPTIONS} from './audioConfig';
+import {roomOptionsFor} from './video/videoConfig';
 import {roomTitle} from './partyPresentation';
 import {endParty, leaveParty, type JoinedParty} from './partyService';
 import {startPartyAudioService, stopPartyAudioService} from '../../core/audio/backgroundAudio';
@@ -54,7 +54,7 @@ export default function PartyAudioRoom({session, onClose, expanded, onMinimize, 
     return ()=>{leaveRequest.current=null;};
   },[leaveRequest]);
   if(!audioReady && !expanded) return <View className="absolute bottom-[90px] left-4 right-4 flex-row items-center gap-2 rounded-[22px] border border-border bg-card py-2 pl-4 pr-1">
-    <Pressable accessibilityRole="button" accessibilityLabel="Return to audio party" onPress={onExpand} className="min-h-11 min-w-0 flex-1 justify-center active:opacity-70">
+    <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${session.party.kind==='VIDEO'?'video':'audio'} party`} onPress={onExpand} className="min-h-11 min-w-0 flex-1 justify-center active:opacity-70">
       <Text numberOfLines={1} className="text-sm font-semibold text-foreground">{roomTitle(session.party)}</Text>
       <Text accessibilityRole={error?'alert':undefined} numberOfLines={1} className="mt-0.5 text-xs text-muted">{error ? 'Audio problem · Open to retry' : 'Preparing audio…'}</Text>
     </Pressable>
@@ -62,12 +62,12 @@ export default function PartyAudioRoom({session, onClose, expanded, onMinimize, 
   if(!audioReady) return <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={requestClose}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-8">
       <Text accessibilityRole={error?'alert':undefined} className="text-center text-sm text-foreground">{error || 'Preparing audio…'}</Text>
-      {!!error && <Pressable accessibilityRole="button" disabled={closing} onPress={()=>{setError(null);setAttempt(value=>value+1);}} className="mt-6 h-11 justify-center rounded-full bg-primary px-6"><Text className="font-semibold text-text-dark">Retry audio</Text></Pressable>}
+      {!!error && <Pressable accessibilityRole="button" disabled={closing} onPress={()=>{setError(null);setAttempt(value=>value+1);}} className="mt-6 h-11 justify-center rounded-full bg-gold px-6"><Text className="font-semibold text-text-dark">Retry audio</Text></Pressable>}
       <Pressable accessibilityRole="button" disabled={closing} onPress={requestClose} className="mt-4 h-11 justify-center rounded-full bg-card px-6"><Text className="text-foreground">Close room</Text></Pressable>
     </SafeAreaView>
   </Modal>;
   return <LiveKitRoom serverUrl={session.media.url} token={session.media.token} connect audio={false} video={false}
-    options={PARTY_AUDIO_ROOM_OPTIONS} onConnected={()=>setError(null)} onError={cause=>setError(cause.message || 'Audio connection failed.')}>
+    options={roomOptionsFor(session.party.kind)} onConnected={()=>setError(null)} onError={cause=>setError(cause.message || 'Audio connection failed.')}>
     <AudioRoomStage session={session} onClose={onClose} closeRequest={closeRequest} connectionError={error} expanded={expanded} onMinimize={onMinimize} onExpand={onExpand} />
   </LiveKitRoom>;
 }

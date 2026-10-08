@@ -56,7 +56,7 @@ const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => v
         </View>
         <View className="mt-auto flex-row items-center justify-between pt-2">
           <AvatarStack room={room} />
-          <Pressable accessibilityRole="button" accessibilityLabel={(scheduled ? 'View ' : 'Join ') + roomTitle(room)} onPress={event => { event.stopPropagation(); onOpen(); }} className="min-h-11 flex-row items-center justify-center gap-1.5 rounded-[14px] bg-primary px-3 active:opacity-70">
+          <Pressable accessibilityRole="button" accessibilityLabel={(scheduled ? 'View ' : 'Join ') + roomTitle(room)} onPress={event => { event.stopPropagation(); onOpen(); }} className="min-h-11 flex-row items-center justify-center gap-1.5 rounded-[14px] bg-gold px-3 active:opacity-70">
             <MediaIcon size={15} color={PartyColors.ink} />
             <Text className="text-[12px] font-bold text-text-dark">{scheduled ? 'Details' : 'Join'}</Text>
           </Pressable>

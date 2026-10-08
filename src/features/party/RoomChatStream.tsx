@@ -37,7 +37,7 @@ export default function RoomChatStream({messages,identity,onMessagePress}: {mess
         {!messages.length && <Text className="pb-4 text-sm leading-5 text-muted">You’re in. Say hello to the room 👋</Text>}
         {messages.map(message=><Message key={message.id} message={message} mine={message.userId===identity} reduced={reduced} onPress={()=>onMessagePress?.(message)} />)}
       </ScrollView>
-      {unread && <Pressable accessibilityRole="button" accessibilityLabel="Scroll to new messages" onPress={jump} className="absolute bottom-2 min-h-11 self-center justify-center rounded-full bg-primary px-5"><Text className="text-sm font-semibold text-text-dark">New messages ↓</Text></Pressable>}
+      {unread && <Pressable accessibilityRole="button" accessibilityLabel="Scroll to new messages" onPress={jump} className="absolute bottom-2 min-h-11 self-center justify-center rounded-full bg-gold px-5"><Text className="text-sm font-semibold text-text-dark">New messages ↓</Text></Pressable>}
     </View>
   </View>;
 }

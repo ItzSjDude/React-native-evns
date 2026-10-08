@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
+import IconVideo from '@tabler/icons-react-native/IconVideo';
 import IconX from '@tabler/icons-react-native/IconX';
 import {createParty, getPartyInvitees, type PartySeatCount, type CreatedParty} from './partyService';
 import {PartyColors, partyCategories, type PartyCategory} from './partyPresentation';
@@ -11,7 +12,10 @@ const styles = StyleSheet.create({sheet: {maxHeight: '92%'}});
 const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated: (result: CreatedParty) => void}) => {
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
-  const [seatCount, setSeatCount] = useState<PartySeatCount>(8);
+  const [kind, setKind] = useState<'AUDIO' | 'VIDEO'>('AUDIO');
+  const [audioSeats, setAudioSeats] = useState<PartySeatCount>(8);
+  // Video parties are fixed at four tiles to keep bandwidth and the grid manageable.
+  const seatCount: PartySeatCount = kind === 'VIDEO' ? 4 : audioSeats;
   const [category, setCategory] = useState<PartyCategory>('music');
   const [visibility,setVisibility]=useState<'PUBLIC'|'PRIVATE'>('PUBLIC');
   const [language,setLanguage]=useState('Hindi');
@@ -39,7 +43,7 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
     const selected = partyCategories.find(item => item.key === category)!;
     try {
       const result = await createParty({
-        title: title.trim(), topic: topic.trim(), kind: 'AUDIO', seatCount, visibility,
+        title: title.trim(), topic: topic.trim(), kind, seatCount, visibility,
         language, inviteeIds:selectedInvitees, ...scheduleData,
         category: selected.category || 'SOCIAL', interestTags: [selected.interest || selected.key],
       });
@@ -62,24 +66,31 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
             <TextInput accessibilityLabel="Party name" value={title} onChangeText={setTitle} maxLength={120} placeholder="Give your room a vibe" placeholderTextColor={PartyColors.muted} className="h-12 rounded-[14px] border border-border bg-card px-4 text-[15px] text-foreground" />
             <Text className="mb-2 mt-4 text-sm font-semibold text-foreground">What's it about?</Text>
             <TextInput accessibilityLabel="Party description" value={topic} onChangeText={setTopic} maxLength={120} placeholder="Music, good conversations, new friends..." placeholderTextColor={PartyColors.muted} className="h-12 rounded-[14px] border border-border bg-card px-4 text-[15px] text-foreground" />
+            <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Party type</Text>
+            <View className="flex-row gap-3">
+              {([['AUDIO', 'Audio', IconHeadphones], ['VIDEO', 'Video', IconVideo]] as const).map(([value, label, Icon]) => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`${label} party`} accessibilityState={{selected: kind === value}} disabled={saving} onPress={() => setKind(value)} className={kind === value ? 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-gold bg-gold-bg' : 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-border bg-card'}>
+                <Icon size={19} color={kind === value ? PartyColors.gold : PartyColors.muted} /><Text className={kind === value ? 'text-sm font-semibold text-gold' : 'text-sm font-semibold text-muted'}>{label}</Text>
+              </Pressable>)}
+            </View>
+            {kind === 'VIDEO' ? <Text className="mt-2 text-xs text-muted">Up to 4 people on camera. Cameras start off; everyone else can watch.</Text> : <>
             <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Speaker seats</Text>
             <View className="flex-row gap-3">
-              {([4, 8] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`${value} speaker seats`} accessibilityState={{selected: seatCount === value}} disabled={saving} onPress={() => setSeatCount(value)} className={seatCount === value ? 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-primary bg-primary-dark' : 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-border bg-card'}>
+              {([4, 8] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`${value} speaker seats`} accessibilityState={{selected: seatCount === value}} disabled={saving} onPress={() => setAudioSeats(value)} className={seatCount === value ? 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-primary bg-primary-dark' : 'h-12 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] border border-border bg-card'}>
                 <IconHeadphones size={19} color={seatCount === value ? PartyColors.accent : PartyColors.muted} /><Text className={seatCount === value ? 'text-sm font-semibold text-primary' : 'text-sm font-semibold text-muted'}>{value} seats</Text>
               </Pressable>)}
             </View>
-            <Text className="mt-2 text-xs text-muted">Includes your host seat. Everyone else can listen.</Text>
+            <Text className="mt-2 text-xs text-muted">Includes your host seat. Everyone else can listen.</Text></>}
             <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Who can join?</Text>
             <View className="flex-row gap-3">
               {(['PUBLIC','PRIVATE'] as const).map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:visibility===value}} onPress={()=>setVisibility(value)} className={visibility===value?'h-12 flex-1 items-center justify-center rounded-[14px] border border-primary bg-primary-dark':'h-12 flex-1 items-center justify-center rounded-[14px] border border-border bg-card'}><Text className={visibility===value?'font-semibold text-primary':'font-semibold text-muted'}>{value==='PUBLIC'?'Public':'Invite-only'}</Text></Pressable>)}
             </View>
             <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Start time</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
-              {([['NOW','Start now'],['HOUR','In 1 hour'],['TOMORROW','Tomorrow']] as const).map(([value,label])=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:schedule===value}} onPress={()=>setSchedule(value)} className={schedule===value?'min-h-11 justify-center rounded-full bg-primary px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={schedule===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{label}</Text></Pressable>)}
+              {([['NOW','Start now'],['HOUR','In 1 hour'],['TOMORROW','Tomorrow']] as const).map(([value,label])=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:schedule===value}} onPress={()=>setSchedule(value)} className={schedule===value?'min-h-11 justify-center rounded-full bg-gold px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={schedule===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Language</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
-              {['Hindi','English','Punjabi','Bengali'].map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:language===value}} onPress={()=>setLanguage(value)} className={language===value?'min-h-11 justify-center rounded-full bg-primary px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={language===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{value}</Text></Pressable>)}
+              {['Hindi','English','Punjabi','Bengali'].map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:language===value}} onPress={()=>setLanguage(value)} className={language===value?'min-h-11 justify-center rounded-full bg-gold px-4':'min-h-11 justify-center rounded-full bg-card px-4'}><Text className={language===value?'text-sm font-semibold text-text-dark':'text-sm text-muted'}>{value}</Text></Pressable>)}
             </ScrollView>
             {(visibility==='PRIVATE' || invitees.length>0) && <>
               <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Invite people {visibility==='PRIVATE'?'· required':'· optional'}</Text>
@@ -94,11 +105,11 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
             </>}
             <Text className="mb-2 mt-5 text-sm font-semibold text-foreground">Choose a category</Text>
             <View className="flex-row flex-wrap gap-2">
-              {partyCategories.filter(item => item.key !== 'all').map(item => <Pressable key={item.key} accessibilityRole="button" accessibilityState={{selected: category === item.key}} onPress={() => setCategory(item.key)} className={category === item.key ? 'min-h-11 justify-center rounded-full bg-primary px-4 py-2' : 'min-h-11 justify-center rounded-full bg-card px-4 py-2'}><Text className={category === item.key ? 'text-xs font-semibold text-text-dark' : 'text-xs font-semibold text-muted'}>{item.label}</Text></Pressable>)}
+              {partyCategories.filter(item => item.key !== 'all').map(item => <Pressable key={item.key} accessibilityRole="button" accessibilityState={{selected: category === item.key}} onPress={() => setCategory(item.key)} className={category === item.key ? 'min-h-11 justify-center rounded-full bg-gold px-4 py-2' : 'min-h-11 justify-center rounded-full bg-card px-4 py-2'}><Text className={category === item.key ? 'text-xs font-semibold text-text-dark' : 'text-xs font-semibold text-muted'}>{item.label}</Text></Pressable>)}
             </View>
             <Text className="mt-4 text-xs leading-5 text-muted">{visibility==='PUBLIC'?'Your public party will appear in discovery.':'Only invited people can open and join this party.'}</Text>
             {!!error && <Text accessibilityRole="alert" className="mt-3 text-sm text-coral">{error}</Text>}
-            <Pressable accessibilityRole="button" accessibilityLabel={schedule==='NOW'?'Create party':'Schedule party'} disabled={invalid} onPress={submit} className={'mt-5 h-12 items-center justify-center rounded-full bg-primary ' + (invalid ? 'opacity-40' : 'active:opacity-70')}>
+            <Pressable accessibilityRole="button" accessibilityLabel={schedule==='NOW'?'Create party':'Schedule party'} disabled={invalid} onPress={submit} className={'mt-5 h-12 items-center justify-center rounded-full bg-gold ' + (invalid ? 'opacity-40' : 'active:opacity-70')}>
               {saving ? <ActivityIndicator color={PartyColors.ink} /> : <Text className="text-[15px] font-bold text-text-dark">{schedule==='NOW'?'Create party':'Schedule party'}</Text>}
             </Pressable>
           </ScrollView>

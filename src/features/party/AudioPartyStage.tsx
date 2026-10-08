@@ -34,7 +34,7 @@ const Seat = ({person, live, index, size, speaking, locked, localIdentity, onPre
           : person ? <Text className="text-lg font-bold text-foreground">{(person.name || '?').trim().slice(0, 2).toUpperCase()}</Text>
             : locked ? <IconLock size={22} color={PartyColors.muted} /> : <IconPlus size={22} color={PartyColors.muted} />}
         {person && muted && <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-card"><IconMicrophoneOff size={11} color={PartyColors.coral} /></View>}
-        {person?.role === 'HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-primary"><IconCrown size={12} color={PartyColors.ink} /></View>}
+        {person?.role === 'HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-gold"><IconCrown size={12} color={PartyColors.ink} /></View>}
       </View>
       <Text className="mt-1.5 w-[78px] text-center text-xs font-semibold text-foreground" numberOfLines={1}>{person ? mine ? 'You' : person.name || 'Guest' : `Seat ${index + 1}`}</Text>
       <Text className={`mt-0.5 text-xs ${speaking ? 'text-primary' : 'text-muted'}`}>{person ? speaking ? 'Speaking' : person.role === 'HOST' ? 'Host' : person.role === 'CO_HOST' ? 'Co-host' : 'Speaker' : locked ? 'Locked' : 'Open'}</Text>
