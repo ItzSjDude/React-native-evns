@@ -1,10 +1,13 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useAppDispatch} from '../../core/store/hooks';
+import {useAppDispatch, useAppSelector} from '../../core/store/hooks';
 import {imagePicker, uploadErrorMessage, uploadMedia} from '../../core/media';
 import {Colors} from '../../Constants/Colors';
 import {completeOnboarding} from './authSlice';
+import {DateOfBirthPicker, DobConfirmSheet} from './age/DateOfBirthPicker';
+import {DOB_NOTICE, EMPTY_DOB, validateDob, type DobDraft} from './age/ageValidation';
+import {useSaveDateOfBirth, type ValidDob} from './age/useSaveDateOfBirth';
 import {getOnboardingProfile, saveOnboardingProfile} from './onboarding/onboardingService';
 import {IdentityStep, InterestsStep, PhotoStep, ProgressDots} from './onboarding/OnboardingSteps';
 import {mapSaveError, MAX_INTERESTS, normalizeHandle, stepForField, suggestHandle, validateDetails, validateIdentity, validateInterests} from './onboarding/validation';
@@ -25,6 +28,14 @@ const Onboarding = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Ask for a date of birth only when the server runs the age gate (it reported `unknown`);
+  // servers without it drop the field, so asking there would be pointless.
+  const initialAgeGate = useAppSelector(state => state.auth.ageGate);
+  const [needsDob, setNeedsDob] = useState(initialAgeGate === 'confirm');
+  const [dob, setDob] = useState<DobDraft>(EMPTY_DOB);
+  const [dobError, setDobError] = useState<string | null>(null);
+  const [pendingDob, setPendingDob] = useState<ValidDob | null>(null);
+  const {save: saveDob, saving: savingDob, error: dobSaveError, clearError: clearDobSaveError} = useSaveDateOfBirth();
   const touched = useRef(new Set<keyof OnboardingDraft>());
   const mounted = useRef(true);
 
@@ -35,6 +46,7 @@ const Onboarding = () => {
     getOnboardingProfile().then(profile => {
       if (!mounted.current) return;
       setExistingAvatar(profile.avatar_url ?? null);
+      if (profile.ageStatus) setNeedsDob(profile.ageStatus === 'unknown' && profile.dateOfBirthSet !== true);
       setDraft(current => {
         const has = (field: keyof OnboardingDraft) => touched.current.has(field);
         const name = has('name') ? current.name : profile.name?.trim() || current.name;
@@ -60,6 +72,24 @@ const Onboarding = () => {
     const selected = draft.interests.includes(interest);
     if (!selected && draft.interests.length >= MAX_INTERESTS) return;
     update('interests', selected ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest]);
+  };
+
+  const changeDob = (next: DobDraft) => {
+    setDob(next);
+    setDobError(null);
+    clearDobSaveError();
+  };
+
+  const confirmDob = async () => {
+    if (!pendingDob || savingDob) return;
+    const gate = await saveDob(pendingDob);
+    if (!mounted.current) return;
+    setPendingDob(null);
+    // 'minor' swaps this screen for the 18+ screen; anything else carries on.
+    if (gate && gate !== 'minor') {
+      setNeedsDob(false);
+      setStep(1);
+    }
   };
 
   const goBack = useCallback(() => {
@@ -129,9 +159,16 @@ const Onboarding = () => {
 
   const next = () => {
     if (saving) return;
+    if (savingDob) return;
     const stepErrors = step === 0 ? validateIdentity(draft) : step === 1 ? validateInterests(draft.interests) : validateDetails(draft);
+    const dobResult = step === 0 && needsDob ? validateDob(dob) : null;
+    if (dobResult && !dobResult.ok) setDobError(dobResult.error);
     if (Object.keys(stepErrors).length > 0) {
       setErrors(current => ({...current, ...stepErrors}));
+      return;
+    }
+    if (dobResult) {
+      if (dobResult.ok) setPendingDob(dobResult);
       return;
     }
     if (step === 2) { save(true); return; }
@@ -139,7 +176,7 @@ const Onboarding = () => {
     setStep(current => (current + 1) as OnboardingStep);
   };
 
-  const busy = saving || uploading;
+  const busy = saving || uploading || savingDob;
   const isLast = step === TOTAL_STEPS - 1;
 
   return (
@@ -153,9 +190,14 @@ const Onboarding = () => {
         <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled" contentContainerClassName="px-5 pb-6 pt-6">
           {step === 0 ? <IdentityStep name={draft.name} handle={draft.handle} errors={errors} disabled={saving}
             onChangeName={value => update('name', value)} onChangeHandle={value => update('handle', value.replace(/^@/, '').toLowerCase())} onSubmit={next} /> : null}
+          {step === 0 && needsDob ? <View className="mt-2">
+            <DateOfBirthPicker value={dob} onChange={changeDob} error={dobError} disabled={saving || savingDob} />
+            <Text className="mt-2 text-xs leading-[18px] text-muted">{DOB_NOTICE}</Text>
+          </View> : null}
           {step === 1 ? <InterestsStep selected={draft.interests} error={errors.interests} disabled={saving} onToggle={toggleInterest} /> : null}
           {step === 2 ? <PhotoStep avatarUrl={draft.avatarUrl ?? existingAvatar} initials={initialsOf(draft.name)} city={draft.city} errors={errors}
             pickerAvailable={imagePicker.available} uploading={uploading} disabled={saving} onPickPhoto={pickPhoto} onChangeCity={value => update('city', value)} /> : null}
+          {step === 0 && dobSaveError ? <View className="mt-5 rounded-[14px] border border-coral bg-card p-4"><Text accessibilityRole="alert" className="text-sm text-coral">{dobSaveError}</Text></View> : null}
           {formError ? <View className="mt-5 rounded-[14px] border border-coral bg-card p-4"><Text accessibilityRole="alert" className="text-sm text-coral">{formError}</Text></View> : null}
         </ScrollView>
         <View className="gap-3 border-t border-border px-5 pb-3 pt-3">
@@ -164,9 +206,9 @@ const Onboarding = () => {
               className={`h-12 flex-1 items-center justify-center rounded-full border border-border bg-card ${saving ? 'opacity-40' : 'active:opacity-70'}`}>
               <Text className="text-[15px] font-semibold text-foreground">Back</Text>
             </Pressable> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish' : 'Next'} accessibilityState={{disabled: busy, busy: saving}} disabled={busy} onPress={next}
+            <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish' : 'Next'} accessibilityState={{disabled: busy, busy: saving || savingDob}} disabled={busy} onPress={next}
               className={`h-12 flex-[2] items-center justify-center rounded-full bg-gold ${busy ? 'opacity-40' : 'active:opacity-70'}`}>
-              {saving ? <ActivityIndicator color={Colors.textDark} /> : <Text className="text-[15px] font-bold text-text-dark">{isLast ? 'Finish' : 'Next'}</Text>}
+              {saving || savingDob ? <ActivityIndicator color={Colors.textDark} /> : <Text className="text-[15px] font-bold text-text-dark">{isLast ? 'Finish' : 'Next'}</Text>}
             </Pressable>
           </View>
           {isLast ? <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" disabled={busy} onPress={() => save(false)} className="min-h-11 items-center justify-center">
@@ -174,6 +216,7 @@ const Onboarding = () => {
           </Pressable> : null}
         </View>
       </KeyboardAvoidingView>
+      <DobConfirmSheet label={pendingDob?.label ?? null} busy={savingDob} onConfirm={confirmDob} onCancel={() => setPendingDob(null)} />
     </SafeAreaView>
   );
 };

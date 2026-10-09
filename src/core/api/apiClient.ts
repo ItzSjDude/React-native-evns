@@ -49,6 +49,24 @@ export function configureApiAuth(handlers: ApiAuthHandlers): void {
   authHandlers = handlers;
 }
 
+/** Observes every failed request, e.g. so a feature can react to a policy `code`. Listeners must not throw. */
+export type ApiErrorListener = (error: ApiError, path: string) => void;
+
+const errorListeners = new Set<ApiErrorListener>();
+
+/** Registers a listener for failed requests; returns an unsubscribe function. Like `configureApiAuth`, keeps features out of core. */
+export function onApiError(listener: ApiErrorListener): () => void {
+  errorListeners.add(listener);
+  return () => { errorListeners.delete(listener); };
+}
+
+function notifyApiError(error: unknown, path: string): void {
+  if (!isApiError(error)) return;
+  errorListeners.forEach(listener => {
+    try { listener(error, path); } catch { /* A broken listener must not change the request's outcome. */ }
+  });
+}
+
 function isApiError(error: unknown): error is ApiError {
   return typeof error === 'object' && error !== null &&
     typeof (error as ApiError).status === 'number';
@@ -154,8 +172,11 @@ async function executeRequest<T, R>(path: string, {timeoutMs = 15000, signal, ..
   try {
     return await executeRequestWithAuth(path, {...options, signal: controller.signal}, select);
   } catch (error) {
-    if (timedOut) throw {status: 408, message: 'Request timed out. Check your connection and try again.'} satisfies ApiError;
-    throw error;
+    const failure = timedOut
+      ? {status: 408, message: 'Request timed out. Check your connection and try again.'} satisfies ApiError
+      : error;
+    notifyApiError(failure, path);
+    throw failure;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', abort);

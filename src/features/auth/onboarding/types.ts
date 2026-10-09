@@ -7,6 +7,9 @@ export type OnboardingProfile = {
   avatar_url: string | null;
   interests: string[] | null;
   city: string | null;
+  /** Absent on servers without the age gate. */
+  ageStatus?: 'unknown' | 'adult' | 'minor';
+  dateOfBirthSet?: boolean;
 };
 
 /** `GET/PATCH /auth/me` return `{...profile, user: profile}`. */

@@ -1,4 +1,5 @@
 import {apiRequest} from '../../core/api/apiClient';
+import {MIN_RADIUS_METERS} from './distance';
 import type {LocationFix, LocationVisibility, NearbyPerson} from './types';
 
 export const getLocationVisibility = () =>
@@ -15,4 +16,4 @@ export const setLocationVisibility = (visible: boolean) =>
   });
 
 export const getNearbyPeople = (radiusMeters: number) =>
-  apiRequest<NearbyPerson[]>(`/nearby?radiusMeters=${radiusMeters}&limit=50`, {auth: 'required'});
+  apiRequest<NearbyPerson[]>(`/nearby?radiusMeters=${Math.max(MIN_RADIUS_METERS, Math.round(radiusMeters))}&limit=50`, {auth: 'required'});

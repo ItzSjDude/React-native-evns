@@ -5,7 +5,10 @@ import Onboarding from '../Onboarding';
 import {imagePicker, uploadMedia} from '../../../core/media';
 import {getOnboardingProfile, saveOnboardingProfile} from '../onboarding/onboardingService';
 
-jest.mock('../../../core/store/hooks', () => ({useAppDispatch: () => jest.fn()}));
+jest.mock('../../../core/store/hooks', () => ({
+  useAppDispatch: () => jest.fn(),
+  useAppSelector: (select: (state: unknown) => unknown) => select({auth: {ageGate: 'none'}}),
+}));
 jest.mock('../onboarding/onboardingService', () => ({getOnboardingProfile: jest.fn(), saveOnboardingProfile: jest.fn()}));
 jest.mock('../../../core/media', () => ({
   imagePicker: {available: true, pickImage: jest.fn(), pickImages: jest.fn()},

@@ -6,7 +6,10 @@ import {completeOnboarding} from '../authSlice';
 import {getOnboardingProfile, saveOnboardingProfile} from '../onboarding/onboardingService';
 
 const mockDispatch = jest.fn();
-jest.mock('../../../core/store/hooks', () => ({useAppDispatch: () => mockDispatch}));
+jest.mock('../../../core/store/hooks', () => ({
+  useAppDispatch: () => mockDispatch,
+  useAppSelector: (select: (state: unknown) => unknown) => select({auth: {status: 'authenticated', needsOnboarding: true, ageGate: 'none'}}),
+}));
 jest.mock('../onboarding/onboardingService', () => ({getOnboardingProfile: jest.fn(), saveOnboardingProfile: jest.fn()}));
 jest.mock('../../../core/media', () => ({
   imagePicker: {available: false, pickImage: jest.fn()},

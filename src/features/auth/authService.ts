@@ -2,8 +2,9 @@ import {Platform} from 'react-native';
 import {GoogleSignin, isSuccessResponse} from '@react-native-google-signin/google-signin';
 import {getAuth, getIdToken, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut} from '@react-native-firebase/auth';
 import {apiRequest} from '../../core/api/apiClient';
+import {ageInfoOf, fetchMe, userOf} from './age/ageService';
 import {clearSession, getSessionVersion, loadSession, saveSession} from './session';
-import type {AuthSession} from './types';
+import type {AuthMeResponse, AuthSession} from './types';
 
 const HIVA_WEB_CLIENT_ID = '45623280223-d1ldfjkerts5tbpap45iqgnfon06c0sg.apps.googleusercontent.com';
 GoogleSignin.configure({webClientId: HIVA_WEB_CLIENT_ID});
@@ -22,7 +23,39 @@ export async function signInWithGoogle(): Promise<AuthSession | null> {
   const firebaseIdToken = await getIdToken(user, true);
   const session = await exchangeFirebaseToken(firebaseIdToken);
   await saveSession(session);
-  return session;
+  return withAgeInfo(session);
+}
+
+/**
+ * `/auth/firebase` may not carry the age fields, so read them from `/auth/me` before the
+ * app decides which screen to show. Best-effort: an older server or an outage means no gate.
+ */
+async function withAgeInfo(session: AuthSession): Promise<AuthSession> {
+  if (session.user.ageStatus) return session;
+  const version = getSessionVersion();
+  try {
+    const info = ageInfoOf(await fetchMe());
+    if (!info.ageStatus) return session;
+    const merged: AuthSession = {...session, user: {...session.user, ...info}};
+    await saveSession(merged, version);
+    return merged;
+  } catch {
+    return session;
+  }
+}
+
+/**
+ * Re-reads `/auth/me` (or uses a response the caller already has) and stores it as the
+ * session user, so restarts and token refreshes see the latest age status.
+ */
+export async function refreshSessionUser(latest?: AuthMeResponse): Promise<AuthSession | null> {
+  const version = getSessionVersion();
+  const me = latest ?? await fetchMe();
+  const stored = await loadSession();
+  if (!stored) return null;
+  const refreshed: AuthSession = {...stored, user: {...stored.user, ...userOf(me), ...ageInfoOf(me)}};
+  await saveSession(refreshed, version);
+  return refreshed;
 }
 
 export async function refreshBackendSession(session: AuthSession): Promise<AuthSession> {
@@ -46,13 +79,17 @@ export async function restoreBackendSession(): Promise<AuthSession | null> {
     const firebaseIdToken = await getIdToken(user, true);
     const session = await exchangeFirebaseToken(firebaseIdToken);
     await saveSession(session);
-    return session;
+    return withAgeInfo(session);
   }
   const version = getSessionVersion();
   try {
-    const current = await apiRequest<{user: AuthSession['user']}>('/auth/me', {auth: 'required'});
+    const current = await fetchMe();
     const latest = await loadSession();
-    return {...(latest ?? stored), user: current.user};
+    const base = latest ?? stored;
+    const restored: AuthSession = {...base, user: {...base.user, ...userOf(current), ...ageInfoOf(current)}};
+    // Persist the age status so an offline restart still shows the right gate.
+    if (getSessionVersion() === version) await saveSession(restored, version).catch(() => false);
+    return restored;
   } catch (error) {
     if ((error as {status?: number}).status === 401) return null;
     // A temporary outage should not discard a valid locally stored session.

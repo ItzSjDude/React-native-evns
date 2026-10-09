@@ -11,22 +11,24 @@ import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
 import {UserProfileModal, type UserPreview} from '../users';
 import {getDeviceLocation} from './deviceLocation';
+import {distanceLabel, MIN_RADIUS_METERS} from './distance';
+import {isRateLimited, nearbyErrorMessage} from './nearbyErrors';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
 import type {NearbyPerson} from './types';
 
-const radii = [
+// Nothing below the server's 500 m minimum.
+const radii = ([
   {label: '2 km', meters: 2000},
   {label: '5 km', meters: 5000},
   {label: '10 km', meters: 10000},
-] as const;
+] as const).filter(option => option.meters >= MIN_RADIUS_METERS);
 
-const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
-const distanceOf = (meters: number) => meters < 1000 ? `${Math.max(1, Math.round(meters))} m away` : `${(meters / 1000).toFixed(1)} km away`;
+const messageOf = nearbyErrorMessage;
 
 type OpenChat = {id: string; person: NearbyPerson};
 
 const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPerson; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
-  <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceOf(person.distanceMeters)}`} onPress={onOpenProfile} className="mb-3 flex-row items-center rounded-[20px] bg-card px-4 py-4 active:opacity-70">
+  <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={onOpenProfile} className="mb-3 flex-row items-center rounded-[20px] bg-card px-4 py-4 active:opacity-70">
     {person.avatarUrl ? <Image source={{uri: person.avatarUrl}} className="h-12 w-12 rounded-full" /> : (
       <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
         <Text className="text-base font-bold text-foreground">{person.name.slice(0, 1).toUpperCase()}</Text>
@@ -36,7 +38,7 @@ const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPer
       <Text className="text-[16px] font-semibold text-foreground" numberOfLines={1}>{person.name}</Text>
       <View className="mt-1 flex-row items-center gap-1">
         <IconMapPin size={14} color={Colors.muted} />
-        <Text className="text-[13px] text-muted">{distanceOf(person.distanceMeters)}</Text>
+        <Text className="text-[13px] text-muted">{distanceLabel(person)}</Text>
       </View>
       {!!person.sharedEvents?.length && <Text className="mt-1 text-xs text-primary" numberOfLines={1}>Both at {person.sharedEvents[0].title}</Text>}
     </View>
@@ -98,6 +100,12 @@ const Nearby = () => {
     return pending;
   }, []);
 
+  /** A rate limit isn't a location problem, so it shows as a retryable error, not the location card. */
+  const reportPositionError = useCallback((cause: unknown) => {
+    if (isRateLimited(cause)) setError(messageOf(cause));
+    else setLocationNotice(messageOf(cause));
+  }, []);
+
   useEffect(() => {
     if (!isFocused) return;
     let active = true;
@@ -110,7 +118,7 @@ const Nearby = () => {
         if (!active) return;
         let positionReady = false;
         if (state.visible) {
-          try { positionReady = await updatePosition(false); } catch (cause) { if (active) setLocationNotice(messageOf(cause)); }
+          try { positionReady = await updatePosition(false); } catch (cause) { if (active) reportPositionError(cause); }
         }
         if (!active) return;
         setVisible(state.visible);
@@ -124,10 +132,10 @@ const Nearby = () => {
     const timer = setInterval(async () => {
       if (!active || !visibleRef.current) return;
       try { if (await updatePosition(false)) await loadPeople(radiusRef.current, true); }
-      catch (cause) { if (active) setLocationNotice(messageOf(cause)); }
+      catch (cause) { if (active) reportPositionError(cause); }
     }, 5 * 60 * 1000);
     return () => { active = false; clearInterval(timer); requestRef.current++; };
-  }, [isFocused, loadPeople, updatePosition]);
+  }, [isFocused, loadPeople, reportPositionError, updatePosition]);
 
   const toggleVisibility = async () => {
     if (busy) return;
@@ -162,7 +170,7 @@ const Nearby = () => {
     if (!visible || refreshing) return;
     setRefreshing(true);
     try { if (await updatePosition(false)) await loadPeople(radiusRef.current, true); }
-    catch (cause) { setLocationNotice(messageOf(cause)); }
+    catch (cause) { reportPositionError(cause); }
     finally { setRefreshing(false); }
   };
 
@@ -170,7 +178,7 @@ const Nearby = () => {
     if (busy) return;
     setBusy(true);
     try { if (await updatePosition(true)) await loadPeople(radiusRef.current); }
-    catch (cause) { setLocationNotice(messageOf(cause)); }
+    catch (cause) { reportPositionError(cause); }
     finally { setBusy(false); }
   };
 
@@ -189,7 +197,13 @@ const Nearby = () => {
   };
 
   const retry = async () => {
-    if (visible) { await loadPeople(radiusRef.current); return; }
+    if (visible) {
+      // Re-send the position first: the failure may have been the location update itself (e.g. 429).
+      setError(null);
+      try { if (await updatePosition(false)) await loadPeople(radiusRef.current); }
+      catch (cause) { reportPositionError(cause); }
+      return;
+    }
     setLoading(true);
     try {
       const state = await getLocationVisibility();
