@@ -12,11 +12,14 @@ import IconTrash from '@tabler/icons-react-native/IconTrash';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../Colors';
 import {avatarTint, FeedColors} from '../../features/home/feedTheme';
+import {PlusBadge} from '../../features/plus';
 
 export type PostCardData = {
   id: string;
   author: string;
   authorAvatarUrl?: string | null;
+  /** Author has Hiva Plus; no badge when the server doesn't send it. */
+  authorIsPlus?: boolean;
   time: string;
   content: string;
   likes: number;
@@ -105,7 +108,7 @@ const ActionButton = ({icon: Icon, label, count, color, accessibilityLabel, onPr
   </Pressable>
 );
 
-const PostCard = ({author, authorAvatarUrl, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
+const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
   onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, saved = false, onToggleSave, headerAction, viewerName = 'Me', viewerAvatarUrl}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -125,7 +128,10 @@ const PostCard = ({author, authorAvatarUrl, time, content, likes, likedByViewer 
           disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
           <Avatar name={author} url={authorAvatarUrl} size={45} />
           <View className="ml-3 min-w-0 flex-1">
-            <Text numberOfLines={1} className="font-body-semibold text-[16px] text-feed-text">{author}</Text>
+            <View className="flex-row items-center">
+              <Text numberOfLines={1} className="shrink font-body-semibold text-[16px] text-feed-text">{author}</Text>
+              {authorIsPlus && <PlusBadge />}
+            </View>
             <Text className="mt-0.5 font-body text-[13px] text-feed-muted">{time}</Text>
           </View>
         </Pressable>

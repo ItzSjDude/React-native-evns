@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient as SvgGradient, Stop, Circle} from 'react-native-svg';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
@@ -16,6 +16,8 @@ import IconUserPlus from '@tabler/icons-react-native/IconUserPlus';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
 import IconShieldLock from '@tabler/icons-react-native/IconShieldLock';
 import IconFileText from '@tabler/icons-react-native/IconFileText';
+import IconSparkles from '@tabler/icons-react-native/IconSparkles';
+import {PlusSettingsScreen, openPaywall, usePlus} from '../plus';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
 import type {BlockedUser, SeatInvitesFrom, UserProfile, UserSettings} from './types';
@@ -26,6 +28,7 @@ const SEAT_INVITE_OPTIONS: {value: SeatInvitesFrom; label: string; hint: string}
   {value: 'nobody', label: 'Nobody', hint: 'You only join the stage by raising your hand'},
 ];
 
+const PLAY_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
 const openLink = (url: string) => {Linking.openURL(url).catch(() => {});};
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 const initialsOf = (name?: string | null) => (name || '?').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
@@ -91,6 +94,8 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   const [blocked, setBlocked] = useState<BlockedUser[] | null>(null);
   const [panel, setPanel] = useState<'invites' | 'blocked' | 'delete' | null>(null);
   const [deleteText, setDeleteText] = useState('');
+  const plus = usePlus();
+  const [plusOpen, setPlusOpen] = useState(false);
   useEffect(() => {
     if (!visible) return;
     let mounted = true;
@@ -120,7 +125,13 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
     if (deleteText.trim() !== 'DELETE' || busy) return;
     setBusy(true); setError(null);
     try {
-      await deleteMyAccount();
+      // Deleting the account doesn't stop a Play subscription; the server says when one is still renewing.
+      const result = await deleteMyAccount() as {deleted: boolean; cancelPlaySubscription?: boolean} | undefined;
+      if (result?.cancelPlaySubscription) {
+        Alert.alert('Cancel your Hiva Plus subscription',
+          'Your account is deleted, but Google Play will keep charging until you cancel the subscription there.',
+          [{text: 'Later', style: 'cancel'}, {text: 'Open Google Play', onPress: () => openLink(PLAY_SUBSCRIPTIONS_URL)}]);
+      }
       await onLogout().catch(() => {});
     } catch (cause) {setError(messageOf(cause)); setBusy(false);}
   };
@@ -157,6 +168,11 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         </Pressable>
 
         {!!error && <View className="rounded-xl bg-coral/10 px-3 py-2"><Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text></View>}
+
+        {plus.enabled && <Group title="HIVA PLUS">
+          <Row first icon={IconSparkles} tint={Colors.purpleSoft} tintBg="#1F1A3A" label="Hiva Plus" hint={plus.isPlus ? 'Manage your subscription' : 'More chats, more visibility'}
+            value={plus.isPlus ? 'Active' : 'Get Plus'} onPress={() => (plus.isPlus ? setPlusOpen(true) : openPaywall())} />
+        </Group>}
 
         {settings && <Group title="ROOMS">
           <Row first icon={IconUserPlus} tint={Colors.purpleSoft} tintBg="#1F1A3A" label="Seat invites from"
@@ -202,6 +218,8 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
           <Text className="text-[13px] font-semibold text-muted">Account delete karo</Text>
         </Pressable>}
       </ScrollView>
+
+      {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} />}
 
       <BottomSheet visible={panel === 'invites'} onClose={() => setPanel(null)} title="Who can invite you to speak?">
         <SheetSection>

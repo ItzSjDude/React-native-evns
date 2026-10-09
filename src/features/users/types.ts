@@ -17,6 +17,8 @@ export type PublicUserProfile = {
   isPrivate: boolean;
   isFollowing: boolean;
   followsYou?: boolean;
+  /** Hiva Plus member; absent on servers without subscriptions. */
+  isPlus?: boolean;
   stats: {followers: number; following: number; posts: number; giftsReceived: number};
 };
 

@@ -15,6 +15,7 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
+import {PlusBadge} from '../plus';
 import FollowButton from './FollowButton';
 import FollowListSheet from './FollowListSheet';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
@@ -297,8 +298,10 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
               </View>
 
               <View className="mt-5 gap-1.5">
-                {name ? <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
-                  : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
+                {name ? <View className="flex-row items-center">
+                  <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
+                  {profile?.isPlus === true && !unavailable && <PlusBadge size="md" />}
+                </View> : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
                 {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>}
                 {!!profile?.city && showContent && <Text className="text-[11px] text-[#9C95AE]">{profile.city}</Text>}
                 {!!profile?.interests?.length && showContent && <View className="mt-1 flex-row flex-wrap gap-1.5">

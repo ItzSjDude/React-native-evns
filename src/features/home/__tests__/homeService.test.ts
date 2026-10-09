@@ -27,7 +27,7 @@ beforeEach(() => { jest.resetAllMocks(); });
 
 test('maps the backend post serializer shape to the feed model', () => {
   expect(mapPost(apiPost())).toEqual({
-    id: 'post-1', authorId: 'user-1', author: 'Asha', authorAvatarUrl: 'https://cdn.example/asha.jpg',
+    id: 'post-1', authorId: 'user-1', author: 'Asha', authorAvatarUrl: 'https://cdn.example/asha.jpg', authorIsPlus: false,
     createdAt: '2026-10-07T10:00:00.000Z', content: 'Hello there', images: ['https://cdn.example/a.jpg'],
     likes: 4, likedByViewer: true, comments: 2, shares: 0,
   });

@@ -11,7 +11,7 @@ export const COMMENT_BODY_MAX_LENGTH = 500;
 export const FEED_PAGE_SIZE = 20;
 export const COMMENTS_PAGE_SIZE = 20;
 
-export type ApiPostAuthor = {id: string; name: string; avatarUrl: string | null};
+export type ApiPostAuthor = {id: string; name: string; avatarUrl: string | null; isPlus?: boolean};
 
 export type ApiPostMedia = {url: string; type: 'IMAGE'};
 
@@ -54,6 +54,7 @@ export type HomePost = {
   authorId: string;
   author: string;
   authorAvatarUrl: string | null;
+  authorIsPlus?: boolean;
   createdAt: string;
   content: string;
   images: string[];

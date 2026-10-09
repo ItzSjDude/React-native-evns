@@ -10,6 +10,7 @@ import {useAppSelector} from './src/core/store/hooks';
 import {NotificationsProvider, registerNotificationBackgroundHandler} from './src/features/notifications';
 import {loadSession} from './src/features/auth';
 import {setCrashUser, startCrashReporting} from './src/core/monitoring';
+import {PlusProvider} from './src/features/plus';
 
 // FCM needs its background handler registered at bundle load, before any component mounts.
 registerNotificationBackgroundHandler();
@@ -32,6 +33,7 @@ const AppContent = () => {
           <MainNavigation />
         </PersistGate>
       </NotificationsProvider>
+      <PlusProvider />
       {showSplash && <SplashScreen ready={rehydrated && status !== 'loading'} onFinish={finishSplash} />}
     </View>
   );

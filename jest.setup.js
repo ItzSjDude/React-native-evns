@@ -135,3 +135,31 @@ jest.mock('@react-native-firebase/crashlytics', () => ({
   setUserId: jest.fn().mockResolvedValue(null),
   setCrashlyticsCollectionEnabled: jest.fn().mockResolvedValue(null),
 }));
+
+// react-native-iap (Nitro) has no native module under Jest. Listeners are captured so tests can
+// drive the purchase flow: require('react-native-iap').__emitPurchase(purchase) / __emitPurchaseError(error).
+jest.mock('react-native-iap', () => {
+  const updateListeners = new Set();
+  const errorListeners = new Set();
+  const subscribe = set => listener => {
+    set.add(listener);
+    return {remove: () => set.delete(listener)};
+  };
+  return {
+    __esModule: true,
+    initConnection: jest.fn().mockResolvedValue(true),
+    endConnection: jest.fn().mockResolvedValue(true),
+    fetchProducts: jest.fn().mockResolvedValue([]),
+    requestPurchase: jest.fn().mockResolvedValue(null),
+    finishTransaction: jest.fn().mockResolvedValue(undefined),
+    getAvailablePurchases: jest.fn().mockResolvedValue([]),
+    purchaseUpdatedListener: jest.fn(subscribe(updateListeners)),
+    purchaseErrorListener: jest.fn(subscribe(errorListeners)),
+    __emitPurchase: purchase => updateListeners.forEach(listener => listener(purchase)),
+    __emitPurchaseError: error => errorListeners.forEach(listener => listener(error)),
+    __resetListeners: () => {
+      updateListeners.clear();
+      errorListeners.clear();
+    },
+  };
+});
