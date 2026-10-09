@@ -1,5 +1,5 @@
 import {apiRequest, apiRequestPage} from '../../core/api/apiClient';
-import type {ProfileEvent, ProfilePage, ProfileParty, ProfilePost, ProfileResponse, ProfileTab, ProfileUpdate, UserProfile} from './types';
+import type {BlockedUser, GiftSummary, LocationVisibility, UserSettings, ProfileEvent, ProfilePage, ProfileParty, ProfilePost, ProfileResponse, ProfileTab, ProfileUpdate, UserProfile} from './types';
 
 export const getMyProfile = async (): Promise<UserProfile> => {
   const response = await apiRequest<ProfileResponse>('/auth/me', {auth: 'required'});
@@ -44,3 +44,25 @@ export async function getProfilePage(
   );
   return {items: response.data, hasMore: response.meta.hasMore, offset: response.meta.offset};
 }
+
+export const getNearbyVisibility = () =>
+  apiRequest<LocationVisibility>('/me/visibility', {auth: 'required'});
+
+export const setNearbyVisibility = (visible: boolean) =>
+  apiRequest<LocationVisibility>('/me/visibility', {auth: 'required', method: 'POST', body: JSON.stringify({visible})});
+
+export const getMySettings = () => apiRequest<UserSettings>('/me/settings', {auth: 'required'});
+
+export const updateMySettings = (patch: Partial<UserSettings>) =>
+  apiRequest<UserSettings>('/me/settings', {auth: 'required', method: 'PATCH', body: JSON.stringify(patch)});
+
+export const getBlockedUsers = () => apiRequest<BlockedUser[]>('/users/blocked/details', {auth: 'required'});
+
+export const unblockUser = (userId: string) =>
+  apiRequest<void>(`/users/${encodeURIComponent(userId)}/block`, {auth: 'required', method: 'DELETE'});
+
+export const getGiftSummary = (userId: string) =>
+  apiRequest<GiftSummary>(`/users/${encodeURIComponent(userId)}/gift-summary`, {auth: 'required'});
+
+export const deleteMyAccount = () =>
+  apiRequest<{deleted: boolean}>('/auth/me', {auth: 'required', method: 'DELETE', body: JSON.stringify({confirm: 'DELETE'})});

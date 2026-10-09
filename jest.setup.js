@@ -55,6 +55,33 @@ jest.mock('react-native-keychain', () => ({
   resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('@react-native-community/geolocation', () => ({
+  __esModule: true,
+  default: {
+    setRNConfiguration: jest.fn(),
+    getCurrentPosition: jest.fn(),
+  },
+}));
+
+jest.mock('@livekit/react-native', () => {
+  return {
+    AudioSession: {
+      configureAudio: jest.fn().mockResolvedValue(undefined),
+      startAudioSession: jest.fn().mockResolvedValue(undefined),
+      stopAudioSession: jest.fn().mockResolvedValue(undefined),
+      selectAudioOutput: jest.fn().mockResolvedValue(undefined),
+    },
+    AndroidAudioTypePresets: {communication: {}},
+    LiveKitRoom: ({children}) => children,
+    useConnectionState: () => 'connected',
+    useLocalParticipant: () => ({
+      localParticipant: {identity: '', setMicrophoneEnabled: jest.fn().mockResolvedValue(undefined)},
+      isMicrophoneEnabled: false,
+    }),
+    useParticipants: () => [],
+  };
+});
+
 jest.mock('react-native-reanimated', () => {
   const {Animated} = require('react-native');
   return {
@@ -70,5 +97,69 @@ jest.mock('react-native-reanimated', () => {
     withRepeat: animation => animation,
     withSequence: (...animations) => animations[animations.length - 1],
     withTiming: value => value,
+  };
+});
+
+// Native picker module is unavailable under Jest. Default to "cancelled";
+// tests override with launchImageLibrary.mockResolvedValueOnce({assets: [...]}).
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn().mockResolvedValue({didCancel: true}),
+  launchCamera: jest.fn().mockResolvedValue({didCancel: true}),
+}));
+
+// Firebase Cloud Messaging (modular API). Listener subscriptions return unsubscribe
+// functions; tests capture listeners via e.g. `onTokenRefresh.mock.calls[0][1]`.
+jest.mock('@react-native-firebase/messaging', () => {
+  const messagingInstance = {};
+  return {
+    __esModule: true,
+    AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2, EPHEMERAL: 3},
+    getMessaging: jest.fn(() => messagingInstance),
+    getToken: jest.fn().mockResolvedValue('mock-fcm-token-0001'),
+    deleteToken: jest.fn().mockResolvedValue(undefined),
+    onTokenRefresh: jest.fn(() => jest.fn()),
+    onMessage: jest.fn(() => jest.fn()),
+    onNotificationOpenedApp: jest.fn(() => jest.fn()),
+    getInitialNotification: jest.fn().mockResolvedValue(null),
+    requestPermission: jest.fn().mockResolvedValue(1),
+    hasPermission: jest.fn().mockResolvedValue(1),
+    registerDeviceForRemoteMessages: jest.fn().mockResolvedValue(undefined),
+    setBackgroundMessageHandler: jest.fn(),
+  };
+});
+
+jest.mock('@react-native-firebase/crashlytics', () => ({
+  getCrashlytics: jest.fn(() => ({})),
+  log: jest.fn(),
+  recordError: jest.fn(),
+  setUserId: jest.fn().mockResolvedValue(null),
+  setCrashlyticsCollectionEnabled: jest.fn().mockResolvedValue(null),
+}));
+
+// react-native-iap (Nitro) has no native module under Jest. Listeners are captured so tests can
+// drive the purchase flow: require('react-native-iap').__emitPurchase(purchase) / __emitPurchaseError(error).
+jest.mock('react-native-iap', () => {
+  const updateListeners = new Set();
+  const errorListeners = new Set();
+  const subscribe = set => listener => {
+    set.add(listener);
+    return {remove: () => set.delete(listener)};
+  };
+  return {
+    __esModule: true,
+    initConnection: jest.fn().mockResolvedValue(true),
+    endConnection: jest.fn().mockResolvedValue(true),
+    fetchProducts: jest.fn().mockResolvedValue([]),
+    requestPurchase: jest.fn().mockResolvedValue(null),
+    finishTransaction: jest.fn().mockResolvedValue(undefined),
+    getAvailablePurchases: jest.fn().mockResolvedValue([]),
+    purchaseUpdatedListener: jest.fn(subscribe(updateListeners)),
+    purchaseErrorListener: jest.fn(subscribe(errorListeners)),
+    __emitPurchase: purchase => updateListeners.forEach(listener => listener(purchase)),
+    __emitPurchaseError: error => errorListeners.forEach(listener => listener(error)),
+    __resetListeners: () => {
+      updateListeners.clear();
+      errorListeners.clear();
+    },
   };
 });

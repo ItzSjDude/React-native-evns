@@ -7,12 +7,13 @@ import {
   TextStyle,
 } from 'react-native';
 import {Colors} from './Colors';
-import {Fonts} from './Fonts';
+import {bodyFamily} from './Fonts';
 
 export type TypographyProps = {
   children: ReactNode;
   size?: number;
   color?: string;
+  /** Overrides the weight-matched Manrope family (e.g. for the display face). */
   fontFamily?: TextStyle['fontFamily'];
   fontWeight?: TextStyle['fontWeight'];
   textAlign?: TextStyle['textAlign'];
@@ -27,7 +28,7 @@ export const Typography: React.FC<TypographyProps> = ({
   children,
   size = 14,
   color = Colors.textDark,
-  fontFamily = Fonts.Inter_Regular,
+  fontFamily,
   fontWeight,
   textAlign,
   style,
@@ -45,8 +46,9 @@ export const Typography: React.FC<TypographyProps> = ({
         ...(lineHeight !== undefined ? {lineHeight} : {}),
         fontSize: Math.max(1, (size - 1) / PixelRatio.getFontScale()),
         color,
-        fontFamily,
-        ...(fontWeight !== undefined ? {fontWeight} : {}),
+        fontFamily: fontFamily ?? bodyFamily(fontWeight as Parameters<typeof bodyFamily>[0]),
+        // The family already encodes the weight; setting fontWeight as well would synthesize a second bolding.
+        ...(fontFamily && fontWeight !== undefined ? {fontWeight} : {}),
         ...(textAlign !== undefined ? {textAlign} : {}),
       },
       style,

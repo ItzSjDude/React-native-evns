@@ -1,52 +1,68 @@
-import React, {useMemo, useRef, useState} from 'react';
-import {
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
+import {useIsFocused} from '@react-navigation/native';
+import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
-import IconSend2 from '@tabler/icons-react-native/IconSend2';
 
 import {Colors} from '../../Constants/Colors';
-import {demoConversations} from './demoConversations';
-import type {ChatMessage, Conversation} from './types';
+import DirectConversation from './DirectConversation';
+import {initialsOf, isOwnMessage, messageText, relativeTime} from './conversationPresentation';
+import {CONVERSATIONS_PAGE_SIZE, getConversations, markConversationRead} from './messagesService';
+import {applyRealtimeToConversations, isMessageEvent} from './realtimeEvents';
+import type {ApiMessage, Conversation, MessagesRealtimeEvent} from './types';
+import {OnlineDot, usePresence} from './presence';
+import {useMessagesRealtime} from './useMessagesRealtime';
 
-const Avatar = ({conversation, compact = false}: {conversation: Conversation; compact?: boolean}) => (
-  <View className={`${compact ? 'h-10 w-10' : 'h-12 w-12'} items-center justify-center rounded-full ${conversation.avatarClassName}`}>
-    <Text className="text-sm font-bold text-foreground">{conversation.initials}</Text>
-  </View>
-);
+const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Could not load conversations.';
+const MAX_PAGE_SIZE = 100;
+/** `last_message_at` is stamped just after the message row, so allow a small gap before calling a cached preview stale. */
+const PREVIEW_STALE_AFTER_MS = 5000;
 
-const ConversationRow = ({conversation, onPress}: {conversation: Conversation; onPress: () => void}) => {
-  const latest = conversation.messages[conversation.messages.length - 1];
+type LoadMode = 'initial' | 'refresh' | 'silent' | 'more';
 
+const Avatar = ({conversation}: {conversation: Conversation}) => conversation.avatarUrl
+  ? <Image source={{uri: conversation.avatarUrl}} className="h-12 w-12 rounded-full" />
+  : (
+    <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
+      <Text className="text-sm font-bold text-foreground">{initialsOf(conversation.title)}</Text>
+    </View>
+  );
+
+const previewOf = (conversation: Conversation, latest: ApiMessage | null) => {
+  if (latest) {
+    const prefix = isOwnMessage(latest, conversation.kind, conversation.contactId) ? 'You: ' : '';
+    return prefix + messageText(latest);
+  }
+  if (conversation.unreadCount > 0) return `${conversation.unreadCount} new ${conversation.unreadCount === 1 ? 'message' : 'messages'}`;
+  return conversation.lastMessageAt ? 'Tap to open the conversation' : 'No messages yet';
+};
+
+const ConversationRow = ({conversation, latest, onPress}: {conversation: Conversation; latest: ApiMessage | null; onPress: () => void}) => {
+  const unread = conversation.unreadCount;
+  // Direct chats only: event/organiser threads have no single person to be "online".
+  const presence = usePresence(conversation.contactId ? [conversation.contactId] : []);
+  const online = !!conversation.contactId && presence[conversation.contactId]?.online === true;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open conversation with ${conversation.name}`}
+      accessibilityLabel={`Open conversation with ${conversation.title}${unread ? `, ${unread} unread` : ''}`}
       onPress={onPress}
       className="min-h-[76px] flex-row items-center gap-3 border-b border-border py-3 active:opacity-70">
-      <Avatar conversation={conversation} />
+      <View>
+        <Avatar conversation={conversation} />
+        {online && <View className="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-background"><OnlineDot online size={12} /></View>}
+      </View>
       <View className="min-w-0 flex-1">
         <View className="flex-row items-center justify-between gap-2">
-          <Text className="flex-1 text-[16px] font-semibold text-foreground" numberOfLines={1}>{conversation.name}</Text>
-          <Text className="text-xs text-muted">{latest?.time}</Text>
+          <Text className="flex-1 text-[16px] font-semibold text-foreground" numberOfLines={1}>{conversation.title}</Text>
+          <Text className={`text-xs ${unread ? 'text-primary' : 'text-muted'}`}>{relativeTime(conversation.lastActivityAt)}</Text>
         </View>
         <View className="mt-1 flex-row items-center justify-between gap-3">
-          <Text className="flex-1 text-sm text-muted" numberOfLines={1}>
-            {latest?.sender === 'me' ? 'You: ' : ''}{latest?.text}
-          </Text>
-          {conversation.unreadCount > 0 && (
-            <View className="h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1">
-              <Text className="text-[11px] font-bold text-[#10152F]">{conversation.unreadCount}</Text>
+          <Text className={`flex-1 text-sm ${unread ? 'font-semibold text-foreground' : 'text-muted'}`} numberOfLines={1}>{previewOf(conversation, latest)}</Text>
+          {unread > 0 && (
+            <View testID={`unread-${conversation.id}`} className="h-5 min-w-[20px] items-center justify-center rounded-full bg-gold px-1">
+              <Text className="text-[11px] font-bold text-text-dark">{unread > 99 ? '99+' : unread}</Text>
             </View>
           )}
         </View>
@@ -55,59 +71,157 @@ const ConversationRow = ({conversation, onPress}: {conversation: Conversation; o
   );
 };
 
-const MessageBubble = ({message}: {message: ChatMessage}) => {
-  const mine = message.sender === 'me';
-  return (
-    <View className={`mb-4 max-w-[82%] ${mine ? 'self-end items-end' : 'self-start items-start'}`}>
-      <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-primary' : 'rounded-bl-[5px] bg-card'}`}>
-        <Text className={`text-[15px] leading-[21px] ${mine ? 'text-[#10152F]' : 'text-foreground'}`}>{message.text}</Text>
-      </View>
-      <Text className="mt-1 px-1 text-[11px] text-muted">{message.time}</Text>
-    </View>
-  );
-};
-
 const Messages = () => {
-  const [conversations, setConversations] = useState<Conversation[]>(demoConversations);
+  const isFocused = useIsFocused();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [previews, setPreviews] = useState<Record<string, ApiMessage>>({});
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
-  const messageList = useRef<FlatList<ChatMessage>>(null);
-  const filtered = useMemo(
-    () => conversations.filter(item => item.name.toLowerCase().includes(search.trim().toLowerCase())),
-    [conversations, search],
-  );
-  const selected = conversations.find(item => item.id === selectedId);
+  const [open, setOpen] = useState<Conversation | null>(null);
+  const request = useRef(0);
+  const loaded = useRef(false);
+  const state = useRef({count: 0, nextOffset: 0, hasMore: false, loadingMore: false});
+  state.current.count = conversations.length;
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
+  const openIdRef = useRef<string | null>(null);
+  openIdRef.current = open?.id ?? null;
 
-  const openConversation = (id: string) => {
-    setConversations(current => current.map(item => item.id === id ? {...item, unreadCount: 0} : item));
-    setSelectedId(id);
+  const load = useCallback(async (mode: LoadMode) => {
+    if (mode === 'more') {
+      const {hasMore: more, loadingMore: busy, nextOffset} = state.current;
+      if (!more || busy) return;
+      state.current.loadingMore = true;
+      setLoadingMore(true);
+      const id = request.current;
+      try {
+        const page = await getConversations(nextOffset);
+        if (id !== request.current) return;
+        setConversations(current => {
+          const seen = new Set(current.map(item => item.id));
+          return [...current, ...page.conversations.filter(item => !seen.has(item.id))];
+        });
+        state.current.nextOffset = page.nextOffset;
+        state.current.hasMore = page.hasMore;
+        setHasMore(page.hasMore);
+      } catch (cause) {
+        if (id === request.current) setError(messageOf(cause));
+      } finally {
+        state.current.loadingMore = false;
+        setLoadingMore(false);
+      }
+      return;
+    }
+
+    const id = ++request.current;
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    setError(null);
+    // Keep already-loaded pages visible when refreshing so the list does not collapse.
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(CONVERSATIONS_PAGE_SIZE, state.current.count));
+    try {
+      const page = await getConversations(0, limit);
+      if (id !== request.current) return;
+      loaded.current = true;
+      setConversations(page.conversations);
+      state.current.nextOffset = page.nextOffset;
+      state.current.hasMore = page.hasMore;
+      setHasMore(page.hasMore);
+    } catch (cause) {
+      if (id === request.current) setError(messageOf(cause));
+    } finally {
+      if (id === request.current) { setLoading(false); setRefreshing(false); }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) load(loaded.current ? 'silent' : 'initial');
+  }, [isFocused, load]);
+
+  const onRealtimeEvent = (event: MessagesRealtimeEvent) => {
+    if (!isMessageEvent(event)) return;
+    if (event.type === 'message.created' && !conversationsRef.current.some(item => item.id === event.conversationId)) {
+      load('silent');
+      return;
+    }
+    setConversations(current => applyRealtimeToConversations(current, event, openIdRef.current).conversations);
+    if (event.type !== 'message.created') {
+      const {conversationId, message} = event;
+      setPreviews(current => current[conversationId]?.id === message.id
+        ? {...current, [conversationId]: {...current[conversationId], ...message}}
+        : current);
+    }
+  };
+
+  // Live while the tab is on screen or a thread opened from it is showing; otherwise the focus reload covers it.
+  useMessagesRealtime(isFocused || open !== null, {
+    onEvent: onRealtimeEvent,
+    onResync: () => { if (loaded.current) load('silent'); },
+  });
+
+  const openConversation = (conversation: Conversation) => {
+    setOpen(conversation);
+    setConversations(current => current.map(item => item.id === conversation.id ? {...item, unreadCount: 0} : item));
+    // Fetching messages also marks the thread read server-side; this explicit call clears it even if that fetch fails.
+    markConversationRead(conversation.id).catch(() => {});
   };
 
   const closeConversation = () => {
-    Keyboard.dismiss();
-    setDraft('');
-    setSelectedId(null);
+    setOpen(null);
+    load('silent');
   };
 
-  const sendMessage = () => {
-    const text = draft.trim();
-    if (!text || !selectedId) return;
-    const message: ChatMessage = {
-      id: String(Date.now()),
-      sender: 'me',
-      text,
-      time: new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'}),
-    };
-    setConversations(current => {
-      const conversation = current.find(item => item.id === selectedId);
-      if (!conversation) return current;
-      return [
-        {...conversation, messages: [...conversation.messages, message], unreadCount: 0},
-        ...current.filter(item => item.id !== selectedId),
-      ];
-    });
-    setDraft('');
+  const rememberLatest = useCallback((conversationId: string, message: ApiMessage) => {
+    setPreviews(current => current[conversationId]?.id === message.id ? current : {...current, [conversationId]: message});
+  }, []);
+
+  const latestFor = (conversation: Conversation) => {
+    const cached = previews[conversation.id];
+    const server = conversation.lastMessage;
+    if (!cached || (server && server.created_at >= cached.created_at)) return server;
+    // A message seen while the thread was open is stale once the list reports later activity.
+    const activity = conversation.lastMessageAt ? new Date(conversation.lastMessageAt).getTime() : 0;
+    return activity - new Date(cached.created_at).getTime() > PREVIEW_STALE_AFTER_MS ? server : cached;
+  };
+
+  const query = search.trim().toLowerCase();
+  const filtered = useMemo(() => !query ? conversations : conversations.filter(item =>
+    item.title.toLowerCase().includes(query) ||
+    (previews[item.id] ?? item.lastMessage)?.body?.toLowerCase().includes(query),
+  ), [conversations, previews, query]);
+
+  const emptyState = () => {
+    if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.primary} /></View>;
+    if (error && !conversations.length) {
+      return (
+        <View className="items-center px-6 pt-20">
+          <Text className="text-center text-base font-semibold text-foreground">Couldn't load conversations</Text>
+          <Text className="mt-2 text-center text-sm text-muted">{error}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversations" onPress={() => load('initial')} className="mt-5 h-11 items-center justify-center rounded-full bg-gold px-6 active:opacity-70">
+            <Text className="text-sm font-bold text-text-dark">Try again</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (query && conversations.length) {
+      return (
+        <View className="items-center pt-20">
+          <Text className="text-base font-semibold text-foreground">No conversations found</Text>
+          <Text className="mt-2 text-sm text-muted">Try another name.</Text>
+        </View>
+      );
+    }
+    return (
+      <View className="items-center px-6 pt-20">
+        <IconMessageCircle size={44} color={Colors.muted} strokeWidth={1.5} />
+        <Text className="mt-4 text-center text-base font-semibold text-foreground">No conversations yet</Text>
+        <Text className="mt-2 text-center text-sm leading-5 text-muted">Say hi to someone from Nearby.</Text>
+      </View>
+    );
   };
 
   return (
@@ -134,75 +248,35 @@ const Messages = () => {
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}
-        renderItem={({item}) => <ConversationRow conversation={item} onPress={() => openConversation(item.id)} />}
+        renderItem={({item}) => <ConversationRow conversation={item} latest={latestFor(item)} onPress={() => openConversation(item)} />}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-5 pb-[115px]"
-        ListEmptyComponent={
-          <View className="items-center pt-20">
-            <Text className="text-base font-semibold text-foreground">No conversations found</Text>
-            <Text className="mt-2 text-sm text-muted">Try another name.</Text>
-          </View>
-        }
+        contentContainerClassName="flex-grow px-5 pb-[115px]"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.primary} colors={[Colors.primary]} />}
+        onEndReached={() => { if (hasMore && !loading && !query) load('more'); }}
+        onEndReachedThreshold={0.4}
+        ListHeaderComponent={error && conversations.length ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversations" onPress={() => load('refresh')} className="mt-3 rounded-xl bg-card p-3">
+            <Text className="text-sm text-coral">{error} Tap to retry.</Text>
+          </Pressable>
+        ) : undefined}
+        ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={Colors.primary} /> : undefined}
+        ListEmptyComponent={emptyState()}
       />
 
-      <Modal visible={!!selected} animationType="slide" onRequestClose={closeConversation}>
-        <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
-            {selected && (
-              <>
-                <View className="h-[70px] flex-row items-center gap-3 border-b border-border px-4">
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Back to messages"
-                    className="h-11 w-11 items-center justify-center rounded-full active:bg-card"
-                    onPress={closeConversation}>
-                    <IconArrowLeft size={24} color={Colors.text} strokeWidth={2} />
-                  </Pressable>
-                  <Avatar conversation={selected} compact />
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[16px] font-semibold text-foreground" numberOfLines={1}>{selected.name}</Text>
-                    <Text className="mt-0.5 text-xs text-muted">Demo conversation</Text>
-                  </View>
-                </View>
-
-                <FlatList
-                  ref={messageList}
-                  data={selected.messages}
-                  keyExtractor={item => item.id}
-                  renderItem={({item}) => <MessageBubble message={item} />}
-                  contentContainerClassName="px-5 pb-4 pt-5"
-                  keyboardDismissMode="interactive"
-                  onContentSizeChange={() => messageList.current?.scrollToEnd({animated: false})}
-                  showsVerticalScrollIndicator={false}
-                />
-
-                <View className="flex-row items-end gap-3 border-t border-border bg-background px-4 py-3">
-                  <TextInput
-                    accessibilityLabel={`Message ${selected.name}`}
-                    className="max-h-[120px] min-h-[44px] flex-1 rounded-[22px] bg-card px-4 py-2 text-[15px] text-foreground"
-                    placeholder="Write a message"
-                    placeholderTextColor={Colors.muted}
-                    value={draft}
-                    onChangeText={setDraft}
-                    multiline
-                    textAlignVertical="center"
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Send message"
-                    accessibilityState={{disabled: !draft.trim()}}
-                    disabled={!draft.trim()}
-                    onPress={sendMessage}
-                    className={`h-11 w-11 items-center justify-center rounded-full bg-primary ${draft.trim() ? 'active:opacity-70' : 'opacity-40'}`}>
-                    <IconSend2 size={21} color={Colors.textDark} strokeWidth={2} />
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </SafeAreaView>
-        </KeyboardAvoidingView>
-      </Modal>
+      {open && (
+        <DirectConversation
+          conversationId={open.id}
+          contactId={open.contactId ?? ''}
+          contactName={open.title}
+          contactAvatarUrl={open.avatarUrl}
+          kind={open.kind}
+          backLabel="Back to messages"
+          pollIntervalMs={5000}
+          onLatestMessage={message => rememberLatest(open.id, message)}
+          onClose={closeConversation}
+        />
+      )}
     </SafeAreaView>
   );
 };

@@ -1,7 +1,10 @@
-export {default as authReducer, setSession, completeOnboarding, clearSession} from './authSlice';
-export type {AuthState} from './authSlice';
-export {signInWithGoogle, logoutFromApi, restoreBackendSession, refreshOnce} from './authService';
+export {default as authReducer, setSession, completeOnboarding, clearSession, setAgeGate, selectAuthRoute} from './authSlice';
+export type {AuthState, AuthRoute} from './authSlice';
+export {signInWithGoogle, logoutFromApi, restoreBackendSession, refreshOnce, refreshSessionUser} from './authService';
 export {clearSession as clearStoredSession, loadSession, saveSession} from './session';
-export type {AuthSession, AuthUser} from './types';
+export type {AgeGate, AgeStatus, AuthSession, AuthUser} from './types';
+export {registerAgeGateListener} from './age/ageGateListener';
 export {default as LoginScreen} from './Login';
 export {default as OnboardingScreen} from './Onboarding';
+export {default as ConfirmAgeScreen} from './age/ConfirmAgeScreen';
+export {default as UnderageScreen} from './age/UnderageScreen';

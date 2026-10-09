@@ -1,6 +1,10 @@
 export const Colors = {
   background: '#0B0914',
   card: '#191824',
+  sheet: '#0B0914',
+  gold: '#F5B544',
+  goldInk: '#1A1206',
+  purpleSoft: '#B8ADFF',
   border: '#363342',
   borderMuted: '#4A4659',
   primary: '#A58AFF',

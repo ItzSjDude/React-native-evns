@@ -17,6 +17,7 @@ import {setSession, signInWithGoogle} from '../../features/auth';
 import type {AuthStackParamList} from '../../Navigation/StackNavigation';
 import {Colors} from '../../Constants/Colors';
 import Typography from '../../Constants/Typography';
+import LegalLinks from './LegalLinks';
 
 type LoginProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -197,6 +198,7 @@ const Login = (_props: LoginProps) => {
             />
           </Pressable>
           {!!errorMessage && <Typography size={14} color={Colors.coral} textAlign="center" className="mt-[14px]">{errorMessage}</Typography>}
+          <LegalLinks className="mt-[18px]" />
 
         </View>
       </View>
