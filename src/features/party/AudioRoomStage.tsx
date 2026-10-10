@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Share, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { useConnectionState, useLocalParticipant, useParticipants, useRoomContext } from '@livekit/react-native';
 import { ConnectionState, RoomEvent } from 'livekit-client';
 import IconDots from '@tabler/icons-react-native/IconDots';
@@ -34,6 +34,7 @@ import { deletePartyChat, respondPartyInvitation, transferPartyHost, updateParty
 export default function AudioRoomStage({ session, onClose, closeRequest, connectionError, expanded, onMinimize, onExpand }: {
   session: JoinedParty; onClose: () => void; expanded: boolean; onMinimize: () => void; onExpand: () => void; closeRequest: React.MutableRefObject<(() => void) | null>; connectionError: string | null;
 }) {
+  const insets = useContext(SafeAreaInsetsContext) ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const room = useRoomContext();
   const connection = useConnectionState();
   const liveParticipants = useParticipants();
@@ -176,7 +177,10 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const micActive = canSpeak ? isMicrophoneEnabled : !!ownRequest;
   const chatPaused = snapshot.party.chatEnabled === false;
   return <>
-    {!expanded && <View className="absolute bottom-[90px] left-4 right-4 flex-row items-center gap-1 rounded-[22px] border border-border bg-card py-2 pl-2 pr-1">
+    {!expanded && <View
+      style={{ bottom: insets.bottom + 76 }}
+      className="absolute left-4 right-4 flex-row items-center gap-1 rounded-[22px] border border-border bg-card py-2 pl-2 pr-1"
+    >
       <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${noun} party`} onPress={onExpand} className="min-h-11 min-w-0 flex-1 flex-row items-center gap-3 active:opacity-70">
         <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-dark">{isVideo ? <IconVideo size={20} color={PartyColors.accent} /> : <IconHeadphones size={20} color={PartyColors.accent} />}</View>
         <View className="min-w-0 flex-1">
