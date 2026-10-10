@@ -101,9 +101,9 @@ const ActionButton = ({icon: Icon, label, count, color, accessibilityLabel, onPr
   icon: typeof IconHeart; label?: string; count?: number; color: string; accessibilityLabel: string; onPress?: () => void; disabled?: boolean;
 }) => (
   <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress}
-    className="h-[45px] flex-row items-center gap-2 px-[15px] active:opacity-60">
+    hitSlop={6} className="flex-row items-center gap-1.5 py-1.5 active:opacity-60">
     <Icon size={21} color={color} />
-    {!!label && <Text className="font-body-semibold text-[15px] text-feed-label">{label}</Text>}
+    {!!label && <Text className="font-body-semibold text-[14px] text-feed-label">{label}</Text>}
     {!!count && <Text className="font-body-semibold text-[13px] text-feed-muted">{count}</Text>}
   </Pressable>
 );
@@ -115,39 +115,46 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
-  const mediaWidth = screenWidth - 28;
+  const mediaWidth = screenWidth - 32;
   const hasMedia = images.length > 0;
   const caption = !!content && (
-    <Text selectable className={`px-[19px] font-body text-feed-text ${hasMedia ? 'mt-[17px] text-[16px] leading-[23px]' : 'mt-3 text-[17px] leading-[25px]'}`}>{content}</Text>
+    <Text selectable className={`px-4 font-body text-feed-text ${hasMedia ? 'mt-3 text-[15px] leading-[22px]' : 'mt-2.5 text-[16px] leading-[23px]'}`}>{content}</Text>
   );
 
   return (
-    <View className={`border-b border-feed-line pb-[17px] pt-[17px] ${pending ? 'opacity-60' : ''}`}>
-      <View className="flex-row items-center px-[19px]">
+    <View className={`border-b border-feed-line pb-4 pt-4 ${pending ? 'opacity-60' : ''}`}>
+      <View className="flex-row items-start px-4">
         <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
-          disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
-          <Avatar name={author} url={authorAvatarUrl} size={45} />
-          <View className="ml-3 min-w-0 flex-1">
-            <View className="flex-row items-center">
+          disabled={!onPressAuthor} onPress={onPressAuthor} className="active:opacity-70">
+          <Avatar name={author} url={authorAvatarUrl} size={42} />
+        </Pressable>
+        <View className="ml-3 min-w-0 flex-1">
+          <View className="flex-row items-center justify-between">
+            <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
+              disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
               <Text numberOfLines={1} className="shrink font-body-semibold text-[16px] text-feed-text">{author}</Text>
               {authorIsPlus && <PlusBadge />}
+            </Pressable>
+            <View className="flex-row items-center">
+              {headerAction}
+              {!pending && (
+                <Pressable accessibilityRole="button" accessibilityLabel="More post options" hitSlop={8} className="ml-0.5 h-8 w-8 items-center justify-center active:opacity-60"
+                  onPress={() => { setConfirmingDelete(false); setReporting(false); setMenuVisible(true); }}>
+                  <IconDots size={20} color={FeedColors.muted} />
+                </Pressable>
+              )}
             </View>
-            <Text className="mt-0.5 font-body text-[13px] text-feed-muted">{time}</Text>
           </View>
-        </Pressable>
-        {headerAction}
-        {!pending && (
-          <Pressable accessibilityRole="button" accessibilityLabel="More post options" hitSlop={8} className="ml-1 h-10 w-10 items-center justify-center active:opacity-60"
-            onPress={() => { setConfirmingDelete(false); setReporting(false); setMenuVisible(true); }}>
-            <IconDots size={22} color={FeedColors.muted} />
+          <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} disabled={!onPressAuthor} onPress={onPressAuthor} className="-mt-1.5 active:opacity-70">
+            <Text className="font-body text-[13px] leading-tight text-feed-muted">{time}</Text>
           </Pressable>
-        )}
+        </View>
       </View>
 
       {!hasMedia && caption}
 
       {hasMedia && (
-        <View className="mx-[14px] mt-[18px] overflow-hidden rounded-2xl" style={[styles.media, {width: mediaWidth, height: mediaWidth / 1.28}]}>
+        <View className="mx-4 mt-3 overflow-hidden rounded-2xl" style={[styles.media, {width: mediaWidth, height: mediaWidth / 1.28}]}>
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setActiveImage(Math.round(event.nativeEvent.contentOffset.x / mediaWidth))}>
             {images.map((image, index) => (
               <Image key={`${image}-${index}`} source={{uri: image}} accessibilityLabel={`Post image ${index + 1}`} style={{width: mediaWidth, height: mediaWidth / 1.28}} resizeMode="cover" />
@@ -161,18 +168,16 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
         </View>
       )}
 
-      <View className="mx-[14px] mt-[15px] flex-row items-center justify-between">
-        <View className="flex-row items-center overflow-hidden rounded-[14px] border border-feed-line bg-feed-card">
+      <View className="mt-3.5 flex-row items-center justify-between px-4">
+        <View className="flex-row items-center gap-6">
           <ActionButton icon={likedByViewer ? IconHeartFilled : IconHeart} label="Like" count={likes} color={likedByViewer ? Colors.coral : FeedColors.label}
             accessibilityLabel={likedByViewer ? 'Unlike post' : 'Like post'} onPress={onToggleLike} disabled={pending} />
-          <View className="h-[22px] w-px bg-feed-line" />
           <ActionButton icon={IconMessageCircle} label="Reply" count={comments} color={FeedColors.label} accessibilityLabel="View comments" onPress={onOpenComments} disabled={pending} />
-          <View className="h-[22px] w-px bg-feed-line" />
           <ActionButton icon={IconSend} color={FeedColors.label} accessibilityLabel="Share post" onPress={onShare} disabled={pending || !onShare} />
         </View>
         {onToggleSave && !pending && (
           <Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Remove from saved' : 'Save post'} accessibilityState={{selected: saved}} onPress={onToggleSave}
-            className="h-[46px] w-[51px] items-center justify-center rounded-[14px] border border-feed-line bg-feed-card active:opacity-60">
+            hitSlop={8} className="p-1.5 active:opacity-60">
             {saved ? <IconBookmarkFilled size={21} color={FeedColors.accent} /> : <IconBookmark size={21} color={FeedColors.label} />}
           </Pressable>
         )}
@@ -181,9 +186,11 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
       {hasMedia && caption}
 
       {!pending && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a reply" onPress={onOpenComments} className="mx-[19px] mt-[14px] flex-row items-center gap-3 active:opacity-70">
-          <Avatar name={viewerName} url={viewerAvatarUrl} size={29} tint={{background: '#1F2A21', text: '#A0C367'}} />
-          <Text className="font-body text-[15px] text-feed-dim">Add a reply…</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add a reply" onPress={onOpenComments} className="mt-3 flex-row items-center gap-2.5 px-4 active:opacity-70">
+          <Avatar name={viewerName} url={viewerAvatarUrl} size={28} tint={{background: '#1F2A21', text: '#A0C367'}} />
+          <View className="flex-1 rounded-full border border-feed-line bg-feed-card/60 px-3.5 py-1.5">
+            <Text className="font-body text-[13px] text-feed-dim">Add a reply…</Text>
+          </View>
         </Pressable>
       )}
 
