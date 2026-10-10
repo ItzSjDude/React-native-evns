@@ -103,11 +103,6 @@ const TabButton = ({
     <Animated.View style={[styles.tabSlot, containerStyle]}>
       <Animated.View
         pointerEvents="none"
-        style={[styles.activeGlow, activeStyle]}
-      />
-
-      <Animated.View
-        pointerEvents="none"
         style={[styles.activeTab, activeStyle]}
       />
 
@@ -266,6 +261,5 @@ export default TabNavigation;
 // Reanimated needs native style objects for the tab width and fading overlays.
 const styles = StyleSheet.create({
   tabSlot: {height: 50, justifyContent: 'center'},
-  activeGlow: {position: 'absolute', left: -4, right: -4, top: 1, bottom: 1, borderRadius: 25, borderWidth: 3, borderColor: 'rgba(148, 127, 226, 0.20)'},
   activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
 });
