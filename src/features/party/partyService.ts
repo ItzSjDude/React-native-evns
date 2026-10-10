@@ -51,7 +51,7 @@ export type JoinedParty = {
 };
 
 export type PartySeatRequest = {id: string; userId: string; name: string | null; avatarUrl: string | null; status: 'PENDING' | 'APPROVED' | 'DENIED' | 'CANCELLED'; requestedAt: string};
-export type PartyChatMessage = {id: string; userId: string; name: string; body: string; createdAt: string};
+export type PartyChatMessage = {id: string; userId: string; name: string; body: string; createdAt: string; avatarUrl?: string | null};
 export type PartySnapshot = {
   party: JoinedParty['party']; participants: PartyParticipant[];
   seatRequests: PartySeatRequest[]; lockedSeats: number[];

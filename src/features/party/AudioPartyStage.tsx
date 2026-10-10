@@ -47,13 +47,14 @@ const LiveSeat = (props: SeatProps & {live: Participant}) => {
   return <Seat {...props} speaking={speaking} />;
 };
 
-export default function AudioPartyStage({seatCount, speakers, liveById, localIdentity, onSeatPress, lockedSeats = []}: {
+export default function AudioPartyStage({seatCount, speakers, liveById, localIdentity, onSeatPress, lockedSeats = [], scrollEnabled = false}: {
   seatCount: number;
   speakers: PartyParticipant[];
   liveById: Map<string, Participant>;
   localIdentity: string;
   onSeatPress: (person: PartyParticipant | undefined, index: number) => void;
   lockedSeats?: number[];
+  scrollEnabled?: boolean;
 }) {
   const {width,height,fontScale} = useWindowDimensions();
   const diameter = Math.min(width - 48, 350);
@@ -61,7 +62,14 @@ export default function AudioPartyStage({seatCount, speakers, liveById, localIde
   const radius = diameter / 2 - 37;
   const bySeat = new Map(speakers.map(person => [person.seatIndex, person]));
   return (
-    <ScrollView style={{maxHeight: Math.min(diameter + 64, Math.max(200,height-420))}} contentContainerClassName="items-center pb-3 pt-6" showsVerticalScrollIndicator={false}>
+    <ScrollView
+      scrollEnabled={scrollEnabled}
+      bounces={false}
+      overScrollMode="never"
+      showsVerticalScrollIndicator={false}
+      style={scrollEnabled ? {maxHeight: Math.min(diameter + 64, Math.max(200,height-420))} : undefined}
+      contentContainerClassName="items-center pb-3 pt-6"
+    >
       <View style={{width: diameter, height: diameter + Math.max(48,36 * fontScale)}}>
         <View pointerEvents="none" style={{width: diameter - 74, height: diameter - 74}} className="absolute left-[37px] top-[37px] rounded-full border border-dashed border-primary/25 bg-primary-dark/40" />
         <View pointerEvents="none" style={{left: diameter / 2 - 48, top: diameter / 2 - 42}} className="absolute w-24 items-center">
