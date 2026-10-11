@@ -25,17 +25,19 @@ import IconX from '@tabler/icons-react-native/IconX';
 import IconPlugConnectedX from '@tabler/icons-react-native/IconPlugConnectedX';
 import IconChartBar from '@tabler/icons-react-native/IconChartBar';
 import IconDice from '@tabler/icons-react-native/IconDice5';
+import IconNotes from '@tabler/icons-react-native/IconNotes';
 import IconGift from '@tabler/icons-react-native/IconGift';
 import IconUser from '@tabler/icons-react-native/IconUser';
 import BottomSheet, {SheetButton, SheetRow, SheetSection, SheetTile, SheetTileGrid} from '../../components/BottomSheet';
 import {PartyColors, roomCover, roomTags, tagClasses} from './partyPresentation';
 import {GamesView, GiftsView, PollsView} from './extras/RoomExtrasViews';
 import {useRoomExtras} from './extras/useRoomExtras';
+import {StudioSheet, useStudioAvailable} from '../hostStudio';
 import type {PartyChatMessage, PartyParticipant, PartyRoom, PartyRoomSettings, PartySeatRequest} from './partyService';
 
 type ConfirmAction = 'remove' | 'block' | 'transfer';
 export type RoomPanel = {
-  kind: 'requests' | 'people' | 'person' | 'seat' | 'info' | 'edit' | 'exit' | 'report' | 'message' | 'confirm' | 'polls' | 'games' | 'gifts';
+  kind: 'requests' | 'people' | 'person' | 'seat' | 'info' | 'edit' | 'exit' | 'report' | 'message' | 'confirm' | 'polls' | 'games' | 'gifts' | 'studio';
   personId?: string; seatIndex?: number; message?: PartyChatMessage; confirm?: ConfirmAction;
 } | null;
 export type RoomAction = 'approve' | 'deny' | 'lock' | 'mute' | 'kick' | 'invite' | 'remove' | 'cohost' | 'stepdown' | 'request' | 'cancel' | 'report' | 'block' | 'exit' | 'share' | 'edit' | 'chat-toggle' | 'requests-toggle' | 'slow-mode' | 'accept-invite' | 'decline-invite' | 'disconnect' | 'transfer' | 'delete-message';
@@ -139,6 +141,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
   const extrasKind = shown?.kind === 'info' || shown?.kind === 'polls' || shown?.kind === 'games' || shown?.kind === 'gifts';
   const extras = useRoomExtras(partyId, !!panel && !!partyId && extrasKind, shown?.kind === 'gifts');
   const openPolls = extras.polls.data.filter(poll => !poll.closed && !poll.selectedOptionId).length;
+  const studio = useStudioAvailable(partyId, manager, shown?.kind === 'info' || shown?.kind === 'studio');
   const extraProps = {partyId: partyId || '', manager, identity, participants, extras};
 
   const heading = (() => {
@@ -151,6 +154,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
       case 'polls': return {title: 'Polls', subtitle: manager ? 'Ask the room a question. Results update live.' : 'Vote and watch results update live.'};
       case 'games': return {title: 'Mic games', subtitle: 'Played by the speakers on stage.'};
       case 'gifts': return {title: 'Gifts', subtitle: null};
+      case 'studio': return {title: 'Host Studio', subtitle: null};
       case 'message': return {title: message?.userId === identity ? 'Your message' : message?.name || 'Message', subtitle: null};
       default: return {title: undefined, subtitle: null};
     }
@@ -171,7 +175,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
       case 'seat': return seatIndex !== undefined && !(manager && seatIndex > 0) && me?.seatIndex === null
         ? <SheetButton label={ownRequest ? 'Cancel request to speak' : 'Request to speak'} variant={ownRequest ? 'ghost' : 'primary'} busy={busy}
           disabled={seatLocked || (!ownRequest && settings?.requestsEnabled === false)} onPress={() => onAction(ownRequest ? 'cancel' : 'request')} /> : null;
-      case 'polls': case 'games': case 'gifts': return <SheetButton label="Back to room tools" variant="ghost" onPress={go({kind: 'info'})} />;
+      case 'polls': case 'games': case 'gifts': case 'studio': return <SheetButton label="Back to room tools" variant="ghost" onPress={go({kind: 'info'})} />;
       default: return null;
     }
   })();
@@ -277,6 +281,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
         {extras.polls.available && <SheetTile icon={IconChartBar} label="Polls" accessibilityLabel="Polls" badge={openPolls} onPress={go({kind: 'polls'})} />}
         {extras.game.available && <SheetTile icon={IconDice} label={extras.game.data ? 'Game · Live' : 'Games'} accessibilityLabel="Mic games" active={!!extras.game.data} onPress={go({kind: 'games'})} />}
         {extras.gifts.available && <SheetTile icon={IconGift} label="Gifts" accessibilityLabel="Gifts" onPress={go({kind: 'gifts'})} />}
+        {studio && <SheetTile icon={IconNotes} label={manager ? 'Studio' : 'Ask'} accessibilityLabel={manager ? 'Host Studio' : 'Ask a question'} onPress={go({kind: 'studio'})} />}
         {manager && <SheetTile icon={IconPencil} label="Edit room" accessibilityLabel="Edit room details" onPress={go({kind: 'edit'})} />}
       </SheetTileGrid>
       {manager && <SheetSection label="Room settings">
@@ -293,6 +298,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
     {shown?.kind === 'polls' && <PollsView {...extraProps} />}
     {shown?.kind === 'games' && <GamesView {...extraProps} />}
     {shown?.kind === 'gifts' && <GiftsView {...extraProps} />}
+    {shown?.kind === 'studio' && (studio && partyId ? <StudioSheet partyId={partyId} manager={manager} /> : <Text className="py-8 text-center text-sm text-muted">Host Studio is not available for this room.</Text>)}
 
     {shown?.kind === 'edit' && manager && <>
       <Text className="mb-2 ml-1 text-[13px] font-semibold text-muted">Room name</Text>
