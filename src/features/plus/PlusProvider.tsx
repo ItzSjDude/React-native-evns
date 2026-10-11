@@ -5,6 +5,7 @@ import {useAppSelector} from '../../core/store/hooks';
 import {disconnectBilling, syncAvailablePurchases} from './billing';
 import PaywallSheet from './PaywallSheet';
 import {clearCachedSubscription} from './plusCache';
+import {resetProfileThemes} from './profileThemeStore';
 import {closePaywall, hydrateSubscription, paywallOnLimit, refreshSubscription, resetPlus} from './plusStore';
 import {usePaywall, usePlus} from './usePlus';
 
@@ -27,6 +28,7 @@ export default function PlusProvider({children}: {children?: React.ReactNode}) {
   useEffect(() => {
     if (!signedIn) {
       resetPlus();
+      resetProfileThemes();
       disconnectBilling().catch(() => {});
       // 'loading' is just app start: keep the cache. Only a real sign-out drops it.
       if (authStatus === 'unauthenticated') clearCachedSubscription();
