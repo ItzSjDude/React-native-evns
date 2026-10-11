@@ -9,6 +9,7 @@ import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyL
 
 jest.mock('@react-navigation/native', () => ({useIsFocused: () => true}));
 jest.mock('../../messages', () => ({DirectConversation: () => null, startDirectConversation: jest.fn()}));
+jest.mock('../VibeNotesList', () => () => null);
 jest.mock('../deviceLocation', () => ({getDeviceLocation: jest.fn()}));
 jest.mock('../nearbyService', () => ({
   getLocationVisibility: jest.fn(), getNearbyPeople: jest.fn(),

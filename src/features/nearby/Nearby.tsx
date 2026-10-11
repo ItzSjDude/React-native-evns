@@ -16,6 +16,7 @@ import {distanceLabel, MIN_RADIUS_METERS} from './distance';
 import {isRateLimited, nearbyErrorMessage} from './nearbyErrors';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
 import type {NearbyPerson} from './types';
+import VibeNotesList from './VibeNotesList';
 
 // Nothing below the server's 500 m minimum.
 const radii = ([
@@ -259,6 +260,7 @@ const Nearby = () => {
               </Pressable>)}
             </View>
             <View className="mb-6"><DiscoveryFilterBar filters={filters} onChange={next => {filtersRef.current = next; setFilters(next); loadPeople(radiusRef.current);}} /></View>
+            <VibeNotesList radiusMeters={radius} reloadKey={people} />
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-xl font-bold text-foreground">People around you</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Refresh nearby people" onPress={refresh} className="h-10 w-10 items-center justify-center rounded-full active:bg-card"><IconRefresh size={20} color={Colors.muted} /></Pressable>
