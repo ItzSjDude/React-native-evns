@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Linking, Pressable, Text, View} from 'react-native';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
+import IconNote from '@tabler/icons-react-native/IconNote';
 import IconPalette from '@tabler/icons-react-native/IconPalette';
 import IconRosetteDiscountCheck from '@tabler/icons-react-native/IconRosetteDiscountCheck';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
@@ -19,6 +20,7 @@ type IconComponent = React.ComponentType<{size?: number; color?: string}>;
 /** Only list perks the app actually delivers; each later feature adds its own row when it ships. */
 const benefits = (reason?: LimitReason, details?: LimitReachedDetails): {icon: IconComponent; label: string}[] => [
   {icon: IconMessageCircle, label: `${plusAllowance('dmStarts', reason === 'dmStarts' ? details : undefined)} new chats a day`},
+  {icon: IconNote, label: `${plusAllowance('vibeNotes', reason === 'vibeNotes' ? details : undefined)} vibe notes a day, up for ${plusAllowance('vibeNoteLifetime') / 60} h`},
   {icon: IconRosetteDiscountCheck, label: 'Optional Plus badge on your profile and posts'},
   {icon: IconPalette, label: 'Aurora and Midnight profile themes'},
 ];
