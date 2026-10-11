@@ -1,12 +1,13 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Defs, LinearGradient as SvgGradient, Stop, Circle} from 'react-native-svg';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconBrandGoogle from '@tabler/icons-react-native/IconBrandGoogle';
 import IconLogout from '@tabler/icons-react-native/IconLogout';
+import IconTrash from '@tabler/icons-react-native/IconTrash';
 import {Colors} from '../../Constants/Colors';
 import {PRIVACY_POLICY_URL, TERMS_URL} from '../../core/config/env';
 import IconEyeOff from '@tabler/icons-react-native/IconEyeOff';
@@ -41,42 +42,29 @@ const Toggle = ({on}: {on: boolean}) =>
     <View className={`h-[22px] w-[22px] rounded-full ${on ? 'self-end bg-gold-ink' : 'self-start bg-muted'}`} />
   </View>;
 
-const Row = ({icon: Icon, tint, tintBg, label, hint, value, onPress, toggle, disabled, first}: {
-  icon: IconComponent; tint: string; tintBg: string; label: string; hint?: string; value?: string;
-  onPress?: () => void; toggle?: boolean; disabled?: boolean; first?: boolean;
+/** Flat list row on the page background; rows after the first get an inset hairline divider. */
+const Row = ({icon: Icon, label, hint, value, onPress, toggle, disabled, first, danger}: {
+  icon: IconComponent; label: string; hint?: string; value?: string;
+  onPress?: () => void; toggle?: boolean; disabled?: boolean; first?: boolean; danger?: boolean;
 }) =>
   <Pressable accessibilityRole={toggle === undefined ? 'button' : 'switch'} accessibilityLabel={label}
     accessibilityState={toggle === undefined ? {disabled} : {checked: toggle, disabled}} disabled={disabled || !onPress} onPress={onPress}
-    className={`min-h-14 flex-row items-center gap-3 px-3.5 py-2 active:bg-white/5 ${first ? '' : 'border-t border-[#211D2C]'} ${disabled ? 'opacity-60' : ''}`}>
-    <View style={{backgroundColor: tintBg}} className="h-[34px] w-[34px] items-center justify-center rounded-[10px]"><Icon size={17} color={tint} /></View>
-    <View className="min-w-0 flex-1">
-      <Text className="text-[14px] font-semibold text-foreground">{label}</Text>
-      {!!hint && <Text className="mt-0.5 text-xs text-muted">{hint}</Text>}
+    className={`flex-row items-center gap-4 pl-4 active:bg-white/5 ${disabled ? 'opacity-60' : ''}`}>
+    <Icon size={20} color={danger ? Colors.coral : Colors.muted} />
+    <View className={`min-h-14 min-w-0 flex-1 flex-row items-center gap-3 py-3 pr-4 ${first ? '' : 'border-t border-border/60'}`}>
+      <View className="min-w-0 flex-1">
+        <Text className={`text-[15px] ${danger ? 'text-coral' : 'text-foreground'}`}>{label}</Text>
+        {!!hint && <Text numberOfLines={2} className="mt-0.5 text-[13px] text-muted">{hint}</Text>}
+      </View>
+      {!!value && <Text className="text-[14px] text-muted">{value}</Text>}
+      {toggle !== undefined ? <Toggle on={toggle} /> : onPress && !danger ? <IconChevronRight size={18} color={Colors.mutedLight} /> : null}
     </View>
-    {!!value && <Text className="text-[13px] text-[#A9A3B8]">{value}</Text>}
-    {toggle !== undefined ? <Toggle on={toggle} /> : onPress ? <IconChevronRight size={16} color={Colors.muted} /> : null}
   </Pressable>;
 
 const Group = ({title, children}: {title: string; children: React.ReactNode}) =>
-  <View className="gap-2">
-    <Text className="pl-1 text-xs font-extrabold tracking-[1px] text-muted">{title}</Text>
-    <View className="overflow-hidden rounded-[20px] border border-border bg-[#15121E]">{children}</View>
-  </View>;
-
-const RingAvatar = ({profile}: {profile: UserProfile | null}) =>
-  <View className="h-14 w-14 items-center justify-center">
-    <Svg width={56} height={56} style={StyleSheet.absoluteFill}>
-      <Defs>
-        <SvgGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#F5B544" /><Stop offset="0.35" stopColor="#FF5D8F" /><Stop offset="0.7" stopColor="#8B7CF6" /><Stop offset="1" stopColor="#3DDC97" />
-        </SvgGradient>
-      </Defs>
-      <Circle cx={28} cy={28} r={26.5} stroke="url(#ring)" strokeWidth={3} fill="none" />
-    </Svg>
-    <View className="h-[46px] w-[46px] items-center justify-center overflow-hidden rounded-full bg-[#3A2F63]">
-      {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
-        : <Text className="text-[17px] font-extrabold text-[#E6E0FF]">{initialsOf(profile?.name)}</Text>}
-    </View>
+  <View className="pt-6">
+    <Text accessibilityRole="header" className="px-4 pb-1 text-[13px] font-semibold text-muted">{title}</Text>
+    {children}
   </View>;
 
 export default function SettingsScreen({profile, visible, onClose, onEditProfile, onLogout}: {
@@ -88,7 +76,6 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   const [nearby, setNearby] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmLogout, setConfirmLogout] = useState(false);
   // null until loaded; stays null if the server doesn't have the settings API yet, which hides those rows.
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [blocked, setBlocked] = useState<BlockedUser[] | null>(null);
@@ -99,7 +86,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   useEffect(() => {
     if (!visible) return;
     let mounted = true;
-    setError(null); setConfirmLogout(false); setPanel(null);
+    setError(null); setPanel(null);
     getNearbyVisibility().then(value => {if (mounted) setNearby(value.visible);}).catch(cause => {if (mounted) setError(messageOf(cause));});
     getMySettings().then(value => {if (mounted) setSettings(value);}).catch(() => {if (mounted) setSettings(null);});
     getBlockedUsers().then(value => {if (mounted) setBlocked(value);}).catch(() => {if (mounted) setBlocked(null);});
@@ -128,7 +115,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
       // Deleting the account doesn't stop a Play subscription; the server says when one is still renewing.
       const result = await deleteMyAccount() as {deleted: boolean; cancelPlaySubscription?: boolean} | undefined;
       if (result?.cancelPlaySubscription) {
-        Alert.alert('Cancel your Hiva Plus subscription',
+        showDialog('Cancel your Hiva Plus subscription',
           'Your account is deleted, but Google Play will keep charging until you cancel the subscription there.',
           [{text: 'Later', style: 'cancel'}, {text: 'Open Google Play', onPress: () => openLink(PLAY_SUBSCRIPTIONS_URL)}]);
       }
@@ -145,78 +132,66 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
     finally {setBusy(false);}
   };
   const logout = async () => {setBusy(true); try {await onLogout();} finally {setBusy(false);}};
+  const confirmLogout = () => showDialog('Log out?', 'You’ll need to sign in with Google again.',
+    [{text: 'Cancel', style: 'cancel'}, {text: 'Log out', style: 'destructive', onPress: logout}]);
 
   return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 border-b border-[#1A1724] px-4 pb-3 pt-2">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" onPress={onClose}
-          className="h-11 w-11 items-center justify-center rounded-[14px] border border-border bg-[#15121E] active:opacity-70">
-          <IconChevronLeft size={20} color={Colors.text} />
+      <View className="flex-row items-center gap-1 px-2 pb-2 pt-1">
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" onPress={onClose} hitSlop={4}
+          className="h-11 w-11 items-center justify-center rounded-full active:bg-white/5">
+          <IconChevronLeft size={24} color={Colors.text} />
         </Pressable>
-        <Text accessibilityRole="header" className="flex-1 font-display text-[22px] text-foreground">Settings</Text>
+        <Text accessibilityRole="header" className="flex-1 text-[20px] font-bold text-foreground">Settings</Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-[18px] px-4 pb-6 pt-3.5">
+      <ScrollView contentContainerClassName="pb-8">
         <Pressable accessibilityRole="button" accessibilityLabel="Edit profile details" onPress={onEditProfile}
-          className="flex-row items-center gap-3 rounded-[22px] border border-[#3A2F63] bg-[#1A1430] p-3.5 active:opacity-80">
-          <RingAvatar profile={profile} />
-          <View className="min-w-0 flex-1">
-            <Text numberOfLines={1} className="text-[16px] font-extrabold text-foreground">{profile?.name ?? ''}</Text>
-            <Text className="mt-0.5 text-xs text-purple-soft">Name, handle, bio aur interests</Text>
+          className="flex-row items-center gap-4 px-4 py-3 active:bg-white/5">
+          <View className="h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-card">
+            {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
+              : <Text className="text-[18px] font-bold text-foreground">{initialsOf(profile?.name)}</Text>}
           </View>
-          <IconChevronRight size={18} color={Colors.muted} />
+          <View className="min-w-0 flex-1">
+            <Text numberOfLines={1} className="text-[17px] font-semibold text-foreground">{profile?.name ?? ''}</Text>
+            <Text numberOfLines={1} className="mt-0.5 text-[13px] text-muted">Edit profile</Text>
+          </View>
+          <IconChevronRight size={18} color={Colors.mutedLight} />
         </Pressable>
 
-        {!!error && <View className="rounded-xl bg-coral/10 px-3 py-2"><Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text></View>}
+        {!!error && <Text accessibilityRole="alert" className="px-4 pt-3 text-[13px] text-coral">{error}</Text>}
 
-        {plus.enabled && <Group title="HIVA PLUS">
-          <Row first icon={IconSparkles} tint={Colors.purpleSoft} tintBg="#1F1A3A" label="Hiva Plus" hint={plus.isPlus ? 'Manage your subscription' : 'More chats, more visibility'}
+        {plus.enabled && <Group title="Hiva Plus">
+          <Row first icon={IconSparkles} label="Hiva Plus" hint={plus.isPlus ? 'Manage your subscription' : 'More chats, more visibility'}
             value={plus.isPlus ? 'Active' : 'Get Plus'} onPress={() => (plus.isPlus ? setPlusOpen(true) : openPaywall())} />
         </Group>}
 
-        {settings && <Group title="ROOMS">
-          <Row first icon={IconUserPlus} tint={Colors.purpleSoft} tintBg="#1F1A3A" label="Seat invites from"
+        {settings && <Group title="Rooms">
+          <Row first icon={IconUserPlus} label="Seat invites from"
             value={SEAT_INVITE_OPTIONS.find(option => option.value === settings.seatInvitesFrom)?.label} onPress={() => setPanel('invites')} />
         </Group>}
 
-        <Group title="PRIVACY">
-          <Row first icon={IconMapPin} tint="#3DDC97" tintBg="#123224" label="Show me in Nearby"
+        <Group title="Privacy">
+          <Row first icon={IconMapPin} label="Show me in Nearby"
             hint={nearby === null ? 'Loading…' : nearby ? 'People around you can find you' : 'You’re hidden from Nearby'}
             toggle={!!nearby} disabled={nearby === null || busy} onPress={toggleNearby} />
-          {settings && <Row icon={IconEyeOff} tint="#C9C2DA" tintBg="#211D2C" label="Hide online status" hint="Others won’t see when you’re online"
+          {settings && <Row icon={IconEyeOff} label="Hide online status" hint="Others won’t see when you’re online"
             toggle={settings.hideOnlineStatus} disabled={busy} onPress={() => patchSettings({hideOnlineStatus: !settings.hideOnlineStatus})} />}
-          {settings && <Row icon={IconLock} tint="#C9C2DA" tintBg="#211D2C" label="Private profile" hint="Only followers see your posts, rooms and events"
+          {settings && <Row icon={IconLock} label="Private profile" hint="Only followers see your posts, rooms and events"
             toggle={settings.privateProfile} disabled={busy} onPress={() => patchSettings({privateProfile: !settings.privateProfile})} />}
-          {blocked && <Row icon={IconBan} tint="#C9C2DA" tintBg="#211D2C" label="Blocked users" value={String(blocked.length)} onPress={() => setPanel('blocked')} />}
+          {blocked && <Row icon={IconBan} label="Blocked users" value={String(blocked.length)} onPress={() => setPanel('blocked')} />}
         </Group>
 
-        <Group title="ACCOUNT">
-          <Row first icon={IconBrandGoogle} tint="#C9C2DA" tintBg="#211D2C" label="Signed in with Google" hint={profile?.email} />
-        </Group>
-
-        {(privacyUrl || termsUrl) && <Group title="LEGAL">
-          {privacyUrl && <Row first icon={IconShieldLock} tint="#C9C2DA" tintBg="#211D2C" label="Privacy policy" onPress={() => openLink(privacyUrl)} />}
-          {termsUrl && <Row first={!privacyUrl} icon={IconFileText} tint="#C9C2DA" tintBg="#211D2C" label="Terms of service" onPress={() => openLink(termsUrl)} />}
+        {(privacyUrl || termsUrl) && <Group title="Legal">
+          {privacyUrl && <Row first icon={IconShieldLock} label="Privacy policy" onPress={() => openLink(privacyUrl)} />}
+          {termsUrl && <Row first={!privacyUrl} icon={IconFileText} label="Terms of service" onPress={() => openLink(termsUrl)} />}
         </Group>}
 
-        {confirmLogout ? <View className="gap-2.5 rounded-[18px] border border-[#4A2226] bg-[#22121A] p-4">
-          <Text className="text-center text-[15px] font-extrabold text-foreground">Log out?</Text>
-          <Text className="text-center text-[13px] text-muted">You’ll need to sign in with Google again.</Text>
-          <View className="mt-1 flex-row gap-2.5">
-            <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => setConfirmLogout(false)} className="h-11 flex-1 items-center justify-center rounded-full border border-border active:opacity-70">
-              <Text className="text-[14px] font-bold text-foreground">Cancel</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Confirm log out" disabled={busy} onPress={logout} className="h-11 flex-1 items-center justify-center rounded-full bg-[#FF8A8A] active:opacity-80">
-              <Text className="text-[14px] font-extrabold text-[#22121A]">{busy ? 'Logging out…' : 'Log out'}</Text>
-            </Pressable>
-          </View>
-        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Log out" onPress={() => setConfirmLogout(true)}
-          className="h-[52px] flex-row items-center justify-center gap-2 rounded-[18px] border border-[#4A2226] bg-[#22121A] active:opacity-80">
-          <IconLogout size={18} color="#FF8A8A" /><Text className="text-[15px] font-extrabold text-[#FF8A8A]">Log out</Text>
-        </Pressable>}
-        {settings && <Pressable accessibilityRole="button" accessibilityLabel="Delete account" onPress={() => {setDeleteText(''); setPanel('delete');}} className="h-11 items-center justify-center active:opacity-70">
-          <Text className="text-[13px] font-semibold text-muted">Account delete karo</Text>
-        </Pressable>}
+        <Group title="Account">
+          <Row first icon={IconBrandGoogle} label="Signed in with Google" hint={profile?.email} />
+          <Row icon={IconLogout} label="Log out" danger disabled={busy} onPress={confirmLogout} />
+          {settings && <Row icon={IconTrash} label="Delete account" danger onPress={() => {setDeleteText(''); setPanel('delete');}} />}
+        </Group>
       </ScrollView>
 
       {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} />}

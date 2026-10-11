@@ -101,7 +101,7 @@ export const PhotoStep = ({avatarUrl, initials, city, errors, pickerAvailable, u
       <View className="mb-6 items-center rounded-[20px] border border-border bg-card p-5">
         <View className="h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary-dark">
           {avatarUrl ? <Image accessibilityLabel="Profile photo" source={{uri: avatarUrl}} className="h-full w-full" /> : <Text className="text-[28px] font-bold text-primary">{initials}</Text>}
-          {uploading ? <View className="absolute inset-0 items-center justify-center bg-black/50"><ActivityIndicator color={Colors.primary} /></View> : null}
+          {uploading ? <View className="absolute inset-0 items-center justify-center bg-black/50"><ActivityIndicator color={Colors.gold} /></View> : null}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={avatarUrl ? 'Change photo' : 'Add photo'} accessibilityState={{disabled: !canPick}} disabled={!canPick} onPress={onPickPhoto}
           className={`mt-4 min-h-11 justify-center rounded-full border border-primary-border px-5 ${canPick ? 'active:opacity-70' : 'opacity-40'}`}>

@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Share, Text, TextInput, View } from 'react-native';
+import { AppState, Keyboard, KeyboardAvoidingView, Modal, Pressable, Share, Text, TextInput, View } from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { useConnectionState, useLocalParticipant, useParticipants, useRoomContext } from '@livekit/react-native';
 import { ConnectionState, RoomEvent } from 'livekit-client';
@@ -54,7 +55,7 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const [chatBusy, setChatBusy] = useState(false);
   const chatBusyRef = useRef(false);
   const [keyboard, setKeyboard] = useState(false);
-  const onEnded = useCallback((reason: string) => { onClose(); if (!intentionalExit.current) Alert.alert('Party closed', reason); }, [onClose]);
+  const onEnded = useCallback((reason: string) => { onClose(); if (!intentionalExit.current) showDialog('Party closed', reason); }, [onClose]);
   const { snapshot, messages, addMessages, refresh, syncError } = usePartyRoomState(session, onEnded, identity);
   const me = snapshot.participants.find(p => p.userId === identity);
   const host = me?.role === 'HOST';

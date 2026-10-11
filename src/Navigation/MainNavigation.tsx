@@ -1,5 +1,6 @@
 import React, {useEffect} from 'react';
-import {StatusBar, View} from 'react-native';
+import {View} from 'react-native';
+import ThemedStatusBar from '../components/ThemedStatusBar';
 import {NavigationContainer} from '@react-navigation/native';
 import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
@@ -44,9 +45,7 @@ const MainNavigation = () => {
 
   return (
     <View className="flex-1 bg-background">
-      <StatusBar
-        barStyle="light-content"
-      />
+      <ThemedStatusBar />
       <PartyLinkCapture />
       <NavigationContainer ref={navigationRef}>
         {/* Keyed so moving between auth surfaces starts a fresh stack at the right screen. */}

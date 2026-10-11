@@ -59,10 +59,12 @@ test('blocks posting while an upload is in flight, and allows a photo-only post'
   let finish: (value: {key: string; fileUrl: string}) => void = () => {};
   upload.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   const {renderer, onSubmit} = await render('');
+  expect(byLabel(renderer, 'Post').props.disabled).toBe(true);
   launch.mockResolvedValueOnce({assets: [asset(1)]});
   await press(renderer, 'Add photos');
 
-  expect(byLabel(renderer, 'Uploading…').props.disabled).toBe(true);
+  expect(byLabel(renderer, 'Post').props.disabled).toBe(true);
+  expect(byLabel(renderer, 'Post').props.accessibilityState).toEqual({disabled: true, busy: true});
   expect(texts(renderer)).toContain('Uploading photos…');
 
   await ReactTestRenderer.act(async () => { finish({key: 'k', fileUrl: urlOf(1)}); });
@@ -81,6 +83,17 @@ test('reports a rejected "post" purpose and blocks posting until the photo is re
   expect(byLabel(renderer, 'Post').props.disabled).toBe(true);
   await press(renderer, 'Remove photo 1');
   expect(byLabel(renderer, 'Post').props.disabled).toBe(false);
+});
+
+test('shows the viewer in the thread row, falls back to initials, and Cancel closes', async () => {
+  const onClose = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<ComposePostSheet visible draft="" error={null} onChangeDraft={jest.fn()} onClose={onClose} onSubmit={jest.fn()} viewerName="Ada Lovelace" />);
+  });
+  expect(texts(renderer!)).toEqual(expect.arrayContaining(['New post', 'Ada Lovelace', 'AL']));
+  await press(renderer!, 'Cancel');
+  expect(onClose).toHaveBeenCalled();
 });
 
 test('createPost sends media and omits empty text', async () => {

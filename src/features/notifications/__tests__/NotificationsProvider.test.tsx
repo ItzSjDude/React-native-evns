@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text} from 'react-native';
+import {Image, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import {Provider} from 'react-redux';
 import {configureStore} from '@reduxjs/toolkit';
@@ -15,6 +15,12 @@ import {useNotificationNavigator} from '../notificationsContext';
 import type {NotificationTarget} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
+const mockFollowToggle = jest.fn();
+jest.mock('../../users', () => ({
+  useViewerId: () => 'u1',
+  useIsFollowing: () => false,
+  useFollowToggle: () => ({following: false, pending: false, toggle: mockFollowToggle}),
+}));
 const request = apiRequest as jest.Mock;
 const requestPage = apiRequestPage as jest.Mock;
 
@@ -155,6 +161,29 @@ test('bell opens the sheet; mark-all-read clears the list and badge', async () =
   expect(hostByTestId(renderer, 'notification-unread-dot')).toHaveLength(0);
   expect(hostByTestId(renderer, 'notifications-badge')).toHaveLength(0);
   expect(texts(renderer)).toContain('All caught up');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('rows show the actor photo, post thumbnail and per-type actions', async () => {
+  unreadCount = 0;
+  const at = new Date().toISOString();
+  requestPage.mockResolvedValue({
+    data: [
+      {id: 'n1', user_id: 'u1', type: 'NEW_MESSAGE', title: 'New message', body: 'Hey', data: {conversationId: 'c1'}, read_at: null, created_at: at},
+      {id: 'n2', user_id: 'u1', type: 'PARTY_INVITE', title: 'Asha started a party', body: null, data: {partyId: 'p1', actorAvatarUrl: 'https://cdn/asha.jpg'}, read_at: null, created_at: at},
+      {id: 'n3', user_id: 'u1', type: 'POST_LIKED', title: 'Ravi liked your post', body: null, data: {postId: 'x1', imageUrl: 'https://cdn/post.jpg'}, read_at: at, created_at: at},
+      {id: 'n4', user_id: 'u1', type: 'USER_FOLLOWED', title: 'Meera started following you', body: null, data: {userId: 'm1', actorId: 'm1'}, read_at: at, created_at: at},
+    ],
+    meta: {limit: 20, offset: 0, hasMore: false},
+  });
+  const renderer = await render(makeStore(true));
+  await press(renderer, 'Notifications');
+  await flush();
+  expect(texts(renderer)).toEqual(expect.arrayContaining(['Reply', 'Join', 'Follow back']));
+  const images = renderer.root.findAllByType(Image).map(node => node.props.source?.uri);
+  expect(images).toEqual(expect.arrayContaining(['https://cdn/asha.jpg', 'https://cdn/post.jpg']));
+  await press(renderer, 'Follow back');
+  expect(mockFollowToggle).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

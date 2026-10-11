@@ -163,7 +163,7 @@ const DirectConversation = ({
             </View>
           </View>
 
-          {loading ? <View className="flex-1 items-center justify-center"><ActivityIndicator color={Colors.primary} /></View> : (
+          {loading ? <View className="flex-1 items-center justify-center"><ActivityIndicator color={Colors.gold} /></View> : (
             <FlatList
               ref={listRef}
               data={messages}

@@ -163,3 +163,9 @@ jest.mock('react-native-iap', () => {
     },
   };
 });
+
+// Lottie renders natively; under Jest it's an empty view.
+jest.mock('lottie-react-native', () => {
+  const {View} = require('react-native');
+  return {__esModule: true, default: View};
+});

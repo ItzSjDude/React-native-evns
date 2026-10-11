@@ -23,7 +23,7 @@ const loadableImages = (post: ProfilePost) =>
 
 // Text tiles rotate through the design's swatches so a grid of plain posts still reads as a colourful wall.
 const TILE_SWATCHES = [
-  {bg: '#F5B544', fg: '#1A1206'}, {bg: '#5B3FD0', fg: '#FFFFFF'}, {bg: '#FF5D8F', fg: '#1A0610'},
+  {bg: '#8B7CF6', fg: '#160F2E'}, {bg: '#5B3FD0', fg: '#FFFFFF'}, {bg: '#FF5D8F', fg: '#1A0610'},
   {bg: '#1E4F5E', fg: '#BFE6F2'}, {bg: '#2F2A55', fg: '#D9D2FF'}, {bg: '#1F6B45', fg: '#FFFFFF'},
 ];
 const ROOM_SWATCHES = ['#5B3FD0', '#C2552F', '#1E6E85', '#1F6B45', '#8A2E5C'];
@@ -135,14 +135,14 @@ export const GiftPanel = ({summary}: {summary: GiftSummary}) => {
           return <View key={gift.type} accessibilityLabel={`${gift.count} ${style.label}`} className="flex-1 items-center gap-1">
             <View style={{backgroundColor: style.bg}} className="mb-0.5 h-16 w-16 items-center justify-center rounded-full"><Text className="text-[28px]">{style.emoji}</Text></View>
             <Text className="text-[14px] font-extrabold text-foreground">{gift.count}</Text>
-            <Text numberOfLines={1} className="text-[11px] text-[#9C95AE]">{style.label}</Text>
+            <Text numberOfLines={1} className="text-[11px] text-muted dark:text-[#9C95AE]">{style.label}</Text>
           </View>;
         })}
         {Array.from({length: 4 - row.length}, (_, i) => <View key={`pad${i}`} className="flex-1" />)}
       </View>)}
     </View>
-    {!!summary.topSupporters.length && <View className="mt-3.5 flex-row items-center gap-2.5 border-t border-[#211D2C] pt-3">
-      <Text className="flex-1 text-[13px] text-[#B3ACC4]">Sabse bade supporters</Text>
+    {!!summary.topSupporters.length && <View className="mt-3.5 flex-row items-center gap-2.5 border-t border-border/60 dark:border-[#211D2C] pt-3">
+      <Text className="flex-1 text-[13px] text-muted dark:text-[#B3ACC4]">Sabse bade supporters</Text>
       <View className="flex-row">
         {summary.topSupporters.slice(0, 5).map((supporter, i) => {
           const [bg, fg] = SUPPORTER_COLORS[i % SUPPORTER_COLORS.length];

@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { AudioSession, AndroidAudioTypePresets, LiveKitRoom } from '@livekit/react-native';
 import { loadSession } from '../auth';
@@ -37,7 +38,7 @@ export default function PartyAudioRoom({ session, onClose, expanded, onMinimize,
   }, [attempt, session.party.hostId, session.party.host?.id]);
   const requestClose = () => {
     if (closeRequest.current) { closeRequest.current(); return; }
-    Alert.alert(host ? 'End party for everyone?' : 'Leave party?', host ? 'This closes the room for everyone.' : 'You can join again later.', [
+    showDialog(host ? 'End party for everyone?' : 'Leave party?', host ? 'This closes the room for everyone.' : 'You can join again later.', [
       { text: 'Stay', style: 'cancel' },
       {
         text: host ? 'End party' : 'Leave', style: 'destructive', onPress: async () => {

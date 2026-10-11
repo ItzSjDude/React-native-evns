@@ -195,7 +195,7 @@ const Messages = () => {
   ), [conversations, previews, query]);
 
   const emptyState = () => {
-    if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.primary} /></View>;
+    if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.gold} /></View>;
     if (error && !conversations.length) {
       return (
         <View className="items-center px-6 pt-20">
@@ -226,8 +226,9 @@ const Messages = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-5 pt-5">
-        <Text className="text-[30px] font-bold text-foreground">Messages</Text>
+      <View className="px-5 pt-3">
+        {/* Same size and position as the Home header. */}
+        <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Messages</Text></View>
         <Text className="mt-1 text-sm text-muted">Catch up with your people</Text>
         <View className="mt-6 h-12 flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4">
           <IconSearch size={20} color={Colors.muted} strokeWidth={2} />
@@ -252,7 +253,7 @@ const Messages = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerClassName="flex-grow px-5 pb-[115px]"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.primary} colors={[Colors.primary]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
         onEndReached={() => { if (hasMore && !loading && !query) load('more'); }}
         onEndReachedThreshold={0.4}
         ListHeaderComponent={error && conversations.length ? (
@@ -260,7 +261,7 @@ const Messages = () => {
             <Text className="text-sm text-coral">{error} Tap to retry.</Text>
           </Pressable>
         ) : undefined}
-        ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={Colors.primary} /> : undefined}
+        ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={Colors.gold} /> : undefined}
         ListEmptyComponent={emptyState()}
       />
 

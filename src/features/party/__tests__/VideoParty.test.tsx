@@ -108,7 +108,7 @@ describe('video room', () => {
     const original = platform.OS; platform.OS = 'android';
     jest.spyOn(PermissionsAndroid, 'check').mockResolvedValue(false);
     jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue('denied');
-    const alert = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(() => {});
+    const alert = jest.spyOn(require('../../../components/Dialog'), 'showDialog').mockImplementation(() => {});
     const tree = await mountStage('VIDEO', [person('host', 0), person('me', 1)]);
     await act(async () => {await tree.root.findByProps({accessibilityLabel: 'Turn camera on'}).props.onPress();});
     platform.OS = original;

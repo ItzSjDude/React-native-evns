@@ -88,7 +88,7 @@ export function SectionHeader({title, onSeeAll}: {title: string; onSeeAll?: () =
 
 export function SectionMessage({title, body, action, onAction, busy}: {title: string; body?: string | null; action?: string; onAction?: () => void; busy?: boolean}) {
   return <View className="items-center px-8 py-8">
-    {busy ? <ActivityIndicator accessibilityLabel={title} color={Colors.primary} /> : <>
+    {busy ? <ActivityIndicator accessibilityLabel={title} color={Colors.gold} /> : <>
       <Text className="text-center text-[15px] font-semibold text-foreground">{title}</Text>
       {body ? <Text className="mt-1.5 text-center text-[13px] leading-[19px] text-muted">{body}</Text> : null}
       {action && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={onAction}

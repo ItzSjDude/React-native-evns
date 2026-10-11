@@ -103,7 +103,7 @@ const TabButton = ({
     <Animated.View style={[styles.tabSlot, containerStyle]}>
       <Animated.View
         pointerEvents="none"
-        style={[styles.activeTab, activeStyle]}
+        style={[styles.activeTab, {backgroundColor: Colors.navActive, borderColor: Colors.navActiveBorder}, activeStyle]}
       />
 
       <Pressable
@@ -168,7 +168,7 @@ const CustomTabBar = ({
       edges={['bottom']}
       className="absolute bottom-0 left-0 right-0 items-center bg-transparent">
       <View
-        className={`h-[55px] flex-row items-center justify-center rounded-[28px] border border-[#514B62] bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[90%]' : 'w-[74%]'}`}
+        className={`h-[55px] flex-row items-center justify-center rounded-[28px] border border-border-muted dark:border-[#514B62] bg-nav-background dark:bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[90%]' : 'w-[74%]'}`}
         onLayout={event =>
           setPillWidth(event.nativeEvent.layout.width)
         }>
@@ -261,5 +261,5 @@ export default TabNavigation;
 // Reanimated needs native style objects for the tab width and fading overlays.
 const styles = StyleSheet.create({
   tabSlot: {height: 50, justifyContent: 'center'},
-  activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
+  activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, borderWidth: 1.5},
 });

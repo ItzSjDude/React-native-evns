@@ -1,5 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Keyboard, Modal, Pressable, ScrollView, StatusBar, Text, TextInput, type TextInputInstance, View} from 'react-native';
+import {Keyboard, Pressable, ScrollView, Text, TextInput, type TextInputInstance, View} from 'react-native';
+import SlideInScreen from '../../components/SlideInScreen';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import IconClock from '@tabler/icons-react-native/IconClock';
@@ -60,9 +62,9 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
     : <TopResults people={search.people} rooms={search.rooms} query={search.query} onRetry={search.retry}
       onSeeAll={setTab} onPerson={openPerson} onRoom={openRoom} />;
 
-  return <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={close} onShow={() => inputRef.current?.focus()}>
+  return <SlideInScreen visible={visible} onRequestClose={close} onShow={() => inputRef.current?.focus()}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <View className="flex-row items-center gap-3 px-5 pb-3 pt-2">
         <View className="h-12 flex-1 flex-row items-center gap-2 rounded-full border border-border bg-card px-4">
           <IconSearch size={18} color={Colors.muted} />
@@ -99,7 +101,7 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
     {profile ? <UserProfileModal userId={profile.id} visible onClose={() => setProfile(null)}
       initial={{name: profile.name, avatarUrl: profile.avatarUrl, handle: profile.handle}}
       onBlocked={userId => {search.removePerson(userId); setProfile(null);}} /> : null}
-  </Modal>;
+  </SlideInScreen>;
 }
 
 type Kind = 'people' | 'rooms';

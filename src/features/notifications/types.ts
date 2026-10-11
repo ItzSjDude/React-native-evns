@@ -17,6 +17,8 @@ export type NotificationType =
   | 'USER_ARRIVED'
   | 'PARTY_INVITE' | 'PARTY_REMINDER' | 'PARTY_SCHEDULED_START' | 'PARTY_CANCELLED'
   | 'VIBE_NOTE_NEARBY'
+  // Social types the app is ready for; gathr-api doesn't send them yet.
+  | 'USER_FOLLOWED' | 'POST_LIKED' | 'POST_COMMENTED'
   | (string & {});
 
 export type ApiNotification = {
@@ -40,6 +42,20 @@ export type AppNotification = {
   readAt: string | null;
   createdAt: string;
   target: NotificationTarget;
+};
+
+/**
+ * Optional display keys a producer can put in `data` (strings, like every `data` value). The list shows the
+ * actor's photo and a post thumbnail when they are present and falls back to the type icon otherwise.
+ * gathr-api doesn't send any of these yet.
+ */
+export type NotificationDisplayData = {
+  /** Who triggered it; needed for "Follow back". */
+  actorId?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
+  /** Thumbnail of the post (or other media) the notification is about. */
+  imageUrl?: string;
 };
 
 export type DevicePlatform = 'android' | 'ios' | 'web';

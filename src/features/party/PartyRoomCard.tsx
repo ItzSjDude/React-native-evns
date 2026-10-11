@@ -22,7 +22,7 @@ const AvatarStack = ({room}: {room: PartyRoom}) => {
   return (
     <View className="flex-row items-center" accessibilityLabel={room.participantCount + ' participants, hosted by ' + (room.host.name || 'Host')}>
       <View className="z-20 rounded-full border-2 border-card"><HostAvatar room={room} size={24} /></View>
-      {Array.from({length: shown}, (_, index) => <View key={index} className="-ml-2 h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-[#35303F]"><IconUserFilled size={16} color="#B7B1C3" /></View>)}
+      {Array.from({length: shown}, (_, index) => <View key={index} className="-ml-2 h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-border dark:bg-[#35303F]"><IconUserFilled size={16} color="#B7B1C3" /></View>)}
       {room.participantCount > 3 && <Text className="ml-1.5 text-[11px] text-muted">+{room.participantCount - 3}</Text>}
     </View>
   );
@@ -34,7 +34,7 @@ const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => v
   const MediaIcon = video ? IconVideoFilled : IconHeadphones;
   const tags = roomTags(room);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + roomTitle(room)} onPress={onOpen} className="mb-2.5 flex-row items-center rounded-[20px] border border-[#282433] bg-card p-2 active:opacity-80">
+    <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + roomTitle(room)} onPress={onOpen} className="mb-2.5 flex-row items-center rounded-[20px] border border-border/60 dark:border-[#282433] bg-card p-2 active:opacity-80">
       <View className="h-[104px] w-[104px] shrink-0 overflow-hidden rounded-[14px] bg-primary-dark">
         <Image source={roomCover(room)} resizeMode="cover" className="h-full w-full" />
         <View className={video ? 'absolute left-1.5 top-1.5 flex-row items-center gap-1 rounded-full bg-coral px-2 py-1' : 'absolute left-1.5 top-1.5 flex-row items-center gap-1 rounded-full bg-primary-dark px-2 py-1'}>

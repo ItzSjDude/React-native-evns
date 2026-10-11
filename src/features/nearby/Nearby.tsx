@@ -44,7 +44,7 @@ const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPer
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} onPress={onPress} disabled={opening} hitSlop={6}
       className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-primary-dark active:opacity-70">
-      {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <IconMessageCircle size={21} color={Colors.primary} />}
+      {opening ? <ActivityIndicator size="small" color={Colors.gold} /> : <IconMessageCircle size={21} color={Colors.primary} />}
     </Pressable>
   </Pressable>
 );
@@ -220,8 +220,9 @@ const Nearby = () => {
   const showList = visible === true;
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-5 pt-5">
-        <Text className="text-[30px] font-bold text-foreground">Nearby</Text>
+      <View className="px-5 pt-3">
+        {/* Same size and position as the Home header. */}
+        <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Nearby</Text></View>
         <Text className="mt-1 text-sm text-muted">Find people around you</Text>
       </View>
 
@@ -232,7 +233,7 @@ const Nearby = () => {
           onOpenProfile={() => setViewing({id: item.id, initial: {name: item.name, avatarUrl: item.avatarUrl}})} />}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="flex-grow px-5 pb-[110px]"
-        refreshControl={showList ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} colors={[Colors.primary]} /> : undefined}
+        refreshControl={showList ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} /> : undefined}
         ListHeaderComponent={<>
           <View className="mb-7 mt-6 flex-row items-center rounded-[20px] bg-card p-4">
             <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-dark"><IconRadar size={24} color={Colors.primary} /></View>
@@ -241,7 +242,7 @@ const Nearby = () => {
               <Text className="mt-1 text-xs leading-[17px] text-muted">{visible ? 'People nearby can find you while your location is fresh.' : 'Go visible to find people and let them find you.'}</Text>
             </View>
             {visible !== null && <Pressable accessibilityRole="button" accessibilityLabel={visible ? 'Go invisible' : 'Go visible'} disabled={busy} onPress={toggleVisibility} className={`ml-3 min-h-10 items-center justify-center rounded-full px-3 ${visible ? 'border border-border' : 'bg-gold'} ${busy ? 'opacity-50' : 'active:opacity-70'}`}>
-              {busy ? <ActivityIndicator size="small" color={visible ? Colors.primary : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
+              {busy ? <ActivityIndicator size="small" color={visible ? Colors.gold : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
             </Pressable>}
           </View>
 
@@ -265,7 +266,7 @@ const Nearby = () => {
           </View>}
           {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry nearby" onPress={retry} className="mb-4 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
         </>}
-        ListEmptyComponent={loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.primary} /></View> : showList && !error && !locationNotice ? (
+        ListEmptyComponent={loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.gold} /></View> : showList && !error && !locationNotice ? (
           <View className="items-center px-6 pt-16">
             <IconRadar size={44} color={Colors.muted} strokeWidth={1.5} />
             <Text className="mt-4 text-center text-base font-semibold text-foreground">No one nearby yet</Text>

@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
-import {StatusBar, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
+import ThemedStatusBar from '../../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconShieldLock from '@tabler/icons-react-native/IconShieldLock';
 import BottomSheet, {SheetButton} from '../../../components/BottomSheet';
@@ -44,7 +45,7 @@ const UnderageScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <View className="flex-1 justify-center px-6">
         <View className="mb-6 h-14 w-14 items-center justify-center rounded-full bg-primary-dark"><IconShieldLock size={28} color={Colors.primary} /></View>
         <Text accessibilityRole="header" className="text-[26px] font-bold text-foreground">Hiva is only for people 18+</Text>

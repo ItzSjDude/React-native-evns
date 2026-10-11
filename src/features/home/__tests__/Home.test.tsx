@@ -1,10 +1,12 @@
 import React from 'react';
-import {Alert, Text} from 'react-native';
+import {Text} from 'react-native';
+import {showDialog} from '../../../components/Dialog';
 import ReactTestRenderer from 'react-test-renderer';
 import Home from '../Home';
 import {createPost, deletePost, getFeedPage, likePost} from '../homeService';
 import type {HomePost} from '../types';
 
+jest.mock('../../../components/Dialog', () => ({showDialog: jest.fn()}));
 jest.mock('../../auth', () => ({
   loadSession: jest.fn().mockResolvedValue({user: {id: 'me', name: 'Me', avatar_url: null}}),
 }));
@@ -13,7 +15,10 @@ jest.mock('../../party', () => ({
   PartyRoomPreview: () => null,
 }));
 jest.mock('../../search', () => ({SearchScreen: () => null}));
-jest.mock('../../events', () => ({EventsScreen: () => null, EventDetailSheet: () => null}));
+jest.mock('../../events', () => {
+  const {Text: MockText} = require('react-native');
+  return {EventsList: () => <MockText>Events list</MockText>, EventDetailSheet: () => null};
+});
 jest.mock('../../notifications', () => ({NotificationsBell: () => null, useNotificationNavigator: jest.fn()}));
 jest.mock('@react-navigation/native', () => ({useNavigation: () => ({navigate: jest.fn()})}));
 jest.mock('../homeService', () => ({
@@ -50,7 +55,6 @@ const render = async () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 
 test('renders the feed from the API with a working search button', async () => {
@@ -90,7 +94,7 @@ test('rolls a like back when the request fails', async () => {
   await ReactTestRenderer.act(async () => { reject({status: 500, message: 'Nope'}); });
   expect(renderer.root.findAllByProps({accessibilityLabel: 'Like post'}).length).toBeGreaterThan(0);
   expect(texts(renderer)).toContain('5');
-  expect(Alert.alert).toHaveBeenCalledWith('Could not update like', 'Nope');
+  expect(showDialog).toHaveBeenCalledWith('Could not update like', 'Nope');
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
 
@@ -149,7 +153,7 @@ test('reports someone else\'s post with the chosen reason', async () => {
   await ReactTestRenderer.act(async () => { renderer.root.findAll(node => node.props.accessibilityLabel === 'Report post' && typeof node.props.onPress === 'function')[0].props.onPress(); });
   await ReactTestRenderer.act(async () => { renderer.root.findByProps({label: 'Spam'}).props.onPress(); });
   expect(report).toHaveBeenCalledWith('theirs', 'Spam');
-  expect(Alert.alert).toHaveBeenCalledWith('Report received', expect.any(String));
+  expect(showDialog).toHaveBeenCalledWith('Report received', expect.any(String));
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
 
@@ -173,5 +177,26 @@ test('the Following tab loads the following scope and explains an unsupported or
   await ReactTestRenderer.act(async () => { tab(0).props.onPress(); });
   expect(feed).toHaveBeenLastCalledWith(null, undefined, 'all');
   expect(texts(renderer)).toContain('Back on For you');
+  await ReactTestRenderer.act(async () => { renderer.unmount(); });
+});
+
+test('the Events tab shows the events list inline and switching back keeps the feed without refetching', async () => {
+  feed.mockResolvedValue({posts: [post()], hasMore: true, nextCursor: 'next'});
+  const renderer = await render();
+  const tabs = () => renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function');
+  expect(texts(renderer)).not.toContain('Events list');
+
+  await ReactTestRenderer.act(async () => { tabs()[2].props.onPress(); });
+  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+  expect(texts(renderer)).toContain('Events list');
+  // The feed sits hidden underneath: no Next-post button, and it isn't reloaded.
+  expect(renderer.root.findAllByProps({accessibilityLabel: 'Next post'})).toHaveLength(0);
+  expect(feed).toHaveBeenCalledTimes(1);
+
+  await ReactTestRenderer.act(async () => { tabs()[0].props.onPress(); });
+  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([true, false, false]);
+  expect(texts(renderer)).not.toContain('Events list');
+  expect(texts(renderer)).toContain('From the API');
+  expect(feed).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });

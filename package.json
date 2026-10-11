@@ -27,6 +27,7 @@
     "@tabler/icons-react-native": "^3.48.0",
     "headroom-ai": "^0.40.0",
     "livekit-client": "2.20.0",
+    "lottie-react-native": "^7.5.0",
     "nativewind": "^4.2.7",
     "react": "19.2.3",
     "react-native": "0.87.1",

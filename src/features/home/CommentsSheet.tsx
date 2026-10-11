@@ -120,7 +120,7 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
 
   return (
     <BottomSheet visible={visible && post !== null} onClose={onClose} title="Comments" subtitle={post ? `${post.author}'s post` : null} footer={footer} maxHeight={0.78}>
-      {loading ? <ActivityIndicator accessibilityLabel="Loading comments" color={Colors.primary} className="my-[30px]" /> : null}
+      {loading ? <ActivityIndicator accessibilityLabel="Loading comments" color={Colors.gold} className="my-[30px]" /> : null}
       {!loading && loadError ? (
         <View className="items-center py-[20px]">
           <Typography size={14} color={Colors.coral} className="text-center">{loadError}</Typography>
@@ -133,7 +133,7 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
       {comments.map(item => (
         <View key={item.id} className="mb-[14px] flex-row">
           <CommentAvatar name={item.author.name} url={item.author.avatarUrl} />
-          <View className="ml-[10px] flex-1 rounded-[14px] bg-[#252235] px-[12px] py-[9px]">
+          <View className="ml-[10px] flex-1 rounded-[14px] bg-card dark:bg-[#252235] px-[12px] py-[9px]">
             <View className="flex-row items-center">
               <Typography size={13} color={Colors.text} fontWeight="600" className="shrink">{item.author.name}</Typography>
               <Typography size={11} color={Colors.muted} className="ml-[6px] flex-1">{formatRelativeTime(item.createdAt)}</Typography>
@@ -149,7 +149,7 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
       ))}
       {!loading && hasMore && !loadError ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Load more comments" disabled={loadingMore} onPress={() => postId && load(postId, comments.length)} className="mb-[10px] items-center py-[8px] active:opacity-70">
-          {loadingMore ? <ActivityIndicator color={Colors.primary} /> : <Typography size={13} color={Colors.primary} fontWeight="600">Load more comments</Typography>}
+          {loadingMore ? <ActivityIndicator color={Colors.gold} /> : <Typography size={13} color={Colors.primary} fontWeight="600">Load more comments</Typography>}
         </Pressable>
       ) : null}
     </BottomSheet>

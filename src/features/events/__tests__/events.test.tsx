@@ -1,9 +1,10 @@
 import React from 'react';
+import {FlatList} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
 import {getEvent, getEvents} from '../eventsService';
 import {formatEventPrice, goingLabel, viewerStatusLabel} from '../eventsPresentation';
-import EventsScreen from '../EventsScreen';
+import EventsList from '../EventsList';
 import EventDetailSheet from '../EventDetailSheet';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
@@ -49,26 +50,31 @@ test('list renders events from the API and opens the detail', async () => {
   page.mockResolvedValue({data: [event()], meta: {limit: 20, offset: 0, hasMore: false}});
   request.mockResolvedValue({event: event(), viewer: {interest: null, ticket: null, conversationId: null, isStaff: false}, stats: null});
   let r: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { r = ReactTestRenderer.create(<EventsScreen visible onClose={() => {}} />); });
+  await ReactTestRenderer.act(async () => { r = ReactTestRenderer.create(<EventsList />); });
   await flush();
   expect(texts(r!)).toEqual(expect.arrayContaining(['Rooftop Night', '12 / 100 going']));
   await ReactTestRenderer.act(async () => { r!.root.findByProps({accessibilityLabel: 'Open event Rooftop Night'}).props.onPress(); });
   await flush();
   expect(request).toHaveBeenCalledWith('/events/e1', {auth: 'optional'});
   expect(texts(r!)).toContain('Music and views');
+  await ReactTestRenderer.act(async () => { r!.unmount(); });
 });
 
 test('list shows empty and error states', async () => {
   page.mockResolvedValue({data: [], meta: {limit: 20, offset: 0, hasMore: false}});
   let r: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { r = ReactTestRenderer.create(<EventsScreen visible onClose={() => {}} />); });
+  await ReactTestRenderer.act(async () => { r = ReactTestRenderer.create(<EventsList />); });
   await flush();
   expect(texts(r!)).toContain('No upcoming events');
   page.mockRejectedValue({status: 500, message: 'Boom'});
-  await ReactTestRenderer.act(async () => { r!.root.findAll(() => true); r!.update(<EventsScreen visible={false} onClose={() => {}} />); });
-  await ReactTestRenderer.act(async () => { r!.update(<EventsScreen visible onClose={() => {}} />); });
+  await ReactTestRenderer.act(async () => { r!.root.findByType(FlatList).props.refreshControl.props.onRefresh(); });
   await flush();
   expect(texts(r!)).toContain('Boom');
+  page.mockResolvedValue({data: [event()], meta: {limit: 20, offset: 0, hasMore: false}});
+  await ReactTestRenderer.act(async () => { r!.root.findByProps({accessibilityLabel: 'Retry'}).props.onPress(); });
+  await flush();
+  expect(texts(r!)).toContain('Rooftop Night');
+  await ReactTestRenderer.act(async () => { r!.unmount(); });
 });
 
 test('detail loads, shows organiser, ticket status', async () => {

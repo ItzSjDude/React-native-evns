@@ -1,12 +1,15 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import {cssInterop} from 'nativewind';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Defs, RadialGradient, Rect, Stop, Circle} from 'react-native-svg';
+import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
 import IconMenu2 from '@tabler/icons-react-native/IconMenu2';
 import IconPencil from '@tabler/icons-react-native/IconPencil';
+import IconPlus from '@tabler/icons-react-native/IconPlus';
+import IconSquareRoundedPlus from '@tabler/icons-react-native/IconSquareRoundedPlus';
 import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
@@ -32,6 +35,9 @@ type VisibleTab = ProfileTab | 'gifts';
 const tabLabels: Record<VisibleTab, string> = {posts: 'Posts', parties: 'Rooms', events: 'Events', gifts: 'Gifts'};
 const initialsOf = (name?: string | null) => (name || '?').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 const compact = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '')}k` : String(value);
+// Profile design accent (violet) and the dark ink that sits on it; the same in both themes.
+const ACCENT = '#8B7CF6';
+const ON_ACCENT = '#160F2E';
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 
 const Profile = () => {
@@ -157,13 +163,13 @@ const Profile = () => {
   // Fans and gifts need the profile-settings backend; until it ships, fall back to the stats every server returns.
   const social = profile?.stats?.followers !== undefined;
   const stats = social ? [
-    {label: 'Fans', value: profile?.stats?.followers ?? 0, dot: 'bg-[#8B7CF6]', count: 'border-[#4A3F8C] bg-[#2A2160]', text: 'text-foreground'},
-    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DDC97]', count: 'border-[#1F5A40] bg-[#123224]', text: 'text-foreground'},
-    {label: 'Gifts mile', value: profile?.stats?.giftsReceived ?? 0, dot: 'bg-gold', count: 'border-gold bg-gold', text: 'text-gold-ink'},
+    {label: 'Fans', value: profile?.stats?.followers ?? 0, dot: 'bg-[#6CB4FF]'},
+    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DD68C]'},
+    {label: 'Gifts', value: profile?.stats?.giftsReceived ?? 0, dot: 'bg-[#8B7CF6]'},
   ] : [
-    {label: 'Posts', value: profile?.stats?.posts ?? 0, dot: 'bg-[#8B7CF6]', count: 'border-[#4A3F8C] bg-[#2A2160]', text: 'text-foreground'},
-    {label: 'Hosted', value: profile?.stats?.hosted ?? 0, dot: 'bg-gold', count: 'border-gold bg-gold', text: 'text-gold-ink'},
-    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DDC97]', count: 'border-[#1F5A40] bg-[#123224]', text: 'text-foreground'},
+    {label: 'Posts', value: profile?.stats?.posts ?? 0, dot: 'bg-[#6CB4FF]'},
+    {label: 'Hosted', value: profile?.stats?.hosted ?? 0, dot: 'bg-[#8B7CF6]'},
+    {label: 'Following', value: profile?.stats?.following ?? 0, dot: 'bg-[#3DD68C]'},
   ];
   const visibleTabs: VisibleTab[] = social ? [...tabs, 'gifts'] : tabs;
   const currentTab: VisibleTab = giftsOpen && social ? 'gifts' : activeTab;
@@ -181,93 +187,90 @@ const Profile = () => {
 
   return (
     <View className="flex-1 bg-background">
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-[125px]"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}>
         <View>
           {/* Design hero: violet radial glow from the top-left fading into the page background. */}
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
-              <RadialGradient id="hero" cx="20%" cy="0%" rx="120%" ry="90%" fx="20%" fy="0%">
-                <Stop offset="0" stopColor="#3B2A86" /><Stop offset="0.45" stopColor="#1A1338" /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+              <RadialGradient id="hero" cx="30%" cy="0%" rx="120%" ry="95%" fx="30%" fy="0%">
+                <Stop offset="0" stopColor={Colors.profileGlow} /><Stop offset="0.6" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#hero)" />
           </Svg>
           <SafeAreaView edges={['top']}>
-            <View className="px-5 pb-5 pt-[18px]">
-              <View className="flex-row items-center gap-2">
-                <Text numberOfLines={1} className="flex-1 text-[14px] font-bold text-[#C9C2DA]">{profile?.handle ? `@${profile.handle}` : ''}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setSheet('settings')}
-                  className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
-                  <IconMenu2 size={20} color="#FFFFFF" />
-                </Pressable>
-              </View>
-
-              <View className="mt-[30px] flex-row items-center gap-[22px] pl-2.5">
-                <View className="h-[112px] w-[112px] items-center justify-center">
-                  <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-[#5A4F8C]" />
-                  <Svg width={112} height={112} style={StyleSheet.absoluteFill}>
-                    <Circle cx={56} cy={56} r={52} stroke={Colors.gold} strokeWidth={5} fill="none" />
-                  </Svg>
-                  <View className="h-[90px] w-[90px] items-center justify-center overflow-hidden rounded-full bg-[#4A3A8C]">
-                    {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
-                      : <Text className="text-[28px] font-extrabold text-[#F0ECFF]">{initialsOf(profile?.name)}</Text>}
-                  </View>
-                </View>
-                <View className="min-w-0 flex-1 gap-2.5">
-                  {stats.map(stat => <View key={stat.label} className="flex-row items-center gap-2.5">
-                    <View className="h-[30px] w-[92px] flex-row items-center gap-1.5 rounded-full border border-[#3A3168] bg-[#15102C]/80 px-2.5">
-                      <View className={`h-1.5 w-1.5 rounded-full ${stat.dot}`} /><Text className="text-[11px] font-bold text-[#B3ACC4]">{stat.label}</Text>
-                    </View>
-                    <View className={`h-[30px] min-w-[48px] items-center justify-center rounded-full border px-2.5 ${stat.count}`}>
-                      <Text className={`font-display text-[13px] ${stat.text}`}>{compact(stat.value)}</Text>
-                    </View>
-                  </View>)}
-                </View>
-              </View>
-
-              {profileLoading && !profile ? <View className="mt-5 gap-2.5">
-                <View className="h-6 w-40 rounded-lg bg-white/10" /><View className="h-4 w-64 rounded-lg bg-white/10" />
-                <ActivityIndicator accessibilityLabel="Loading profile" color={Colors.gold} className="mt-4" />
-              </View> : null}
-
-              {profileError && !profile ? <View className="mt-5 items-center rounded-[20px] bg-white/5 p-5">
-                <Text className="text-center text-sm text-text-body">{profileError}</Text>
-                <Pressable accessibilityRole="button" onPress={() => loadProfile()} className="mt-3 h-10 flex-row items-center gap-1.5 rounded-full bg-gold px-4 active:opacity-80">
-                  <IconRefresh size={16} color={Colors.goldInk} /><Text className="text-[13px] font-extrabold text-gold-ink">Try again</Text>
-                </Pressable>
-              </View> : null}
-
-              {profile ? <>
-                <View className="mt-5 gap-1.5">
-                  <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[24px] tracking-[-0.3px] text-foreground">{profile.name}</Text>
-                  {profile.bio ? <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>
-                    : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-gold">+ Add a bio</Text></Pressable>}
-                  {!!meta && <Text className="text-[11px] text-[#9C95AE]">{meta}</Text>}
-                  {!!profile.interests?.length && <View className="mt-1 flex-row flex-wrap gap-1.5">
-                    {profile.interests.slice(0, 3).map((interest, i) => <Text key={interest} className={`overflow-hidden rounded-full px-2.5 py-1.5 text-[11px] font-extrabold capitalize ${i === 0 ? 'bg-[#2E2410] text-gold' : 'bg-[#241D4A] text-purple-soft'}`}>{interest}</Text>)}
-                    {profile.interests.length > 3 && <Text className="overflow-hidden rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-extrabold text-[#C9C2DA]">+{profile.interests.length - 3} more</Text>}
-                  </View>}
-                </View>
-
-                <View className="mt-4 flex-row gap-2.5">
-                  <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => setSheet('edit')}
-                    className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full bg-gold active:opacity-80">
-                    <IconPencil size={16} color={Colors.goldInk} /><Text className="text-[13px] font-extrabold text-gold-ink">Edit profile</Text>
-                  </Pressable>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Share profile" onPress={shareProfile}
-                    className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-[1.5px] border-purple-line active:opacity-70">
-                    <IconShare3 size={16} color="#E6E0FF" /><Text className="text-[13px] font-extrabold text-[#E6E0FF]">Share profile</Text>
-                  </Pressable>
-                </View>
-              </> : null}
+            <View className="h-14 flex-row items-center justify-between px-5 pt-3">
+              <Text accessibilityRole="header" numberOfLines={1} className="flex-1 font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">{profile?.handle ? `@${profile.handle}` : 'Profile'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setSheet('settings')}
+                className="h-11 w-11 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] active:opacity-70">
+                <IconMenu2 size={20} color={Colors.text} />
+              </Pressable>
             </View>
+
+            <View className="flex-row items-center gap-5 px-5 pt-4">
+              <View className="h-[88px] w-[88px] rounded-full border-[2.5px] border-[#8B7CF6] p-[3px]">
+                <View className="h-full w-full items-center justify-center overflow-hidden rounded-full bg-card dark:bg-[#2A2640]">
+                  {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
+                    : <Text className="font-display text-[24px] text-muted dark:text-[#C9C5DE]">{initialsOf(profile?.name)}</Text>}
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel="Change photo" onPress={() => setSheet('edit')} hitSlop={6}
+                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-background dark:border-[#0B0A12] bg-[#8B7CF6] active:opacity-80">
+                  <IconPlus size={14} strokeWidth={2.6} color={ON_ACCENT} />
+                </Pressable>
+              </View>
+              <View className="min-w-0 flex-1 flex-row gap-2">
+                {stats.map(stat => <View key={stat.label} className="min-w-0 flex-1 items-center gap-1">
+                  <Text className="font-display text-[20px] leading-[22px] text-foreground dark:text-[#F4F2FA]">{compact(stat.value)}</Text>
+                  <View className="flex-row items-center gap-[5px]">
+                    <View className={`h-1.5 w-1.5 rounded-full ${stat.dot}`} />
+                    <Text numberOfLines={1} className="text-[12px] font-medium text-muted dark:text-[#9C97B8]">{stat.label}</Text>
+                  </View>
+                </View>)}
+              </View>
+            </View>
+
+            {profileLoading && !profile ? <View className="mt-5 gap-2.5 px-5">
+              <View className="h-6 w-40 rounded-lg bg-card" /><View className="h-4 w-64 rounded-lg bg-card" />
+              <ActivityIndicator accessibilityLabel="Loading profile" color={ACCENT} className="mt-4" />
+            </View> : null}
+
+            {profileError && !profile ? <View className="mx-5 mt-5 items-center rounded-[20px] bg-card p-5">
+              <Text className="text-center text-sm text-text-body">{profileError}</Text>
+              <Pressable accessibilityRole="button" onPress={() => loadProfile()} className="mt-3 h-10 flex-row items-center gap-1.5 rounded-full bg-[#8B7CF6] px-4 active:opacity-80">
+                <IconRefresh size={16} color={ON_ACCENT} /><Text className="text-[14px] font-semibold text-[#160F2E]">Try again</Text>
+              </Pressable>
+            </View> : null}
+
+            {profile ? <>
+              <View className="gap-1.5 px-5 pt-5">
+                <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[18px] leading-[22px] tracking-[-0.2px] text-foreground dark:text-[#F4F2FA]">{profile.name}</Text>
+                {profile.bio ? <Text className="text-[13px] leading-5 text-text-body dark:text-[#B3AECB]">{profile.bio}</Text>
+                  : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-primary dark:text-[#A78BFA]">+ Add a bio</Text></Pressable>}
+                {!!meta && <Text className="text-[12px] text-muted dark:text-[#9C97B8]">{meta}</Text>}
+                {!!profile.interests?.length && <View className="mt-1 flex-row flex-wrap gap-1.5">
+                  {profile.interests.slice(0, 3).map(interest => <Text key={interest} className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] px-2.5 py-1 text-[12px] font-semibold capitalize text-muted dark:text-[#B3AECB]">{interest}</Text>)}
+                  {profile.interests.length > 3 && <Text className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] px-2.5 py-1 text-[12px] font-semibold text-muted dark:text-[#9C97B8]">+{profile.interests.length - 3} more</Text>}
+                </View>}
+              </View>
+
+              <View className="flex-row gap-3 px-5 pt-5">
+                <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => setSheet('edit')}
+                  className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full bg-[#8B7CF6] active:opacity-80">
+                  <IconPencil size={15} color={ON_ACCENT} /><Text className="text-[14px] font-semibold text-[#160F2E]">Edit profile</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Share profile" onPress={shareProfile}
+                  className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full border-[1.5px] border-purple-line dark:border-[#4A4378] active:opacity-70">
+                  <IconShare3 size={15} color={Colors.text} /><Text className="text-[14px] font-semibold text-foreground dark:text-[#F4F2FA]">Share profile</Text>
+                </Pressable>
+              </View>
+            </> : null}
           </SafeAreaView>
         </View>
 
         {liveParty ? <Pressable accessibilityRole="button" accessibilityLabel="Back to your live room" onPress={openLiveParty}
-          className="mx-5 mt-1 flex-row items-center gap-3 rounded-[18px] bg-[#FF5D8F] px-3.5 py-3 active:opacity-90">
+          className="mx-5 mt-5 flex-row items-center gap-3 rounded-[18px] bg-[#FF5D8F] px-3.5 py-3 active:opacity-90">
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#1A0610]"><IconWaveSine size={20} color="#FF5D8F" /></View>
           <View className="min-w-0 flex-1">
             <Text className="text-[11px] font-extrabold tracking-[1px] text-[#1A0610]">YOU'RE IN A ROOM</Text>
@@ -278,19 +281,19 @@ const Profile = () => {
         </Pressable> : null}
 
         {profile ? <>
-          <View accessibilityRole="tablist" className="mx-5 mt-[18px] flex-row gap-0.5 rounded-full border border-border bg-[#15121E] p-1">
+          <View accessibilityRole="tablist" className="mx-5 mt-6 flex-row gap-1 rounded-[20px] border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#13111F] p-[3px]">
             {visibleTabs.map(tab => {
               const selected = currentTab === tab;
               return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? 'bg-gold' : 'active:opacity-70'}`}>
-                <Text className={`text-[13px] font-extrabold ${selected ? 'text-gold-ink' : 'text-[#A9A3B8]'}`}>{tabLabels[tab]}</Text>
+                className={`h-[34px] flex-1 items-center justify-center rounded-[17px] ${selected ? 'bg-[#8B7CF6]' : 'active:opacity-70'}`}>
+                <Text className={`text-[14px] font-semibold ${selected ? 'text-[#160F2E]' : 'text-muted dark:text-[#B3AECB]'}`}>{tabLabels[tab]}</Text>
               </Pressable>;
             })}
           </View>
 
           {currentTab === 'gifts' ? <View className="px-5 pb-5 pt-3.5">
             {gifts.summary ? <GiftPanel summary={gifts.summary} /> : null}
-            {gifts.loading ? <ActivityIndicator accessibilityLabel="Loading gifts" color={Colors.gold} className="my-[30px]" /> : null}
+            {gifts.loading ? <ActivityIndicator accessibilityLabel="Loading gifts" color={ACCENT} className="my-[30px]" /> : null}
             {gifts.error ? <Pressable accessibilityRole="button" onPress={() => loadGifts(profile.id)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
               <Text className="text-sm text-coral">{gifts.error} Tap to retry.</Text>
             </Pressable> : null}
@@ -298,16 +301,19 @@ const Profile = () => {
             {activeTab === 'posts' && !!list.items.length && <PostGrid posts={list.items as ProfilePost[]} />}
             {activeTab === 'parties' && (list.loaded || list.items.length > 0) && !list.error && <RoomGrid parties={list.items as ProfileParty[]} onHost={() => navigation.navigate('Party')} />}
             {activeTab === 'events' && <View className="gap-3">{(list.items as ProfileEvent[]).map(event => <EventCard key={event.id} event={event} onPress={() => setOpenEvent(event)} />)}</View>}
-            {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={Colors.gold} className="my-[30px]" /> : null}
+            {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={ACCENT} className="my-[30px]" /> : null}
             {list.error ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
               <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
             </Pressable> : null}
-            {!list.loading && !list.error && list.items.length === 0 && activeTab !== 'parties' ? <View className="items-center py-12">
-              <Text className="text-[16px] font-extrabold text-foreground">No {tabLabels[activeTab].toLowerCase()} yet</Text>
-              <Text className="mt-1 text-[13px] text-muted">{activeTab === 'posts' ? 'Share something from the Home tab.' : 'Events you join show up here.'}</Text>
+            {!list.loading && !list.error && list.items.length === 0 && activeTab !== 'parties' ? <View className="items-center gap-1.5 px-5 py-10">
+              <View className="mb-2 h-14 w-14 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A]">
+                <IconSquareRoundedPlus size={24} strokeWidth={1.8} color={Colors.muted} />
+              </View>
+              <Text className="text-[17px] font-bold text-foreground dark:text-[#F4F2FA]">No {tabLabels[activeTab].toLowerCase()} yet</Text>
+              <Text className="text-center text-[14px] text-muted dark:text-[#9C97B8]">{activeTab === 'posts' ? 'Share something from the Home tab.' : 'Events you join show up here.'}</Text>
             </View> : null}
             {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} className="mt-3 items-center p-[15px] active:opacity-70">
-              <Text className="text-sm font-extrabold text-gold">Load more</Text>
+              <Text className="text-sm font-semibold text-primary dark:text-[#A78BFA]">Load more</Text>
             </Pressable> : null}
           </View>}
         </> : null}

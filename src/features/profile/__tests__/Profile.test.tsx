@@ -123,7 +123,7 @@ test('on the new backend, stats show fans, following and gifts and a gifts tab l
   (getMyProfile as jest.Mock).mockResolvedValue(profile({stats: {following: 3, hosted: 96, posts: 12, followers: 1200, giftsReceived: 27}}));
   (getGiftSummary as jest.Mock).mockResolvedValue({totalReceived: 27, byGift: [{type: 'rose', name: 'rose', count: 20}], topSupporters: [{id: 's1', name: 'Rina', avatarUrl: null, total: 8}]});
   tree = await render();
-  expect(texts(tree)).toEqual(expect.arrayContaining(['Fans', '1.2k', 'Gifts mile', '27', 'Gifts']));
+  expect(texts(tree)).toEqual(expect.arrayContaining(['Fans', '1.2k', '27', 'Gifts']));
   await ReactTestRenderer.act(async () => {
     tree!.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function')[3].props.onPress();
   });
