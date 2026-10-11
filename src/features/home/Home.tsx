@@ -128,8 +128,10 @@ const Home = () => {
     }
   };
 
-  const openComments = (post: HomePost) => {
+  const [focusCommentId, setFocusCommentId] = useState<string | null>(null);
+  const openComments = (post: HomePost, commentId: string | null = null) => {
     setCommentsPost(post);
+    setFocusCommentId(commentId);
     setCommentsVisible(true);
   };
 
@@ -148,7 +150,12 @@ const Home = () => {
   const navigation = useNavigation<{navigate: (route: string) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
-    if (target.kind === 'user' && 'id' in target) {setViewing({id: target.id, initial: {name: 'Hiva user', avatarUrl: null}}); return true;}
+    if (target.kind === 'user' && 'id' in target) {
+      // Social notifications carry the actor's name and photo, so the profile opens with them instead of a placeholder.
+      const actor = target.data.actorId === target.id ? target.data : {};
+      setViewing({id: target.id, initial: {name: actor.actorName || 'Hiva user', avatarUrl: actor.actorAvatarUrl || null}});
+      return true;
+    }
     if (target.kind === 'conversation') {navigation.navigate('Chat'); return true;}
     if (target.kind === 'event' && 'id' in target) {setEventId(target.id); return true;}
     if (target.kind === 'party' && 'id' in target) {
@@ -156,7 +163,7 @@ const Home = () => {
       return true;
     }
     if (target.kind === 'post' && 'id' in target) {
-      getPost(target.id).then(openComments).catch(() => showDialog('Post not available', 'This post was removed or you can no longer see it.'));
+      getPost(target.id).then(post => openComments(post, target.data.commentId || null)).catch(() => showDialog('Post not available', 'This post was removed or you can no longer see it.'));
       return true;
     }
     return false;
@@ -316,7 +323,7 @@ const Home = () => {
       extraData={viewerId}
       keyExtractor={item => item.id}
       renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
-        onReport={reason => report(item, reason)} onShare={() => sharePost(item)} viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl}
+        onReport={reason => report(item, reason)} onShare={() => sharePost(item)}
         saved={savedPosts.has(item.id)} onToggleSave={() => toggleSaved(item.id)}
         headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
         onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
@@ -339,7 +346,8 @@ const Home = () => {
         <IconArrowDown size={21} color={FeedColors.label} />
       </Pressable>
     )}
-    <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
+    <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount}
+      focusCommentId={focusCommentId} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost}
       viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl} />
     <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} />

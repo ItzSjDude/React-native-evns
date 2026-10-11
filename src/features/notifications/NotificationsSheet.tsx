@@ -26,8 +26,9 @@ type Status = 'loading' | 'ready' | 'error';
 
 // Inline call-to-action per type; tapping it does the same as tapping the row (opens the target).
 const ACTION_LABELS: Partial<Record<NotificationType, string>> = {
-  PARTY_INVITE: 'Join', PARTY_SCHEDULED_START: 'Join', NEW_MESSAGE: 'Reply', USER_ARRIVED: 'Say hi',
-  PURCHASE_REQUESTED: 'View', EVENT_PUBLISHED: 'View', EVENT_REMINDER: 'View', WAITLIST_OFFER: 'View', TICKET_ISSUED: 'View',
+  PARTY_INVITE: 'Join', PARTY_SCHEDULED_START: 'Join', PARTY_REMINDER: 'View', NEW_MESSAGE: 'Reply', USER_ARRIVED: 'Say hi',
+  PURCHASE_REQUESTED: 'View', PAYMENT_CARD_SHARED: 'View', PAYMENT_MARKED_PAID: 'View',
+  EVENT_PUBLISHED: 'View', EVENT_REMINDER: 'View', WAITLIST_OFFER: 'View', TICKET_ISSUED: 'View',
 };
 const isUrl = (value?: string) => !!value && /^https?:\/\//i.test(value);
 

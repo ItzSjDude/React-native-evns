@@ -35,8 +35,6 @@ const dark = {
   textSoft: '#E6E0FF',
   /** Highest-contrast icon colour (white on dark). */
   iconStrong: '#FFFFFF',
-  navActive: '#13111F',
-  navActiveBorder: '#73679D',
   /** Profile screen hero glow. */
   profileGlow: '#2A1F5C',
 };
@@ -63,8 +61,6 @@ const light: Palette = {
   heroGlowMid: '#F4F1FF',
   textSoft: '#2B2933',
   iconStrong: '#0F0E16',
-  navActive: '#F3F2F7',
-  navActiveBorder: '#CEC4F4',
   profileGlow: '#EEE9FF',
 };
 

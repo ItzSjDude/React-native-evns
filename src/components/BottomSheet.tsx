@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {AccessibilityInfo, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, KeyboardAvoidingView, Modal, PanResponder, Pressable, ScrollView, type ScrollViewInstance, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {Easing, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconX from '@tabler/icons-react-native/IconX';
@@ -21,10 +21,12 @@ type BottomSheetProps = {
   /** Set false while a request is in flight so the sheet can't be swiped away mid-action. */
   dismissible?: boolean;
   maxHeight?: number;
+  /** Lets the owner scroll the sheet's content, e.g. to a specific row. */
+  scrollRef?: React.Ref<ScrollViewInstance>;
   children?: React.ReactNode;
 };
 
-export default function BottomSheet({visible, onClose, title, subtitle, header, footer, dismissible = true, maxHeight = 0.82, children}: BottomSheetProps) {
+export default function BottomSheet({visible, onClose, title, subtitle, header, footer, dismissible = true, maxHeight = 0.82, scrollRef, children}: BottomSheetProps) {
   const {height} = useWindowDimensions();
   const [mounted, setMounted] = useState(visible);
   const [reduced, setReduced] = useState(false);
@@ -71,7 +73,8 @@ export default function BottomSheet({visible, onClose, title, subtitle, header, 
 
   if (!mounted) return null;
   return <Modal visible transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={close}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end">
+    {/* Padding on Android too: with edge-to-edge and a translucent Modal, adjustResize doesn't shrink the sheet, so the keyboard would cover its inputs. */}
+    <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end">
       <Animated.View pointerEvents="none" style={backdropStyle} className="absolute inset-0 bg-black/70" />
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss sheet" onPress={close} className="flex-1" />
       <Animated.View style={[{maxHeight: height * maxHeight}, sheetStyle]} className="w-full max-w-[640px] self-center rounded-t-[28px] border border-b-0 border-border-muted bg-sheet">
@@ -88,7 +91,7 @@ export default function BottomSheet({visible, onClose, title, subtitle, header, 
               {dismissible && <Pressable accessibilityRole="button" accessibilityLabel="Close sheet" onPress={onClose} hitSlop={6} className="h-9 w-9 items-center justify-center rounded-full bg-card active:opacity-70"><IconX size={18} color={Colors.muted} /></Pressable>}
             </View>}
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} contentContainerClassName="px-5 pb-3">
+          <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} contentContainerClassName="px-5 pb-3">
             {children}
           </ScrollView>
           {!!footer && <View className="px-5 pb-2 pt-1">{footer}</View>}
