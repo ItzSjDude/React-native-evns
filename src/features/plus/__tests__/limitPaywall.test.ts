@@ -37,6 +37,15 @@ test('PLUS_REQUIRED on discovery (stale cached plan) opens the filters paywall, 
   expect(getPlusState().paywall).toMatchObject({visible: true, reason: 'filters'});
 });
 
+test('PLUS_REQUIRED on Passport and saved searches opens the passport paywall', () => {
+  const error = {status: 403, code: 'PLUS_REQUIRED', message: 'Hiva Plus is required for saved discovery and Social Passport'};
+  for (const path of ['/nearby/passport?city=Pune&limit=20&offset=0', '/me/discovery-presets', '/me/discovery-presets/p1']) {
+    paywallOnLimit(error, path);
+    expect(getPlusState().paywall).toMatchObject({visible: true, reason: 'passport'});
+    closePaywall();
+  }
+});
+
 test('replies never open the paywall, and other errors are ignored', () => {
   paywallOnLimit(limitError(), '/conversations/c1/messages');
   paywallOnLimit({status: 403, message: 'Private'}, '/conversations/direct');

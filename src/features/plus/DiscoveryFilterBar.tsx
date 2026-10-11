@@ -10,7 +10,7 @@ import {openPaywall} from './plusStore';
 import type {DiscoveryFilters} from './types';
 import {usePlus} from './usePlus';
 
-export type DiscoveryFilterBarProps = {filters: DiscoveryFilters; onChange: (filters: DiscoveryFilters) => void; subtitle?: string};
+export type DiscoveryFilterBarProps = {filters: DiscoveryFilters; onChange: (filters: DiscoveryFilters) => void; subtitle?: string; /** Passport has its own city input. */ hideCity?: boolean};
 
 const inputClass = 'h-11 rounded-xl border border-border bg-card px-3 text-[15px] text-foreground';
 const fieldLabel = 'mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-muted';
@@ -19,7 +19,7 @@ const fieldLabel = 'mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.
  * Compact filter control for Nearby and people search. Free users see a lock and tapping it opens the
  * 'filters' paywall; Plus users edit a draft in a sheet and apply it. Hidden while the server doesn't offer Plus.
  */
-export default function DiscoveryFilterBar({filters, onChange, subtitle}: DiscoveryFilterBarProps) {
+export default function DiscoveryFilterBar({filters, onChange, subtitle, hideCity}: DiscoveryFilterBarProps) {
   const {enabled, isPlus} = usePlus();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DiscoveryFilters>(filters);
@@ -50,9 +50,11 @@ export default function DiscoveryFilterBar({filters, onChange, subtitle}: Discov
         <SheetButton label="Apply filters" onPress={() => apply(draft)} />
         <SheetButton label="Clear all" variant="ghost" onPress={() => apply({})} />
       </>}>
-      <Text className={fieldLabel}>City</Text>
-      <TextInput accessibilityLabel="City" value={draft.city ?? ''} onChangeText={city => setDraft(prev => ({...prev, city}))} maxLength={CITY_MAX_LENGTH}
-        placeholder="Any city" placeholderTextColor={Colors.muted} autoCorrect={false} className={inputClass} />
+      {!hideCity && <>
+        <Text className={fieldLabel}>City</Text>
+        <TextInput accessibilityLabel="City" value={draft.city ?? ''} onChangeText={city => setDraft(prev => ({...prev, city}))} maxLength={CITY_MAX_LENGTH}
+          placeholder="Any city" placeholderTextColor={Colors.muted} autoCorrect={false} className={inputClass} />
+      </>}
       <Text className={fieldLabel}>Interest</Text>
       <TextInput accessibilityLabel="Interest" value={draft.interest ?? ''} onChangeText={interest => setDraft(prev => ({...prev, interest}))} maxLength={INTEREST_MAX_LENGTH}
         placeholder="Any interest" placeholderTextColor={Colors.muted} autoCorrect={false} className={inputClass} />

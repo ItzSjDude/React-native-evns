@@ -123,8 +123,10 @@ export function subscriptionNote(subscription: Pick<Subscription, 'plan' | 'stat
 /** Headline tied to why the paywall opened. */
 export function paywallHeadline(reason?: PaywallReason, details?: LimitReachedDetails): string {
   const max = details?.max;
-  const plusMax = details?.plusMax ?? (reason && reason !== 'filters' ? PLUS_DEFAULTS[reason] : undefined);
+  const plusMax = details?.plusMax ?? (reason && reason !== 'filters' && reason !== 'passport' ? PLUS_DEFAULTS[reason] : undefined);
   switch (reason) {
+    case 'passport':
+      return 'Explore other cities with Social Passport — Plus';
     case 'filters':
       return 'Filter by city, interest and language with Plus';
     case 'dmStarts':

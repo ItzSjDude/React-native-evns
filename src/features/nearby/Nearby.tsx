@@ -6,16 +6,19 @@ import IconEyeOff from '@tabler/icons-react-native/IconEyeOff';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconRadar from '@tabler/icons-react-native/IconRadar';
+import IconLock from '@tabler/icons-react-native/IconLock';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
-import {DiscoveryFilterBar, usePlus, type DiscoveryFilters} from '../plus';
+import {DiscoveryFilterBar, openPaywall, usePlus, type DiscoveryFilters} from '../plus';
 import {UserProfileModal, type UserPreview} from '../users';
 import {getDeviceLocation} from './deviceLocation';
 import {distanceLabel, MIN_RADIUS_METERS} from './distance';
 import {isRateLimited, nearbyErrorMessage} from './nearbyErrors';
+import PassportResults from './PassportResults';
+import PresetsBar from './PresetsBar';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
-import type {NearbyPerson} from './types';
+import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
 import VibeNotesList from './VibeNotesList';
 
 // Nothing below the server's 500 m minimum.
@@ -27,7 +30,8 @@ const radii = ([
 
 const messageOf = nearbyErrorMessage;
 
-type OpenChat = {id: string; person: NearbyPerson};
+type Chatter = Pick<NearbyPerson, 'id' | 'name' | 'avatarUrl'>;
+type OpenChat = {id: string; person: Chatter};
 
 const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPerson; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
   <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={onOpenProfile} className="mb-3 flex-row items-center rounded-[20px] bg-card px-4 py-4 active:opacity-70">
@@ -64,7 +68,9 @@ const Nearby = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
-  const {isPlus} = usePlus();
+  const {enabled: plusEnabled, isPlus} = usePlus();
+  const [mode, setMode] = useState<DiscoveryPresetMode>('NEARBY');
+  const [passportCity, setPassportCity] = useState('');
   const [filters, setFilters] = useState<DiscoveryFilters>({});
   const request = useRef(0);
   const positionInFlight = useRef<Promise<boolean> | null>(null);
@@ -113,8 +119,9 @@ const Nearby = () => {
     else setLocationNotice(messageOf(cause));
   }, []);
 
+  // Social Passport never reads or sends the device location, so none of this runs while it is on.
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || mode === 'PASSPORT') return;
     let active = true;
     const requestRef = request;
     (async () => {
@@ -142,7 +149,27 @@ const Nearby = () => {
       catch (cause) { if (active) reportPositionError(cause); }
     }, 5 * 60 * 1000);
     return () => { active = false; clearInterval(timer); requestRef.current++; };
-  }, [isFocused, loadPeople, reportPositionError, updatePosition]);
+  }, [isFocused, loadPeople, mode, reportPositionError, updatePosition]);
+
+  // Passport is Plus-only: fall back if the plan lapses while it is open.
+  useEffect(() => { if (mode === 'PASSPORT' && !isPlus) setMode('NEARBY'); }, [isPlus, mode]);
+
+  const chooseMode = (next: DiscoveryPresetMode) => {
+    if (next === 'PASSPORT' && !isPlus) { openPaywall('passport'); return; }
+    setMode(next);
+  };
+
+  const applyPreset = (preset: DiscoveryPreset) => {
+    const next: DiscoveryFilters = {interest: preset.interest ?? undefined, language: preset.language ?? undefined, activeNow: preset.activeNow || undefined};
+    filtersRef.current = next;
+    setFilters(next);
+    setRadius(preset.radiusMeters);
+    radiusRef.current = preset.radiusMeters;
+    if (preset.mode === 'PASSPORT') setPassportCity(preset.city ?? '');
+    // Switching from Passport reruns the location effect, which loads the list itself.
+    else if (mode === 'NEARBY' && visibleRef.current) loadPeople(preset.radiusMeters);
+    setMode(preset.mode);
+  };
 
   const toggleVisibility = async () => {
     if (busy) return;
@@ -189,7 +216,7 @@ const Nearby = () => {
     finally { setBusy(false); }
   };
 
-  const openConversation = async (person: NearbyPerson) => {
+  const openConversation = async (person: Chatter) => {
     if (openingId) return;
     setOpeningId(person.id);
     setError(null);
@@ -230,10 +257,25 @@ const Nearby = () => {
       <View className="px-5 pt-3">
         {/* Same size and position as the Home header. */}
         <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Nearby</Text></View>
-        <Text className="mt-1 text-sm text-muted">Find people around you</Text>
+        <Text className="mt-1 text-sm text-muted">{mode === 'PASSPORT' ? 'Meet people in another city' : 'Find people around you'}</Text>
+        {plusEnabled && <View className="mt-4 gap-3">
+          <View className="flex-row gap-2">
+            {(['NEARBY', 'PASSPORT'] as const).map(option => {
+              const locked = option === 'PASSPORT' && !isPlus;
+              const label = option === 'NEARBY' ? 'Nearby' : 'Passport';
+              return <Pressable key={option} accessibilityRole="button" accessibilityLabel={locked ? 'Passport, requires Hiva Plus' : label} accessibilityState={{selected: mode === option}} onPress={() => chooseMode(option)}
+                className={`h-9 flex-row items-center justify-center gap-1.5 rounded-full px-5 ${mode === option ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
+                <Text className={`text-[13px] font-semibold ${mode === option ? 'text-text-dark' : 'text-muted'}`}>{label}</Text>
+                {locked && <IconLock size={13} color={Colors.muted} />}
+              </Pressable>;
+            })}
+          </View>
+          <PresetsBar current={{mode, city: passportCity, radiusMeters: radius, filters}} onApply={applyPreset} />
+        </View>}
       </View>
 
-      <FlatList
+      {mode === 'PASSPORT' ? <PassportResults city={passportCity} onCityChange={setPassportCity} filters={filters} onFiltersChange={setFilters} openingId={openingId}
+        onOpenProfile={person => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} onMessage={openConversation} /> : <FlatList
         data={showList && !locationNotice ? people : []}
         keyExtractor={item => item.id}
         renderItem={({item}) => <PersonRow person={item} opening={openingId === item.id} onPress={() => openConversation(item)}
@@ -282,7 +324,7 @@ const Nearby = () => {
             <Text className="mt-2 text-center text-sm leading-5 text-muted">Try a wider range or check back soon.</Text>
           </View>
         ) : undefined}
-      />
+      />}
       {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)}
         onBlocked={id => {setViewing(null); setPeople(current => current.filter(person => person.id !== id));}} />}
       {chat && <DirectConversation conversationId={chat.id} contactId={chat.person.id} contactName={chat.person.name} contactAvatarUrl={chat.person.avatarUrl} onClose={() => setChat(null)} />}

@@ -6,6 +6,7 @@ import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconNote from '@tabler/icons-react-native/IconNote';
 import IconPalette from '@tabler/icons-react-native/IconPalette';
 import IconRosetteDiscountCheck from '@tabler/icons-react-native/IconRosetteDiscountCheck';
+import IconWorld from '@tabler/icons-react-native/IconWorld';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {loadPlanOptions, purchasePlan, restorePurchases, toBillingError, UNAVAILABLE_MESSAGE} from './billing';
@@ -25,6 +26,7 @@ const benefits = (reason?: PaywallReason, details?: LimitReachedDetails): {icon:
   {icon: IconRosetteDiscountCheck, label: 'Optional Plus badge on your profile and posts'},
   {icon: IconFilter, label: 'City, interest, language and active-now filters'},
   {icon: IconPalette, label: 'Aurora and Midnight profile themes'},
+  {icon: IconWorld, label: 'Social Passport and saved searches'},
 ];
 
 const pickDefault = (options: PlanOption[]) =>

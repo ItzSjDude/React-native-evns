@@ -91,12 +91,13 @@ export function openPaywall(reason?: PaywallReason, details?: LimitReachedDetail
 
 /**
  * `onApiError` listener: LIMIT_REACHED opens the paywall, except on message sends, since replies are never capped.
- * PLUS_REQUIRED on discovery means our cached plan is stale: open the 'filters' paywall and re-fetch the plan.
+ * PLUS_REQUIRED on discovery means our cached plan is stale: open the paywall ('passport' for Passport and
+ * saved presets, else 'filters') and re-fetch the plan.
  */
 export function paywallOnLimit(error: unknown, path = '') {
-  if (isPlusRequired(error) && /^\/(nearby|users\/search)(\?|$)/.test(path)) {
+  if (isPlusRequired(error) && /^\/(nearby(\/passport)?|users\/search|me\/discovery-presets(\/[^?]*)?)(\?|$)/.test(path)) {
     refreshSubscription().catch(() => {});
-    openPaywall('filters');
+    openPaywall(/passport|discovery-presets/.test(path) ? 'passport' : 'filters');
     return;
   }
   if (isLimitReached(error) && !/\/messages(\?|$)/.test(path)) openPaywall(error.details.limit, error.details);

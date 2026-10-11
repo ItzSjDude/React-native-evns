@@ -4,7 +4,7 @@ export type {PaywallSheetProps} from './PaywallSheet';
 export {default as PlusSettingsScreen} from './PlusSettingsScreen';
 export {default as PlusBadge} from './PlusBadge';
 export {default as DiscoveryFilterBar} from './DiscoveryFilterBar';
-export {discoveryQuery} from './discoveryFilters';
+export {CITY_MAX_LENGTH, discoveryQuery} from './discoveryFilters';
 export {usePlus, usePaywall} from './usePlus';
 export {openPaywall, closePaywall, refreshSubscription} from './plusStore';
 export {isLimitReached, isPlusRequired, limitMessage, PLUS_REQUIRED_MESSAGE} from './limits';
