@@ -1,12 +1,11 @@
-import {apiRequest, apiRequestPage} from '../../core/api/apiClient';
-import type {ApiConversation, Conversation, ConversationPage} from './types';
+import {apiRequest} from '../../core/api/apiClient';
+import type {ApiInboxConversation, Conversation} from './types';
 
-export const CONVERSATIONS_PAGE_SIZE = 20;
-
-export const toConversation = (row: ApiConversation): Conversation => {
+export const toConversation = (row: ApiInboxConversation): Conversation => {
   const direct = row.kind === 'DIRECT';
   const unread = Number(row.unread_count);
   return {
+    type: 'CONVERSATION',
     id: row.id,
     kind: row.kind,
     status: row.status,
@@ -17,16 +16,10 @@ export const toConversation = (row: ApiConversation): Conversation => {
     lastActivityAt: row.last_message_at ?? row.created_at,
     lastMessageAt: row.last_message_at,
     lastMessage: row.last_message ?? null,
-  };
-};
-
-/** `GET /conversations` is offset-paginated and ordered by latest activity. */
-export const getConversations = async (offset = 0, limit = CONVERSATIONS_PAGE_SIZE): Promise<ConversationPage> => {
-  const page = await apiRequestPage<ApiConversation[]>(`/conversations?limit=${limit}&offset=${offset}`, {auth: 'required'});
-  return {
-    conversations: page.data.map(toConversation),
-    hasMore: page.meta.hasMore,
-    nextOffset: offset + page.data.length,
+    folderId: row.folder_id ?? null,
+    folderName: row.folder_name ?? null,
+    pinned: row.is_pinned === true,
+    archived: row.is_archived === true,
   };
 };
 

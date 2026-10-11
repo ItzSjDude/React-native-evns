@@ -86,3 +86,14 @@ test('typing frames go out at most once every 3s, and an unsent frame does not s
   offline.mockReturnValue(true);
   expect(retrying('c1')).toBe(true);
 });
+
+test('a live message keeps pinned threads on top: pinned update in place, others go below the pins', () => {
+  const list = [conversation({id: 'p1', pinned: true, contactId: 'u8'}), conversation({id: 'p2', pinned: true, contactId: 'u9'}), conversation({id: 'c0', contactId: 'u7'}), conversation()];
+  expect(applyRealtimeToConversations(list, created(message({id: 'm7'})), null).conversations.map(item => item.id)).toEqual(['p1', 'p2', 'c1', 'c0']);
+  const pinned = applyRealtimeToConversations(list, created(message({id: 'm8', sender_id: 'u9'}), 'p2'), null).conversations;
+  expect(pinned.map(item => item.id)).toEqual(['p1', 'p2', 'c0', 'c1']);
+  expect(pinned[1]).toMatchObject({unreadCount: 1});
+  // Party rows are never modified by chat events; the active thread simply moves above them.
+  const party = {type: 'PARTY' as const, id: 'party1', title: 'Jam', hostName: 'Dev', avatarUrl: null, participantCount: 1, unreadCount: 0, lastActivityAt: '', preview: null, archived: false, ended: false};
+  expect(applyRealtimeToConversations([party, conversation()], created(message({id: 'm9'})), null).conversations.map(item => item.id)).toEqual(['c1', 'party1']);
+});

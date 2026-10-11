@@ -2,7 +2,7 @@
 export type LimitReason = 'dmStarts' | 'vibeNotes' | 'vibeNoteLifetime' | 'randomMatches';
 
 /** Why the paywall opened: a limit that was hit, or a Plus-only feature (`filters`) that was tapped. */
-export type PaywallReason = LimitReason | 'filters';
+export type PaywallReason = LimitReason | 'filters' | 'inbox';
 
 /** Advanced discovery filters of `GET /nearby` and `GET /users/search` (Plus only; a free user gets 403 `PLUS_REQUIRED`). */
 export type DiscoveryLanguage = 'en' | 'hi' | 'hinglish';

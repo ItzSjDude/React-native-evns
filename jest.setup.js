@@ -18,6 +18,24 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+// Local follow-up reminders: the native notification module is unavailable under Jest.
+jest.mock('@notifee/react-native', () => ({
+  __esModule: true,
+  default: {
+    requestPermission: jest.fn().mockResolvedValue({authorizationStatus: 1}),
+    createChannel: jest.fn().mockResolvedValue('follow-ups'),
+    createTriggerNotification: jest.fn().mockResolvedValue('id'),
+    cancelNotification: jest.fn().mockResolvedValue(undefined),
+    getInitialNotification: jest.fn().mockResolvedValue(null),
+    onForegroundEvent: jest.fn(() => jest.fn()),
+    onBackgroundEvent: jest.fn(),
+  },
+  AndroidImportance: {DEFAULT: 3},
+  AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2},
+  EventType: {PRESS: 1},
+  TriggerType: {TIMESTAMP: 0},
+}));
+
 // Native time picker is unavailable under Jest; tests don't drive it.
 jest.mock('@react-native-community/datetimepicker', () => ({
   __esModule: true,

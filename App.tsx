@@ -12,9 +12,11 @@ import {NotificationsProvider, registerNotificationBackgroundHandler} from './sr
 import {loadSession} from './src/features/auth';
 import {setCrashUser, startCrashReporting} from './src/core/monitoring';
 import {PlusProvider} from './src/features/plus';
+import {registerFollowUpBackgroundHandler} from './src/features/messages';
 
 // FCM needs its background handler registered at bundle load, before any component mounts.
 registerNotificationBackgroundHandler();
+registerFollowUpBackgroundHandler();
 startCrashReporting();
 
 const AppContent = () => {
