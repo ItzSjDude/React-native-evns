@@ -16,7 +16,7 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
-import {PlusBadge} from '../plus';
+import {PlusBadge, useProfileTheme} from '../plus';
 import FollowButton from './FollowButton';
 import FollowListSheet from './FollowListSheet';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
@@ -181,6 +181,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
   const unavailable = access === 'unavailable';
   const locked = access === 'private';
   const showContent = !unavailable && !locked && !blocked;
+  const theme = useProfileTheme(unavailable ? null : profile?.profileTheme);
   const canModerate = viewerId !== undefined && !isSelf && !blocked;
 
   const toggleFollow = async () => {
@@ -264,7 +265,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
               <RadialGradient id="userHero" cx="20%" cy="0%" rx="120%" ry="90%" fx="20%" fy="0%">
-                <Stop offset="0" stopColor={Colors.heroGlow} /><Stop offset="0.45" stopColor={Colors.heroGlowMid} /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+                <Stop offset="0" stopColor={theme?.glow ?? Colors.heroGlow} /><Stop offset="0.45" stopColor={theme?.glowMid ?? Colors.heroGlowMid} /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#userHero)" />
@@ -287,7 +288,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
                 <View className="h-[112px] w-[112px] items-center justify-center">
                   <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-purple-line dark:border-[#5A4F8C]" />
                   <Svg width={112} height={112} style={StyleSheet.absoluteFill}>
-                    <Circle cx={56} cy={56} r={52} stroke={unavailable ? Colors.borderMuted : Colors.gold} strokeWidth={5} fill="none" />
+                    <Circle cx={56} cy={56} r={52} stroke={unavailable ? Colors.borderMuted : theme?.accent ?? Colors.gold} strokeWidth={5} fill="none" />
                   </Svg>
                   <Avatar name={name || '?'} url={unavailable ? null : avatarUrl} size={90} />
                 </View>
@@ -301,7 +302,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
               <View className="mt-5 gap-1.5">
                 {name ? <View className="flex-row items-center">
                   <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
-                  {profile?.isPlus === true && !unavailable && <PlusBadge size="md" />}
+                  {profile?.showPlusBadge === true && !unavailable && <PlusBadge size="md" />}
                 </View> : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
                 {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-text-body dark:text-[#D9D4E4]">{profile.bio}</Text>}
                 {!!profile?.city && showContent && <Text className="text-[11px] text-muted dark:text-[#9C95AE]">{profile.city}</Text>}
@@ -347,8 +348,8 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
             {visibleTabs.map(tab => {
               const selected = activeTab === tab;
               return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? 'bg-gold' : 'active:opacity-70'}`}>
-                <Text className={`text-[13px] font-extrabold ${selected ? 'text-gold-ink' : 'text-muted dark:text-[#A9A3B8]'}`}>{TAB_LABELS[tab]}</Text>
+                style={selected && theme ? {backgroundColor: theme.accent} : undefined} className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? (theme ? '' : 'bg-gold') : 'active:opacity-70'}`}>
+                <Text style={selected && theme ? {color: theme.onAccent} : undefined} className={`text-[13px] font-extrabold ${selected ? (theme ? '' : 'text-gold-ink') : 'text-muted dark:text-[#A9A3B8]'}`}>{TAB_LABELS[tab]}</Text>
               </Pressable>;
             })}
           </View>

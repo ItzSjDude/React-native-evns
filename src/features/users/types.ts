@@ -1,3 +1,5 @@
+import type {ProfileThemeId} from '../plus';
+
 /** What a caller already knows about a person (feed author, room participant, nearby row). */
 export type UserPreview = {name: string; avatarUrl: string | null; handle?: string | null};
 
@@ -17,8 +19,10 @@ export type PublicUserProfile = {
   isPrivate: boolean;
   isFollowing: boolean;
   followsYou?: boolean;
-  /** Hiva Plus member; absent on servers without subscriptions. */
-  isPlus?: boolean;
+  /** True only for a Plus member who opted in to the badge; never reveals subscription state otherwise. */
+  showPlusBadge?: boolean;
+  /** Always 'default' unless the owner is a Plus member. */
+  profileTheme?: ProfileThemeId;
   stats: {followers: number; following: number; posts: number; giftsReceived: number};
 };
 

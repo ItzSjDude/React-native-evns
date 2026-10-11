@@ -67,8 +67,10 @@ const Group = ({title, children}: {title: string; children: React.ReactNode}) =>
     {children}
   </View>;
 
-export default function SettingsScreen({profile, visible, onClose, onEditProfile, onLogout}: {
+export default function SettingsScreen({profile, visible, onClose, onEditProfile, onLogout, onSettingsChange}: {
   profile: UserProfile | null; visible: boolean; onClose: () => void; onEditProfile: () => void; onLogout: () => Promise<void>;
+  /** Lets the profile behind this screen pick up changes such as the Plus badge and theme. */
+  onSettingsChange?: (settings: UserSettings) => void;
 }) {
   // Local copies so the links keep their narrowed `string` type inside the callbacks below.
   const privacyUrl = PRIVACY_POLICY_URL;
@@ -92,6 +94,8 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
     getBlockedUsers().then(value => {if (mounted) setBlocked(value);}).catch(() => {if (mounted) setBlocked(null);});
     return () => {mounted = false;};
   }, [visible]);
+
+  useEffect(() => {if (settings) onSettingsChange?.(settings);}, [settings, onSettingsChange]);
 
   const patchSettings = async (patch: Partial<UserSettings>) => {
     if (!settings || busy) return;
@@ -194,7 +198,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         </Group>
       </ScrollView>
 
-      {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} />}
+      {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} preferences={settings} onChange={patchSettings} />}
 
       <BottomSheet visible={panel === 'invites'} onClose={() => setPanel(null)} title="Who can invite you to speak?">
         <SheetSection>

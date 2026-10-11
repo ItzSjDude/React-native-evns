@@ -10,7 +10,8 @@ import {planTitle, subscriptionNote} from './pricing';
 import {DEFAULT_PLANS, manageSubscriptionUrl} from './plusService';
 import {openPaywall} from './plusStore';
 import PlusBadge from './PlusBadge';
-import type {SubscriptionStatus} from './types';
+import {PROFILE_THEMES} from './profileTheme';
+import type {PlusPreferences, SubscriptionStatus} from './types';
 import {usePlus} from './usePlus';
 
 const formatDate = (value: string | null) => {
@@ -31,7 +32,11 @@ const Line = ({label, value, first}: {label: string; value: string; first?: bool
   </View>;
 
 /** Status, plan, renewal date and links to manage or restore a Play subscription. */
-export default function PlusSettingsScreen({visible, onClose}: {visible: boolean; onClose: () => void}) {
+export default function PlusSettingsScreen({visible, onClose, preferences, onChange}: {
+  visible: boolean; onClose: () => void;
+  /** Badge and theme from `/me/settings`; null hides the customize group. Owned by the caller so this feature stays independent of profile. */
+  preferences?: PlusPreferences | null; onChange?: (patch: Partial<PlusPreferences>) => void;
+}) {
   const {subscription, isPlus, refresh} = usePlus();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{error: boolean; text: string} | null>(null);
@@ -83,6 +88,35 @@ export default function PlusSettingsScreen({visible, onClose}: {visible: boolean
           {isPlus && <Line label="Plan" value={planTitle(subscription?.basePlanId)} />}
           {isPlus && !!date && <Line label={dateLabel} value={date} />}
         </View>
+
+        {!!preferences && <View className="overflow-hidden rounded-[20px] border border-border bg-card dark:bg-[#15121E]">
+          <Pressable accessibilityRole="switch" accessibilityLabel="Show Plus badge" accessibilityState={{checked: isPlus && preferences.showPlusBadge}}
+            onPress={() => (isPlus ? onChange?.({showPlusBadge: !preferences.showPlusBadge}) : openPaywall())}
+            className="min-h-14 flex-row items-center gap-3 px-4 py-2 active:bg-white/5">
+            <View className="min-w-0 flex-1">
+              <Text className="text-[14px] font-semibold text-foreground">Show Plus badge</Text>
+              <Text className="text-xs text-muted">{isPlus ? 'Off by default. Shown on your profile and posts.' : 'Plus members can show a badge on their profile.'}</Text>
+            </View>
+            <View className={`h-7 w-[46px] justify-center rounded-full px-[3px] ${isPlus && preferences.showPlusBadge ? 'bg-gold' : 'bg-border'}`}>
+              <View className={`h-[22px] w-[22px] rounded-full ${isPlus && preferences.showPlusBadge ? 'self-end bg-gold-ink' : 'self-start bg-muted'}`} />
+            </View>
+          </Pressable>
+          <View className="border-t border-border/60 dark:border-[#211D2C] px-4 py-3">
+            <Text className="text-[14px] font-semibold text-foreground">Profile theme</Text>
+            <Text className="mb-2.5 text-xs text-muted">{isPlus ? 'Everyone who visits your profile sees it.' : 'Plus members can theme their profile.'}</Text>
+            <View accessibilityRole="radiogroup" className="flex-row gap-2.5">
+              {PROFILE_THEMES.map(theme => {
+                const active = (isPlus ? preferences.profileTheme : 'default') === theme.id;
+                return <Pressable key={theme.id} accessibilityRole="radio" accessibilityState={{checked: active}} accessibilityLabel={`${theme.label} theme`}
+                  onPress={() => (isPlus ? onChange?.({profileTheme: theme.id}) : openPaywall())}
+                  className={`h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-2 active:opacity-80 ${active ? 'border-gold bg-gold-bg' : 'border-border'}`}>
+                  <View style={{backgroundColor: theme.swatch}} className="h-3.5 w-3.5 rounded-full" />
+                  <Text className="text-[13px] font-bold text-foreground">{theme.label}</Text>
+                </Pressable>;
+              })}
+            </View>
+          </View>
+        </View>}
 
         {!isPlus && <Pressable accessibilityRole="button" accessibilityLabel="See Plus plans" onPress={() => openPaywall()}
           className="h-[52px] items-center justify-center rounded-full bg-gold active:opacity-80">

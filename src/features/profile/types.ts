@@ -1,3 +1,5 @@
+import type {ProfileThemeId} from '../plus';
+
 export type ProfileTab = 'posts' | 'parties' | 'events';
 
 export type UserProfile = {
@@ -72,6 +74,9 @@ export type UserSettings = {
   privateProfile: boolean;
   seatInvitesFrom: SeatInvitesFrom;
   language: 'en' | 'hi' | 'hinglish';
+  /** Plus-only; the server rejects non-default values from free users with 403 PLUS_REQUIRED. */
+  showPlusBadge: boolean;
+  profileTheme: ProfileThemeId;
 };
 
 export type BlockedUser = {id: string; name: string; handle: string | null; avatarUrl: string | null; blockedAt: string};

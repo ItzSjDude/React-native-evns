@@ -3,6 +3,12 @@ export type LimitReason = 'dmStarts' | 'vibeNotes' | 'vibeNoteLifetime' | 'rando
 
 export type PlusPlanKind = 'free' | 'plus';
 
+/** Allowlisted by the backend (`settings.schema.js#profileTheme`). */
+export type ProfileThemeId = 'default' | 'aurora' | 'midnight';
+
+/** The Plus-only fields of `GET/PATCH /me/settings` the Plus screen edits. */
+export type PlusPreferences = {showPlusBadge: boolean; profileTheme: ProfileThemeId};
+
 export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'GRACE_PERIOD', 'ON_HOLD', 'PAUSED', 'CANCELED', 'EXPIRED', 'REVOKED'] as const;
 export type SubscriptionStatus = typeof SUBSCRIPTION_STATUSES[number];
 

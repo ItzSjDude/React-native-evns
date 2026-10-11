@@ -19,7 +19,7 @@ export type PostCardData = {
   author: string;
   authorAvatarUrl?: string | null;
   /** Author has Hiva Plus; no badge when the server doesn't send it. */
-  authorIsPlus?: boolean;
+  authorShowPlusBadge?: boolean;
   time: string;
   content: string;
   likes: number;
@@ -131,7 +131,7 @@ const ActionButton = ({icon: Icon, count, color, accessibilityLabel, onPress, di
   </Pressable>
 );
 
-const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
+const PostCard = ({author, authorAvatarUrl, authorShowPlusBadge = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
   onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, saved = false, onToggleSave, headerAction}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -153,7 +153,7 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
             <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
               disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
               <Text numberOfLines={1} className="shrink font-body-semibold text-[16px] text-feed-text">{author}</Text>
-              {authorIsPlus && <PlusBadge />}
+              {authorShowPlusBadge && <PlusBadge />}
             </Pressable>
             <View className="flex-row items-center">
               {headerAction}

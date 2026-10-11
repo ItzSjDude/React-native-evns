@@ -17,13 +17,14 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi} from '../auth';
 import {usePartySession} from '../party';
+import {PlusBadge, usePlus, useProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
-import {getGiftSummary, getMyProfile, getProfilePage, updateMyProfile} from './profileService';
+import {getGiftSummary, getMyProfile, getMySettings, getProfilePage, updateMyProfile} from './profileService';
 import {EventDetailSheet} from '../events';
 import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
 import {EditProfileSheet} from './ProfileSheets';
 import SettingsScreen from './SettingsScreen';
-import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile} from './types';
+import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile, UserSettings} from './types';
 
 cssInterop(LinearGradient, {className: 'style'});
 cssInterop(SafeAreaView, {className: 'style'});
@@ -52,6 +53,12 @@ const Profile = () => {
   const [gifts, setGifts] = useState<{summary: GiftSummary | null; loading: boolean; error: string | null}>({summary: null, loading: false, error: null});
   const [lists, setLists] = useState<Record<ProfileTab, ListState>>({posts: emptyList(), parties: emptyList(), events: emptyList()});
   const [sheet, setSheet] = useState<'edit' | 'settings' | null>(null);
+  // Only the Plus badge and theme are read from here; null while loading or if the server has no settings API.
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const plus = usePlus();
+  const theme = useProfileTheme(plus.isPlus ? settings?.profileTheme : 'default');
+  const accent = theme?.accent ?? ACCENT;
+  const onAccent = theme?.onAccent ?? ON_ACCENT;
   const profileRequest = useRef(0);
   const visibleProfile = useRef(profile);
   visibleProfile.current = profile;
@@ -106,6 +113,7 @@ const Profile = () => {
 
   useFocusEffect(useCallback(() => {
     loadProfile();
+    getMySettings().then(setSettings).catch(() => {});
     const currentProfile = visibleProfile.current;
     if (currentProfile?.id && listOwner.current === currentProfile.id) {
       loadList(currentProfile.id, visibleTab.current);
@@ -195,7 +203,7 @@ const Profile = () => {
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
               <RadialGradient id="hero" cx="30%" cy="0%" rx="120%" ry="95%" fx="30%" fy="0%">
-                <Stop offset="0" stopColor={Colors.profileGlow} /><Stop offset="0.6" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+                <Stop offset="0" stopColor={theme?.glow ?? Colors.profileGlow} /><Stop offset="0.6" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#hero)" />
@@ -210,14 +218,14 @@ const Profile = () => {
             </View>
 
             <View className="flex-row items-center gap-5 px-5 pt-4">
-              <View className="h-[88px] w-[88px] rounded-full border-[2.5px] border-[#8B7CF6] p-[3px]">
+              <View style={{borderColor: accent}} className="h-[88px] w-[88px] rounded-full border-[2.5px] p-[3px]">
                 <View className="h-full w-full items-center justify-center overflow-hidden rounded-full bg-card dark:bg-[#2A2640]">
                   {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
                     : <Text className="font-display text-[24px] text-muted dark:text-[#C9C5DE]">{initialsOf(profile?.name)}</Text>}
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel="Change photo" onPress={() => setSheet('edit')} hitSlop={6}
-                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-background dark:border-[#0B0A12] bg-[#8B7CF6] active:opacity-80">
-                  <IconPlus size={14} strokeWidth={2.6} color={ON_ACCENT} />
+                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-background dark:border-[#0B0A12] active:opacity-80" style={{backgroundColor: accent}}>
+                  <IconPlus size={14} strokeWidth={2.6} color={onAccent} />
                 </Pressable>
               </View>
               <View className="min-w-0 flex-1 flex-row gap-2">
@@ -245,7 +253,10 @@ const Profile = () => {
 
             {profile ? <>
               <View className="gap-1.5 px-5 pt-5">
-                <Text accessibilityRole="header" numberOfLines={1} className="font-display text-[18px] leading-[22px] tracking-[-0.2px] text-foreground dark:text-[#F4F2FA]">{profile.name}</Text>
+                <View className="flex-row items-center">
+                  <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[18px] leading-[22px] tracking-[-0.2px] text-foreground dark:text-[#F4F2FA]">{profile.name}</Text>
+                  {plus.isPlus && settings?.showPlusBadge === true && <PlusBadge size="md" />}
+                </View>
                 {profile.bio ? <Text className="text-[13px] leading-5 text-text-body dark:text-[#B3AECB]">{profile.bio}</Text>
                   : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-primary dark:text-[#A78BFA]">+ Add a bio</Text></Pressable>}
                 {!!meta && <Text className="text-[12px] text-muted dark:text-[#9C97B8]">{meta}</Text>}
@@ -257,8 +268,8 @@ const Profile = () => {
 
               <View className="flex-row gap-3 px-5 pt-5">
                 <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => setSheet('edit')}
-                  className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full bg-[#8B7CF6] active:opacity-80">
-                  <IconPencil size={15} color={ON_ACCENT} /><Text className="text-[14px] font-semibold text-[#160F2E]">Edit profile</Text>
+                  style={{backgroundColor: accent}} className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full active:opacity-80">
+                  <IconPencil size={15} color={onAccent} /><Text style={{color: onAccent}} className="text-[14px] font-semibold">Edit profile</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" accessibilityLabel="Share profile" onPress={shareProfile}
                   className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full border-[1.5px] border-purple-line dark:border-[#4A4378] active:opacity-70">
@@ -285,8 +296,8 @@ const Profile = () => {
             {visibleTabs.map(tab => {
               const selected = currentTab === tab;
               return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                className={`h-[34px] flex-1 items-center justify-center rounded-[17px] ${selected ? 'bg-[#8B7CF6]' : 'active:opacity-70'}`}>
-                <Text className={`text-[14px] font-semibold ${selected ? 'text-[#160F2E]' : 'text-muted dark:text-[#B3AECB]'}`}>{tabLabels[tab]}</Text>
+                style={selected ? {backgroundColor: accent} : undefined} className={`h-[34px] flex-1 items-center justify-center rounded-[17px] ${selected ? '' : 'active:opacity-70'}`}>
+                <Text style={selected ? {color: onAccent} : undefined} className={`text-[14px] font-semibold ${selected ? '' : 'text-muted dark:text-[#B3AECB]'}`}>{tabLabels[tab]}</Text>
               </Pressable>;
             })}
           </View>
@@ -321,7 +332,7 @@ const Profile = () => {
 
       <EventDetailSheet eventId={openEvent?.id ?? null} initial={openEvent} visible={!!openEvent} onClose={() => setOpenEvent(null)} />
       <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
-      <SettingsScreen profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
+      <SettingsScreen onSettingsChange={setSettings} profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
     </View>
   );
 };

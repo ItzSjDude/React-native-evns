@@ -20,7 +20,7 @@ export const mapPost = (post: ApiPost): HomePost => ({
   authorId: post.author.id,
   author: post.author.name || 'Someone',
   authorAvatarUrl: post.author.avatarUrl ?? null,
-  authorIsPlus: post.author.isPlus ?? false,
+  authorShowPlusBadge: post.author.showPlusBadge ?? false,
   createdAt: post.createdAt,
   content: post.body ?? '',
   // Older clients saved device-local file:// paths instead of uploaded URLs; those can never load for other viewers.
