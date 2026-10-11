@@ -27,6 +27,7 @@ import { usePartyCamera } from './video/usePartyCamera';
 import { UserProfileModal, type UserPreview } from '../users';
 import AudioPartyStage from './AudioPartyStage';
 import RoomChatStream from './RoomChatStream';
+import { ACCESS_REVOKED_MESSAGE, isPaidAccessRequired } from '../paidRooms';
 import PartyRoomPanel, { type ReportTarget, type RoomAction, type RoomActionTarget, type RoomPanel } from './PartyRoomPanel';
 import { usePartyRoomState } from './usePartyRoomState';
 import { PartyColors, roomTitle } from './partyPresentation';
@@ -109,7 +110,7 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
       if (!current?.active || intentionalExit.current) return;
       const rejoined = await joinParty(partyId);
       if (mounted.current) await room.connect(rejoined.media.url, rejoined.media.token);
-    } catch { if (mounted.current) setError('Audio disconnected. Tap Retry audio.'); }
+    } catch (cause) { if (mounted.current) setError(isPaidAccessRequired(cause) ? ACCESS_REVOKED_MESSAGE : 'Audio disconnected. Tap Retry audio.'); }
     finally { reconnecting.current = false; }
   }, [identity, partyId, refresh, room]);
   useEffect(() => {
