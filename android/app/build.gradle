@@ -61,6 +61,11 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+def hivaLinkHost = (System.getenv('HIVA_LINK_HOST') ?: project.findProperty('HIVA_LINK_HOST') ?: 'links.invalid').trim().toLowerCase()
+if (!(hivaLinkHost ==~ /(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}/)) {
+    throw new GradleException('HIVA_LINK_HOST must be a bare DNS hostname (no scheme, port, path, query, or wildcard).')
+}
+
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
@@ -94,6 +99,7 @@ android {
         //   HIVA_VERSION_CODE=2 HIVA_VERSION_NAME=1.0.1 ./gradlew bundleRelease
         versionCode = Integer.parseInt(System.getenv('HIVA_VERSION_CODE') ?: '1')
         versionName = System.getenv('HIVA_VERSION_NAME') ?: '1.0.0'
+        manifestPlaceholders.hivaLinkHost = hivaLinkHost
     }
     signingConfigs {
         debug {

@@ -1,5 +1,5 @@
 import {apiRequest} from '../../../core/api/apiClient';
-import {createParty, getPartyDiscoveryPage, joinParty, leaveParty, requestPartySeat, setPartyState, type PartyRoom} from '../partyService';
+import {createParty, createPartyShareLink, getPartyDiscoveryPage, joinParty, leaveParty, requestPartySeat, setPartyState, type PartyRoom} from '../partyService';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
 const request = apiRequest as jest.Mock;
@@ -56,4 +56,10 @@ test('uses the backend LiveKit party lifecycle contract', async () => {
 
   await leaveParty('party-1');
   expect(request).toHaveBeenLastCalledWith('/parties/party-1/leave', {auth: 'required', method: 'POST'});
+});
+
+test('creates an absolute party share link through the mutating endpoint', async () => {
+  request.mockResolvedValue({shareToken: 'K7mP2qX9LdR4', link: 'https://links.example.test/r/K7mP2qX9LdR4'});
+  await createPartyShareLink('party-1');
+  expect(request).toHaveBeenCalledWith('/parties/party-1/share', {auth: 'required', method: 'POST'});
 });

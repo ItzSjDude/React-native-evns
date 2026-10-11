@@ -61,6 +61,12 @@
           <category android:name="android.intent.category.BROWSABLE" />
           <data android:scheme="hiva" android:host="party" />
         </intent-filter>
+        <intent-filter android:autoVerify="true">
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.DEFAULT" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="https" android:host="${hivaLinkHost}" android:pathPrefix="/r/" />
+        </intent-filter>
         <!-- gathr-api sends android.notification.click_action = <notification type>
              (src/services/fcm.service.js). Android resolves the tap intent by that action,
              so each type must map to this activity or tapping a background push does nothing.

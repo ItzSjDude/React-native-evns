@@ -3,16 +3,15 @@ import {ActivityIndicator, Linking, Modal, Pressable, Text} from 'react-native';
 import {Colors} from '../../Constants/Colors';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {parsePartyLink} from './partyLinks';
+import {clearPendingPartyLink, loadPendingPartyLink, savePendingPartyLink, subscribeToPendingPartyLink} from './pendingPartyLink';
 import {getSharedParty, type PartyRoom} from './partyService';
 import PartyRoomPreview from './PartyRoomPreview';
 import {usePartySession} from './PartySessionProvider';
-let pending: string | null = null;
-const subscribers = new Set<(token: string) => void>();
 export function PartyLinkCapture() {
   useEffect(() => {
     const receive = (url: string | null | undefined) => {
       const token = url && parsePartyLink(url);
-      if (token) {pending=token;subscribers.forEach(listener=>listener(token));}
+      if (token) savePendingPartyLink(token).catch(()=>{});
     };
     Linking.getInitialURL().then(receive).catch(()=>{});
     const subscription=Linking.addEventListener('url',event=>receive(event.url));
@@ -22,12 +21,16 @@ export function PartyLinkCapture() {
 }
 export function PartyLinkHandler() {
   const {session,open,expand,promptActiveParty}=usePartySession();
-  const [token,setToken]=useState(pending);
+  const [token,setToken]=useState<string | null>(null);
   const [room,setRoom]=useState<PartyRoom | null>(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState<string | null>(null);
   const [attempt,setAttempt]=useState(0);
-  useEffect(()=>{subscribers.add(setToken);return ()=>{subscribers.delete(setToken);};},[]);
+  useEffect(()=>{
+    const unsubscribe=subscribeToPendingPartyLink(setToken);
+    loadPendingPartyLink().then(setToken).catch(()=>{});
+    return unsubscribe;
+  },[]);
   useEffect(()=>{
     if (!token) return;
     let cancelled=false;
@@ -35,7 +38,7 @@ export function PartyLinkHandler() {
     getSharedParty(token).then(next=>{if(!cancelled)setRoom(next);}).catch(cause=>{if(!cancelled)setError(cause.message || 'This party link is unavailable.');}).finally(()=>{if(!cancelled)setLoading(false);});
     return ()=>{cancelled=true;};
   },[token,attempt]);
-  const close=()=>{pending=null;setToken(null);setRoom(null);setError(null);};
+  const close=()=>{clearPendingPartyLink(token || undefined).catch(()=>{});setToken(null);setRoom(null);setError(null);};
   if (room) return <PartyRoomPreview room={room} activePartyId={session?.party.id} onResume={()=>{close();expand();}} onBlocked={()=>promptActiveParty(close)} onClose={close} onJoined={next=>{close();open(next);}} />;
   return <Modal visible={!!token && (loading || !!error)} animationType="slide" onRequestClose={close}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-6">
