@@ -18,6 +18,9 @@ export type ApiEvent = {
   status: string;
   workspace_name: string | null;
   workspace_logo_url: string | null;
+  /** Set by the organiser (Organizer Pro); absent on older servers. */
+  networking_enabled?: boolean;
+  networking_ends_at?: string | null;
 };
 
 export type EventViewer = {

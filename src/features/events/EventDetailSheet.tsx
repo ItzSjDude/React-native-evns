@@ -7,6 +7,7 @@ import IconTicket from '@tabler/icons-react-native/IconTicket';
 import BottomSheet from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {formatEventPrice, formatEventWhen, goingLabel, isSoldOut, messageOf, viewerStatusLabel} from './eventsPresentation';
+import {EventNetworkingEntry} from '../eventNetworking';
 import {getEvent} from './eventsService';
 import type {ApiEvent, EventViewer} from './types';
 
@@ -84,6 +85,7 @@ const EventDetailSheet = ({eventId, initial, visible, onClose}: Props) => {
       {!!status && <View className="rounded-2xl border border-gold-line bg-gold-bg px-4 py-3">
         <Text accessibilityLabel="Your ticket status" className="text-[13px] font-bold text-gold">{status}</Text>
       </View>}
+      {!!event.id && !!viewer?.ticket && <EventNetworkingEntry event={event as ApiEvent} hasTicket />}
       {!!event.description && <Text className="text-[14px] leading-[21px] text-text-body">{event.description}</Text>}
     </View>}
   </BottomSheet>;
