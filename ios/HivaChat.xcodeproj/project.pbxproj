@@ -30,6 +30,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HivaChat/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = HivaChat/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = HivaChat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A81D8E642F8A12E700D33A10 /* HivaChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = HivaChat.entitlements; path = HivaChat/HivaChat.entitlements; sourceTree = "<group>"; };
 		151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-SemiBold.ttf"; path = "../assets/fonts/BricolageGrotesque-SemiBold.ttf"; sourceTree = "<group>"; };
 		1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-OFL.txt"; path = "../assets/fonts/Manrope-OFL.txt"; sourceTree = "<group>"; };
 		35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-Bold.ttf"; path = "../assets/fonts/Manrope-Bold.ttf"; sourceTree = "<group>"; };
@@ -62,6 +63,7 @@
 		13B07FAE1A68108700A75B9A /* HivaChat */ = {
 			isa = PBXGroup;
 			children = (
+				A81D8E642F8A12E700D33A10 /* HivaChat.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -337,10 +339,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = HivaChat/HivaChat.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = HivaChat/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				HIVA_LINK_HOST = links.invalid;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -367,9 +371,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = HivaChat/HivaChat.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = HivaChat/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				HIVA_LINK_HOST = links.invalid;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

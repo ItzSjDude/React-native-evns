@@ -134,8 +134,10 @@ export const requestPartySeat = (partyId: string) => apiRequest<{id: string; sta
   auth: 'required', method: 'POST',
 });
 
-export const createPartyShareLink = (partyId: string) => apiRequest<{shareToken: string; link: string}>(`/parties/${partyId}/share`, {
-  auth: 'required', method: 'GET',
+export type PartyShareLink = {shareToken: string; link: string; expiresAt?: string | null};
+
+export const createPartyShareLink = (partyId: string) => apiRequest<PartyShareLink>(`/parties/${partyId}/share`, {
+  auth: 'required', method: 'POST',
 });
 
 export const sendPartyChat = (partyId: string, body: string) => apiRequest<{ok: boolean; message: PartyChatMessage}>(`/parties/${partyId}/chat`, {
