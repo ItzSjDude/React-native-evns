@@ -1,3 +1,5 @@
+import {isLimitReached} from './limits';
+import {loadCachedSubscription, saveCachedSubscription} from './plusCache';
 import {getSubscription} from './plusService';
 import type {LimitReachedDetails, LimitReason, PaywallState, Subscription} from './types';
 
@@ -37,12 +39,21 @@ export const isPlusEnabled = (value: PlusState = state) => value.status === 'rea
 export const isPlusActive = (value: PlusState = state) => isPlusEnabled(value) && value.subscription?.plan === 'plus';
 
 export function setSubscription(subscription: Subscription | null) {
+  if (subscription) saveCachedSubscription(subscription);
   emit({
     subscription,
     status: offered(subscription) ? 'ready' : 'unavailable',
     fetchedAt: Date.now(),
     paywall: offered(subscription) ? state.paywall : {visible: false},
   });
+}
+
+/** Shows the cached subscription until the first server response; `fetchedAt` stays 0 so a refresh is never skipped. */
+export async function hydrateSubscription() {
+  const run = generation;
+  const cached = await loadCachedSubscription();
+  if (!cached || run !== generation || state.subscription) return;
+  emit({subscription: cached, status: offered(cached) ? 'ready' : 'unavailable'});
 }
 
 /** Fetches unless a recent copy is cached; concurrent callers share one request. */
@@ -76,6 +87,11 @@ export function openPaywall(reason?: LimitReason, details?: LimitReachedDetails)
   const show = () => {if (isPlusEnabled()) emit({paywall: {visible: true, reason, details}});};
   if (state.status === 'ready') show();
   else refreshSubscription().then(show).catch(() => {});
+}
+
+/** `onApiError` listener: LIMIT_REACHED opens the paywall, except on message sends, since replies are never capped. */
+export function paywallOnLimit(error: unknown, path = '') {
+  if (isLimitReached(error) && !/\/messages(\?|$)/.test(path)) openPaywall(error.details.limit, error.details);
 }
 
 export const closePaywall = () => emit({paywall: {...state.paywall, visible: false}});

@@ -3,6 +3,9 @@ export type LimitReason = 'dmStarts' | 'vibeNotes' | 'vibeNoteLifetime' | 'rando
 
 export type PlusPlanKind = 'free' | 'plus';
 
+export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'GRACE_PERIOD', 'ON_HOLD', 'PAUSED', 'CANCELED', 'EXPIRED', 'REVOKED'] as const;
+export type SubscriptionStatus = typeof SUBSCRIPTION_STATUSES[number];
+
 /** One Play subscription base plan the backend is willing to sell. */
 export type SubscriptionPlanRef = {productId: string; basePlanId: string};
 
@@ -24,7 +27,7 @@ export type SubscriptionUsage = {
 export type Subscription = {
   enabled: boolean;
   plan: PlusPlanKind;
-  status: string | null;
+  status: SubscriptionStatus | null;
   productId: string | null;
   basePlanId: string | null;
   expiresAt: string | null;
@@ -72,6 +75,8 @@ export type PlanOption = {
   regular: PlanPhase;
   /** Free trial or discounted first period(s) when Play says this user is eligible. */
   intro: PlanPhase | null;
+  /** False for a prepaid base plan, which is paid once and never renews. */
+  autoRenews: boolean;
 };
 
 export type PaywallState = {visible: boolean; reason?: LimitReason; details?: LimitReachedDetails};

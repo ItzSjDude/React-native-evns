@@ -66,7 +66,7 @@ test('a free user’s Plus row opens the paywall; a Plus member’s opens Plus s
   await ReactTestRenderer.act(async () => {row().props.onPress();});
   expect(renderer.root.findByType(PaywallSheet).props.visible).toBe(true);
 
-  await ReactTestRenderer.act(async () => {setSubscription(subscription({plan: 'plus', status: 'active', basePlanId: 'yearly'}));});
+  await ReactTestRenderer.act(async () => {setSubscription(subscription({plan: 'plus', status: 'ACTIVE', basePlanId: 'yearly'}));});
   await ReactTestRenderer.act(async () => {row().props.onPress();});
   expect(renderer.root.findByType(PlusSettingsScreen).props.visible).toBe(true);
 });

@@ -2,14 +2,10 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Linking, Pressable, Text, View} from 'react-native';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
-import IconNote from '@tabler/icons-react-native/IconNote';
-import IconRadar from '@tabler/icons-react-native/IconRadar';
-import IconRosetteDiscountCheck from '@tabler/icons-react-native/IconRosetteDiscountCheck';
-import IconFilter from '@tabler/icons-react-native/IconFilter';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {loadPlanOptions, purchasePlan, restorePurchases, toBillingError, UNAVAILABLE_MESSAGE} from './billing';
-import {introLabel, paywallHeadline, periodLabel, periodsPerYear, planTitle, yearlySavingsPercent} from './pricing';
+import {introLabel, paywallHeadline, paywallRenewalNote, periodLabel, periodsPerYear, planTitle, plusAllowance, yearlySavingsPercent} from './pricing';
 import {DEFAULT_PLANS, DEFAULT_PRODUCT_ID, manageSubscriptionUrl} from './plusService';
 import {getPlusState} from './plusStore';
 import type {LimitReachedDetails, LimitReason, PlanOption} from './types';
@@ -18,13 +14,9 @@ export type PaywallSheetProps = {visible: boolean; onClose: () => void; reason?:
 
 type IconComponent = React.ComponentType<{size?: number; color?: string}>;
 
-/** Only perks the app actually delivers are unmarked; everything else says "coming soon". */
-const BENEFITS: {icon: IconComponent; label: string; soon?: boolean}[] = [
-  {icon: IconMessageCircle, label: '40 new chats a day'},
-  {icon: IconRadar, label: 'More visibility in Nearby and Search'},
-  {icon: IconRosetteDiscountCheck, label: 'Plus badge on your profile and posts'},
-  {icon: IconNote, label: '10 vibe notes a day, up for 24 h', soon: true},
-  {icon: IconFilter, label: 'City & interest filters', soon: true},
+/** Only list perks the app actually delivers; each later feature adds its own row when it ships. */
+const benefits = (reason?: LimitReason, details?: LimitReachedDetails): {icon: IconComponent; label: string}[] => [
+  {icon: IconMessageCircle, label: `${plusAllowance('dmStarts', reason === 'dmStarts' ? details : undefined)} new chats a day`},
 ];
 
 const pickDefault = (options: PlanOption[]) =>
@@ -101,16 +93,15 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
     footer={<>
       {load.state === 'ready' && <SheetButton label={busy === 'buy' ? 'Opening Google Play…' : ctaLabel} busy={busy === 'buy'} disabled={!choice || busy !== null} onPress={buy} />}
       {!(load.state === 'error' && load.unavailable) && <SheetButton label={busy === 'restore' ? 'Restoring…' : 'Restore purchases'} variant="ghost" busy={busy === 'restore'} disabled={busy !== null} onPress={restore} />}
-      <Text className="mt-1 text-center text-[11px] leading-4 text-muted">Renews automatically. Cancel anytime in Google Play.</Text>
+      <Text className="mt-1 text-center text-[11px] leading-4 text-muted">{paywallRenewalNote(choice?.autoRenews ?? true)}</Text>
       <Pressable accessibilityRole="link" accessibilityLabel="Manage subscriptions in Google Play" hitSlop={6} onPress={() => {Linking.openURL(manageSubscriptionUrl(productId)).catch(() => {});}} className="items-center py-1.5 active:opacity-70">
         <Text className="text-[11px] font-bold text-purple-soft underline">Manage subscriptions in Google Play</Text>
       </Pressable>
     </>}>
     <View className="mb-4 gap-2.5 rounded-2xl border border-purple-line bg-purple-tint/40 p-4">
-      {BENEFITS.map(({icon: Icon, label, soon}) => <View key={label} className="flex-row items-center gap-3">
-        <View className="h-8 w-8 items-center justify-center rounded-full bg-primary-dark"><Icon size={16} color={soon ? Colors.muted : Colors.purpleSoft} /></View>
-        <Text className={`min-w-0 flex-1 text-[14px] font-semibold ${soon ? 'text-muted' : 'text-foreground'}`}>{label}</Text>
-        {soon && <Text className="rounded-full bg-card px-2 py-0.5 text-[10px] font-bold uppercase text-muted">Coming soon</Text>}
+      {benefits(reason, details).map(({icon: Icon, label}) => <View key={label} className="flex-row items-center gap-3">
+        <View className="h-8 w-8 items-center justify-center rounded-full bg-primary-dark"><Icon size={16} color={Colors.purpleSoft} /></View>
+        <Text className="min-w-0 flex-1 text-[14px] font-semibold text-foreground">{label}</Text>
       </View>)}
     </View>
 

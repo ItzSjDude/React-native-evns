@@ -162,7 +162,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         {!!error && <Text accessibilityRole="alert" className="px-4 pt-3 text-[13px] text-coral">{error}</Text>}
 
         {plus.enabled && <Group title="Hiva Plus">
-          <Row first icon={IconSparkles} label="Hiva Plus" hint={plus.isPlus ? 'Manage your subscription' : 'More chats, more visibility'}
+          <Row first icon={IconSparkles} label="Hiva Plus" hint={plus.isPlus ? 'Manage your subscription' : 'More new chats a day'}
             value={plus.isPlus ? 'Active' : 'Get Plus'} onPress={() => (plus.isPlus ? setPlusOpen(true) : openPaywall())} />
         </Group>}
 

@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 test('buys the chosen base plan offer and posts the token; the app never acknowledges (the server does)', async () => {
-  verify.mockResolvedValue(subscription({plan: 'plus', status: 'active', basePlanId: 'monthly'}));
+  verify.mockResolvedValue(subscription({plan: 'plus', status: 'ACTIVE', basePlanId: 'monthly'}));
   const pending = purchasePlan(monthly());
   await flush();
   expect(Iap.requestPurchase).toHaveBeenCalledWith({
@@ -82,7 +82,7 @@ test('restore posts every owned Hiva subscription', async () => {
     purchase({productId: 'someone_elses_sku', purchaseToken: 'other'}),
     purchase({purchaseToken: 'new-token'}),
   ]);
-  verify.mockResolvedValue(subscription({plan: 'plus', status: 'active'}));
+  verify.mockResolvedValue(subscription({plan: 'plus', status: 'ACTIVE'}));
   await expect(restorePurchases(['hiva_plus'])).resolves.toMatchObject({plan: 'plus'});
   expect(verify.mock.calls).toEqual([['hiva_plus', 'old-token'], ['hiva_plus', 'new-token']]);
   expect(Iap.finishTransaction).not.toHaveBeenCalled();

@@ -46,13 +46,13 @@ test('shows Play prices, the intro offer, yearly savings and the reason headline
   const text = allText(renderer);
   expect(Iap.fetchProducts).toHaveBeenCalledWith({skus: ['hiva_plus'], type: 'subs'});
   expect(text).toContain('You’ve used today’s 10 new chats — Plus gives you 40');
-  expect(text).toContain('₹39');
   expect(text).toContain('₹99');
   expect(text).toContain('₹799');
   expect(text).toContain('Save 32%');
   expect(text).toContain('₹49 for the first month, then ₹99/month');
   expect(text).toContain('Renews automatically. Cancel anytime in Google Play.');
-  expect(text).toContain('Coming soon');
+  expect(text).not.toContain('Coming soon');
+  expect(text).not.toContain('visibility');
   // Yearly is preselected.
   expect(renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && node.props.accessibilityState?.checked)[0].props.accessibilityLabel).toMatch(/^Yearly/);
 });
@@ -65,7 +65,7 @@ test('the Play management link carries the sku and package', async () => {
 });
 
 test('buying posts the Play token and leaves acknowledgement to the server', async () => {
-  verify.mockResolvedValue(subscription({plan: 'plus', status: 'active'}));
+  verify.mockResolvedValue(subscription({plan: 'plus', status: 'ACTIVE'}));
   const renderer = await render();
   await pressRadio(renderer, 'Monthly');
   await press(renderer, 'Start for ₹49');
@@ -86,7 +86,7 @@ test('TOKEN_IN_USE tells the user another account owns the subscription', async 
 
 test('restore links an existing subscription', async () => {
   (Iap.getAvailablePurchases as jest.Mock).mockResolvedValue([purchase({isAcknowledgedAndroid: true})]);
-  verify.mockResolvedValue(subscription({plan: 'plus', status: 'active'}));
+  verify.mockResolvedValue(subscription({plan: 'plus', status: 'ACTIVE'}));
   const renderer = await render();
   await press(renderer, 'Restore purchases');
   expect(verify).toHaveBeenCalledWith('hiva_plus', 'play-token-1');

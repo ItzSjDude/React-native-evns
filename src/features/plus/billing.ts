@@ -171,7 +171,7 @@ export async function purchasePlan(option: PlanOption): Promise<PurchaseOutcome>
 
 /**
  * Re-links subscriptions this Google account already owns: every active Hiva subscription purchase is
- * posted to the backend and finished. Rejects with `notFound` when there is nothing to restore.
+ * posted to the backend, which verifies and acknowledges it. Rejects with `notFound` when there is nothing to restore.
  */
 export async function restorePurchases(productIds: string[]): Promise<Subscription> {
   if (!(await connectBilling())) throw billingError('unavailable');

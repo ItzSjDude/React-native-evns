@@ -1,8 +1,9 @@
 import {apiRequest} from '../../core/api/apiClient';
+import {SUBSCRIPTION_STATUSES} from './types';
 import type {Subscription, SubscriptionPlanRef} from './types';
 
 export const DEFAULT_PRODUCT_ID = 'hiva_plus';
-export const DEFAULT_PLANS: SubscriptionPlanRef[] = ['weekly', 'monthly', 'yearly'].map(basePlanId => ({productId: DEFAULT_PRODUCT_ID, basePlanId}));
+export const DEFAULT_PLANS: SubscriptionPlanRef[] = ['monthly', 'yearly'].map(basePlanId => ({productId: DEFAULT_PRODUCT_ID, basePlanId}));
 export const ANDROID_PACKAGE = 'com.hivachat.app';
 
 const asNumber = (value: unknown, fallback = 0) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
@@ -13,7 +14,7 @@ export function normalizeSubscription(raw: Partial<Subscription> | null | undefi
   return {
     enabled: raw?.enabled === true,
     plan: raw?.plan === 'plus' ? 'plus' : 'free',
-    status: raw?.status ?? null,
+    status: SUBSCRIPTION_STATUSES.find(status => status === raw?.status) ?? null,
     productId: raw?.productId ?? null,
     basePlanId: raw?.basePlanId ?? null,
     expiresAt: raw?.expiresAt ?? null,

@@ -1,4 +1,4 @@
-import type {LimitReachedDetails, LimitReason, PlanOption, PlanPhase, SubscriptionPlanRef} from './types';
+import type {LimitReachedDetails, LimitReason, PlanOption, PlanPhase, Subscription, SubscriptionPlanRef} from './types';
 
 /** Structural subset of react-native-iap's ProductSubscriptionAndroid, so this file stays pure and testable. */
 type PricingPhaseLike = {billingCycleCount: number; billingPeriod: string; formattedPrice: string; priceAmountMicros: string; priceCurrencyCode: string; recurrenceMode: number};
@@ -17,7 +17,7 @@ const toPhase = (phase: PricingPhaseLike): PlanPhase => ({
 });
 
 /** Splits an offer's phases into the renewing price and an optional intro/trial in front of it. */
-function phasesOf(offer: OfferLike): {regular: PlanPhase; intro: PlanPhase | null} | null {
+function phasesOf(offer: OfferLike): {regular: PlanPhase; intro: PlanPhase | null; autoRenews: boolean} | null {
   const list = offer.pricingPhasesAndroid?.pricingPhaseList ?? [];
   if (!list.length) return null;
   const found = list.findIndex(phase => phase.recurrenceMode === INFINITE_RECURRING);
@@ -25,7 +25,7 @@ function phasesOf(offer: OfferLike): {regular: PlanPhase; intro: PlanPhase | nul
   const regular = toPhase(list[regularIndex]);
   const first = list[0];
   const intro = regularIndex > 0 && Number(first.priceAmountMicros) < regular.priceMicros ? toPhase(first) : null;
-  return {regular, intro};
+  return {regular, intro, autoRenews: found >= 0};
 }
 
 /**
@@ -98,12 +98,27 @@ export const planTitle = (basePlanId: string | null | undefined) =>
   basePlanId ? PLAN_TITLES[basePlanId] ?? basePlanId.charAt(0).toUpperCase() + basePlanId.slice(1) : 'Plus';
 
 /** Plus allowances quoted when a limit error doesn't carry `plusMax`. Keep in sync with the backend's Plus tier. */
-const PLUS_DEFAULTS: Record<LimitReason, number> = {dmStarts: 40, vibeNotes: 10, vibeNoteLifetime: 24 * 60, randomMatches: 0};
+export const PLUS_DEFAULTS: Record<LimitReason, number> = {dmStarts: 40, vibeNotes: 10, vibeNoteLifetime: 24 * 60, randomMatches: 0};
 
 const hours = (minutes: number) => {
   const value = minutes / 60;
   return `${Number.isInteger(value) ? value : value.toFixed(1)} h`;
 };
+
+export const plusAllowance = (reason: LimitReason, details?: LimitReachedDetails) => details?.plusMax ?? PLUS_DEFAULTS[reason];
+
+/** Footer under the plan list; a prepaid plan must never say it renews. */
+export const paywallRenewalNote = (autoRenews: boolean) => autoRenews
+  ? 'Renews automatically. Cancel anytime in Google Play.'
+  : 'One-time payment. This plan doesn’t renew — buy again to extend Plus.';
+
+/** Footer on the Plus status screen, from what the server says about this subscription. */
+export function subscriptionNote(subscription: Pick<Subscription, 'plan' | 'status' | 'autoRenewing'> | null, formattedDate: string | null): string | null {
+  if (subscription?.plan !== 'plus') return null;
+  if (subscription.status === 'GRACE_PERIOD') return 'We couldn’t charge your payment method. Update it in Google Play to keep Plus.';
+  if (subscription.autoRenewing) return 'Renews automatically. Cancel anytime in Google Play.';
+  return formattedDate ? `Won’t renew. Plus ends on ${formattedDate}.` : 'Won’t renew.';
+}
 
 /** Headline tied to why the paywall opened. */
 export function paywallHeadline(reason?: LimitReason, details?: LimitReachedDetails): string {

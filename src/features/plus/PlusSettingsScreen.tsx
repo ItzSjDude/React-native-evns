@@ -6,10 +6,11 @@ import IconExternalLink from '@tabler/icons-react-native/IconExternalLink';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {restorePurchases, toBillingError} from './billing';
-import {planTitle} from './pricing';
+import {planTitle, subscriptionNote} from './pricing';
 import {DEFAULT_PLANS, manageSubscriptionUrl} from './plusService';
 import {openPaywall} from './plusStore';
 import PlusBadge from './PlusBadge';
+import type {SubscriptionStatus} from './types';
 import {usePlus} from './usePlus';
 
 const formatDate = (value: string | null) => {
@@ -18,9 +19,9 @@ const formatDate = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'});
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active', in_grace_period: 'Payment issue — grace period', on_hold: 'On hold — update payment in Google Play',
-  paused: 'Paused', canceled: 'Cancelled', cancelled: 'Cancelled', expired: 'Expired', pending: 'Payment pending',
+const STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  ACTIVE: 'Active', GRACE_PERIOD: 'Payment issue — grace period', ON_HOLD: 'On hold — update payment in Google Play',
+  PAUSED: 'Paused', CANCELED: 'Cancelled', EXPIRED: 'Expired', REVOKED: 'Revoked',
 };
 
 const Line = ({label, value, first}: {label: string; value: string; first?: boolean}) =>
@@ -43,9 +44,10 @@ export default function PlusSettingsScreen({visible, onClose}: {visible: boolean
 
   const plans = subscription?.plans ?? DEFAULT_PLANS;
   const productId = subscription?.productId ?? plans[0]?.productId;
-  const status = subscription?.status ? STATUS_LABELS[subscription.status] ?? subscription.status : isPlus ? 'Active' : 'Free';
+  const status = subscription?.status ? STATUS_LABELS[subscription.status] : isPlus ? 'Active' : 'Free';
   const date = formatDate(subscription?.expiresAt ?? null);
   const dateLabel = subscription?.autoRenewing ? 'Renews on' : 'Expires on';
+  const note = subscriptionNote(subscription, date);
 
   const restore = async () => {
     if (busy) return;
@@ -72,7 +74,7 @@ export default function PlusSettingsScreen({visible, onClose}: {visible: boolean
         <View className="flex-row items-center gap-3 rounded-[22px] border border-purple-line bg-purple-tint p-4">
           <View className="min-w-0 flex-1">
             <View className="flex-row items-center"><Text className="text-[17px] font-extrabold text-foreground">{isPlus ? 'You’re on Plus' : 'You’re on Free'}</Text>{isPlus && <PlusBadge size="md" />}</View>
-            <Text className="mt-1 text-xs text-purple-soft">{isPlus ? 'Thanks for supporting Hiva.' : 'Get more chats and visibility with Plus.'}</Text>
+            <Text className="mt-1 text-xs text-purple-soft">{isPlus ? 'Thanks for supporting Hiva.' : 'Get more new chats a day with Plus.'}</Text>
           </View>
         </View>
 
@@ -99,7 +101,7 @@ export default function PlusSettingsScreen({visible, onClose}: {visible: boolean
         </View>
 
         {!!notice && <Text accessibilityRole={notice.error ? 'alert' : undefined} className={`text-center text-[13px] font-semibold ${notice.error ? 'text-coral' : 'text-purple-soft'}`}>{notice.text}</Text>}
-        <Text className="text-center text-[11px] leading-4 text-muted">Renews automatically. Cancel anytime in Google Play.</Text>
+        {!!note && <Text className="text-center text-[11px] leading-4 text-muted">{note}</Text>}
       </ScrollView>
     </SafeAreaView>
   </Modal>;
