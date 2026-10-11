@@ -18,6 +18,13 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+// Native time picker is unavailable under Jest; tests don't drive it.
+jest.mock('@react-native-community/datetimepicker', () => ({
+  __esModule: true,
+  default: () => null,
+  DateTimePickerAndroid: {open: jest.fn(), dismiss: jest.fn()},
+}));
+
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
     configure: jest.fn(),

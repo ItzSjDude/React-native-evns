@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import {Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import DateTimePicker, {DateTimePickerAndroid} from '@react-native-community/datetimepicker';
 import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
@@ -18,10 +19,18 @@ import IconCheck from '@tabler/icons-react-native/IconCheck';
 import IconShieldLock from '@tabler/icons-react-native/IconShieldLock';
 import IconFileText from '@tabler/icons-react-native/IconFileText';
 import IconSparkles from '@tabler/icons-react-native/IconSparkles';
+import IconBroadcast from '@tabler/icons-react-native/IconBroadcast';
+import IconGift from '@tabler/icons-react-native/IconGift';
+import IconMoon from '@tabler/icons-react-native/IconMoon';
+import IconMailbox from '@tabler/icons-react-native/IconMailbox';
+import IconClock from '@tabler/icons-react-native/IconClock';
 import {PlusSettingsScreen, openPaywall, usePlus} from '../plus';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
+import {WEEKDAYS, dateToHHmm, deviceTimeZone, timeToDate, toHHmm, toggleDay} from './quietHours';
 import type {BlockedUser, SeatInvitesFrom, UserProfile, UserSettings} from './types';
+
+type QuietTimeField = 'quietStartLocal' | 'quietEndLocal';
 
 const SEAT_INVITE_OPTIONS: {value: SeatInvitesFrom; label: string; hint: string}[] = [
   {value: 'everyone', label: 'Everyone', hint: 'Any host can invite you to speak'},
@@ -81,9 +90,13 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   // null until loaded; stays null if the server doesn't have the settings API yet, which hides those rows.
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [blocked, setBlocked] = useState<BlockedUser[] | null>(null);
-  const [panel, setPanel] = useState<'invites' | 'blocked' | 'delete' | null>(null);
+  const [panel, setPanel] = useState<'invites' | 'blocked' | 'delete' | 'quiet' | null>(null);
+  // iOS only: the inline spinner's pending value, committed with "Done". Android uses the native dialog.
+  const [picking, setPicking] = useState<{field: QuietTimeField; value: Date} | null>(null);
   const [deleteText, setDeleteText] = useState('');
   const plus = usePlus();
+  // Servers without the quiet-hours settings return none of these fields; hide those rows rather than show dead controls.
+  const quietSupported = plus.enabled && typeof settings?.quietHoursEnabled === 'boolean';
   const [plusOpen, setPlusOpen] = useState(false);
   useEffect(() => {
     if (!visible) return;
@@ -105,6 +118,29 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
     catch (cause) {setSettings(previous); setError(messageOf(cause));}
     finally {setBusy(false);}
   };
+  // The backend only gates turning a Plus setting on; a lapsed member who still has it on can switch it off.
+  const toggleQuietHours = () => {
+    if (!settings) return;
+    if (settings.quietHoursEnabled) patchSettings({quietHoursEnabled: false});
+    else if (!plus.isPlus) openPaywall();
+    else patchSettings({quietHoursEnabled: true, quietTimezone: deviceTimeZone() ?? settings.quietTimezone});
+  };
+  // The digest also runs in quietTimezone, so enabling it syncs the zone from the device too.
+  const toggleDigest = () => {
+    if (!settings) return;
+    if (settings.digestEnabled) patchSettings({digestEnabled: false});
+    else if (!plus.isPlus) openPaywall();
+    else patchSettings({digestEnabled: true, quietTimezone: deviceTimeZone() ?? settings.quietTimezone});
+  };
+  const pickTime = (field: QuietTimeField) => {
+    if (!settings) return;
+    const value = timeToDate(settings[field]);
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({value, mode: 'time', is24Hour: true,
+        onChange: (event, date) => {if (event.type === 'set' && date) patchSettings({[field]: dateToHHmm(date)});}});
+    } else setPicking({field, value});
+  };
+  const closeQuiet = () => {setPanel(null); setPicking(null);};
   const unblock = async (user: BlockedUser) => {
     if (!blocked || busy) return;
     setBusy(true); setError(null); setBlocked(blocked.filter(item => item.id !== user.id));
@@ -170,6 +206,22 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
             value={plus.isPlus ? 'Active' : 'Get Plus'} onPress={() => (plus.isPlus ? setPlusOpen(true) : openPaywall())} />
         </Group>}
 
+        {settings && <Group title="Notifications">
+          <Row first icon={IconBroadcast} label="Friends going live" hint="When people you follow start a room"
+            toggle={settings.notifyFollowedLive} disabled={busy} onPress={() => patchSettings({notifyFollowedLive: !settings.notifyFollowedLive})} />
+          <Row icon={IconGift} label="Gifts and mentions" hint="When someone sends you a gift or mentions you"
+            toggle={settings.notifyGiftsMentions} disabled={busy} onPress={() => patchSettings({notifyGiftsMentions: !settings.notifyGiftsMentions})} />
+          {quietSupported && <Row icon={IconMoon} label="Quiet hours" hint="Pause push notifications on a schedule. You still see everything in the app."
+            toggle={plus.isPlus || settings.quietHoursEnabled ? settings.quietHoursEnabled : undefined}
+            value={plus.isPlus || settings.quietHoursEnabled ? undefined : 'Plus'} disabled={busy} onPress={toggleQuietHours} />}
+          {quietSupported && plus.isPlus && settings.quietHoursEnabled && <Row icon={IconClock} label="Quiet hours schedule"
+            value={`${toHHmm(settings.quietStartLocal)} – ${toHHmm(settings.quietEndLocal)}`} onPress={() => setPanel('quiet')} />}
+          {quietSupported && <Row icon={IconMailbox} label="Daily digest"
+            hint={`A daily 9:00 summary of unread counts. Never includes message text.${settings.quietDays.length < 7 ? ' Sent on your quiet hours days.' : ''}`}
+            toggle={plus.isPlus || settings.digestEnabled ? settings.digestEnabled : undefined}
+            value={plus.isPlus || settings.digestEnabled ? undefined : 'Plus'} disabled={busy} onPress={toggleDigest} />}
+        </Group>}
+
         {settings && <Group title="Rooms">
           <Row first icon={IconUserPlus} label="Seat invites from"
             value={SEAT_INVITE_OPTIONS.find(option => option.value === settings.seatInvitesFrom)?.label} onPress={() => setPanel('invites')} />
@@ -199,6 +251,42 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
       </ScrollView>
 
       {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} preferences={settings} onChange={patchSettings} />}
+
+      <BottomSheet visible={panel === 'quiet'} onClose={closeQuiet} title="Quiet hours"
+        subtitle="Push notifications are paused in this window. Everything still shows up in the app.">
+        {settings && panel === 'quiet' && <>
+          <SheetSection label="Time">
+            {(['quietStartLocal', 'quietEndLocal'] as const).map(field => <SheetRow key={field} label={field === 'quietStartLocal' ? 'Starts' : 'Ends'}
+              disabled={busy} onPress={() => pickTime(field)} chevron accessibilityLabel={`${field === 'quietStartLocal' ? 'Starts' : 'Ends'} at ${toHHmm(settings[field])}`}
+              accessory={<Text className="text-[15px] text-muted">{toHHmm(settings[field])}</Text>} />)}
+          </SheetSection>
+          {picking && Platform.OS !== 'android' && <View className="mb-3">
+            <DateTimePicker value={picking.value} mode="time" display="spinner" is24Hour onChange={(_event, date) => {if (date) setPicking({...picking, value: date});}} />
+            <SheetButton label="Done" busy={busy} onPress={() => {patchSettings({[picking.field]: dateToHHmm(picking.value)}); setPicking(null);}} />
+          </View>}
+          {settings.quietStartLocal.slice(0, 5) === settings.quietEndLocal.slice(0, 5) &&
+            <Text className="mb-3 ml-1 text-[13px] text-coral">Start and end are the same, so nothing is paused.</Text>}
+          <Text className="mb-1.5 ml-1 text-[11px] font-semibold uppercase tracking-[0.8px] text-muted">Days</Text>
+          <View className="mb-3 flex-row gap-1.5">
+            {WEEKDAYS.map(({day, label, short}) => {
+              const on = settings.quietDays.includes(day);
+              return <Pressable key={day} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected: on, disabled: busy}} disabled={busy}
+                onPress={() => patchSettings({quietDays: toggleDay(settings.quietDays, day)})}
+                className={`h-10 flex-1 items-center justify-center rounded-full ${on ? 'bg-gold' : 'border border-border bg-card'}`}>
+                <Text className={`text-[12px] font-semibold ${on ? 'text-gold-ink' : 'text-muted'}`}>{short}</Text>
+              </Pressable>;
+            })}
+          </View>
+          <SheetSection>
+            <SheetRow label="Still notify me about direct messages" disabled={busy}
+              accessibilityLabel={`Still notify me about direct messages, ${settings.quietAllowDirectMentions ? 'on' : 'off'}`}
+              onPress={() => patchSettings({quietAllowDirectMentions: !settings.quietAllowDirectMentions})}
+              accessory={<Toggle on={settings.quietAllowDirectMentions} />} />
+          </SheetSection>
+          <Text className="mb-2 ml-1 text-[13px] text-muted">Time zone: {settings.quietTimezone}</Text>
+          {!!error && panel === 'quiet' && <Text accessibilityRole="alert" className="ml-1 text-[13px] text-coral">{error}</Text>}
+        </>}
+      </BottomSheet>
 
       <BottomSheet visible={panel === 'invites'} onClose={() => setPanel(null)} title="Who can invite you to speak?">
         <SheetSection>
