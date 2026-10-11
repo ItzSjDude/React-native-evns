@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -24,7 +24,9 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {HomeScreen} from '../features/home';
 import {NearbyScreen} from '../features/nearby';
 import {PartyScreen} from '../features/party';
-import {MessagesScreen} from '../features/messages';
+import {MessagesScreen, useFollowUpOpened} from '../features/messages';
+import {resolveNotificationTarget, useNotifications} from '../features/notifications';
+import {navigateWhenReady} from './navigationRef';
 import {ProfileScreen} from '../features/profile';
 
 import {Colors} from '../Constants/Colors';
@@ -220,7 +222,20 @@ const renderTabBar = (props: BottomTabBarProps) => (
   <CustomTabBar {...props} />
 );
 
-const TabNavigation = () => (
+// A tapped follow-up reminder lands on the Messages tab. Chat is a tab of the root navigator, which the typed ref does not list.
+const openMessagesTab = () => (navigateWhenReady as (name: string) => void)('Chat');
+
+const TabNavigation = () => {
+  useFollowUpOpened(openMessagesTab);
+  // Party rooms open through the notification navigator (Home), so Messages needs no party import.
+  const {navigateTo} = useNotifications();
+  const navigateRef = useRef(navigateTo);
+  navigateRef.current = navigateTo;
+  const renderMessages = useCallback(
+    () => <MessagesScreen onOpenParty={partyId => navigateRef.current(resolveNotificationTarget(undefined, {partyId}))} />,
+    [],
+  );
+  return (
   <Tab.Navigator
     initialRouteName="Home"
     tabBar={renderTabBar}
@@ -244,17 +259,15 @@ const TabNavigation = () => (
       component={PartyScreen}
     />
 
-    <Tab.Screen
-      name="Chat"
-      component={MessagesScreen}
-    />
+    <Tab.Screen name="Chat">{renderMessages}</Tab.Screen>
 
     <Tab.Screen
       name="Me"
       component={ProfileScreen}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 export default TabNavigation;
 

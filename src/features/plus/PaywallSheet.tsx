@@ -5,6 +5,7 @@ import IconFilter from '@tabler/icons-react-native/IconFilter';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconNote from '@tabler/icons-react-native/IconNote';
 import IconPalette from '@tabler/icons-react-native/IconPalette';
+import IconPin from '@tabler/icons-react-native/IconPin';
 import IconRosetteDiscountCheck from '@tabler/icons-react-native/IconRosetteDiscountCheck';
 import IconWorld from '@tabler/icons-react-native/IconWorld';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
@@ -27,6 +28,7 @@ const benefits = (reason?: PaywallReason, details?: LimitReachedDetails): {icon:
   {icon: IconFilter, label: 'City, interest, language and active-now filters'},
   {icon: IconPalette, label: 'Aurora and Midnight profile themes'},
   {icon: IconWorld, label: 'Social Passport and saved searches'},
+  {icon: IconPin, label: 'Pin up to 5 chats and sort them into folders'},
 ];
 
 const pickDefault = (options: PlanOption[]) =>

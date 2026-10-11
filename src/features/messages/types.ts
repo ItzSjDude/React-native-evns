@@ -50,8 +50,58 @@ export type ApiConversation = {
   last_message?: ApiMessage | null;
 };
 
+/** Extra columns of `GET /conversations/inbox` rows (conversationInbox.repository.js). */
+export type ApiInboxConversation = ApiConversation & {
+  folder_id?: string | null;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+  folder_name?: string | null;
+};
+
+/** `type: 'PARTY'` row of the inbox: a party room chat the caller was invited to or joined. */
+export type ApiPartyChat = {
+  id: string;
+  type: 'PARTY';
+  kind: string;
+  status: string;
+  title: string | null;
+  topic: string | null;
+  scheduled_start_at: string | null;
+  created_at: string;
+  ended_at: string | null;
+  last_activity_at: string;
+  host_id: string;
+  host_name: string | null;
+  host_avatar_url: string | null;
+  participant_count: number;
+  last_message: {id: string; body: string | null; sender_id: string | null; created_at: string} | null;
+  unread_count: number | string;
+  last_read_at: string | null;
+  is_archived: boolean;
+};
+
+/** `type: 'PARTY_REQUEST'` row (`view=requests`): a pending seat request in a room the caller manages. */
+export type ApiPartyRequest = {
+  id: string;
+  type: 'PARTY_REQUEST';
+  party_id: string;
+  requester_id: string;
+  requester_name: string | null;
+  requester_avatar_url: string | null;
+  status: string;
+  requested_at: string;
+  party_title: string | null;
+  party_kind: string;
+  host_id: string;
+  host_name: string | null;
+};
+
+export type ApiInboxRow = ApiInboxConversation | ApiPartyChat | ApiPartyRequest;
+
 /** What the list screen renders. */
 export type Conversation = {
+  /** Absent on fixtures; `toConversation` always sets it so rows can be told apart by `type`. */
+  type?: 'CONVERSATION';
   id: string;
   kind: ConversationKind;
   status: ConversationStatus;
@@ -64,13 +114,54 @@ export type Conversation = {
   /** Null until the first message is sent. */
   lastMessageAt: string | null;
   lastMessage: ApiMessage | null;
+  /** Per-user inbox state (Plus: pin and folder; archive is free). */
+  folderId?: string | null;
+  folderName?: string | null;
+  pinned?: boolean;
+  archived?: boolean;
 };
 
-export type ConversationPage = {
-  conversations: Conversation[];
-  hasMore: boolean;
-  nextOffset: number;
+export type PartyChat = {
+  type: 'PARTY';
+  id: string;
+  title: string;
+  hostName: string;
+  avatarUrl: string | null;
+  participantCount: number;
+  unreadCount: number;
+  lastActivityAt: string;
+  preview: string | null;
+  archived: boolean;
+  /** The room is over; the chat is still readable. */
+  ended: boolean;
 };
+
+export type PartyRequest = {
+  type: 'PARTY_REQUEST';
+  id: string;
+  partyId: string;
+  requesterName: string;
+  avatarUrl: string | null;
+  partyTitle: string;
+  requestedAt: string;
+};
+
+export type InboxItem = Conversation | PartyChat | PartyRequest;
+
+export type InboxView = 'all' | 'unread' | 'requests' | 'events' | 'parties' | 'direct' | 'archived' | 'folder';
+export type InboxQuery = {view: InboxView; folderId?: string};
+
+export type InboxPage = {items: InboxItem[]; hasMore: boolean; nextOffset: number};
+
+export type InboxFolder = {id: string; name: string; createdAt: string; updatedAt: string};
+
+/** `PATCH /conversations/inbox/:id/inbox-state`; `pinned: true` and a folder need Plus. */
+export type InboxStatePatch = {folderId?: string | null; pinned?: boolean; archived?: boolean};
+export type InboxStateResult = {folderId: string | null; pinnedAt: string | null; archivedAt: string | null};
+
+/** `PATCH /conversations/inbox/parties/:id/state`. */
+export type PartyStatePatch = {read?: boolean; archived?: boolean};
+export type PartyStateResult = {lastReadAt: string | null; archivedAt: string | null};
 
 /** Kept for the public barrel: a single chat message as the API returns it. */
 export type ChatMessage = ApiMessage;

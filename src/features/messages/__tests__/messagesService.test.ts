@@ -1,13 +1,12 @@
-import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
+import {apiRequest} from '../../../core/api/apiClient';
 import {isOwnMessage, messageText, relativeTime} from '../conversationPresentation';
-import {getConversations, markConversationRead, toConversation} from '../messagesService';
-import type {ApiConversation} from '../types';
+import {markConversationRead, toConversation} from '../messagesService';
+import type {ApiInboxConversation} from '../types';
 
-jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
+jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
 const request = apiRequest as jest.Mock;
-const requestPage = apiRequestPage as jest.Mock;
 
-const row = (overrides: Partial<ApiConversation> = {}): ApiConversation => ({
+const row = (overrides: Partial<ApiInboxConversation> = {}): ApiInboxConversation => ({
   id: 'c1', kind: 'DIRECT', status: 'OPEN', workspace_id: null, event_id: null, user_id: null,
   participant_a_id: 'me', participant_b_id: 'u2', last_message_at: '2026-10-07T10:00:00.000Z',
   created_at: '2026-10-01T10:00:00.000Z', event_title: null, event_starts_at: null,
@@ -17,17 +16,15 @@ const row = (overrides: Partial<ApiConversation> = {}): ApiConversation => ({
 
 beforeEach(() => { jest.resetAllMocks(); });
 
-test('loads an offset page of conversations and maps the direct participant', async () => {
-  requestPage.mockResolvedValue({data: [row()], meta: {limit: 20, offset: 20, hasMore: true}});
-  const page = await getConversations(20);
-  expect(requestPage).toHaveBeenCalledWith('/conversations?limit=20&offset=20', {auth: 'required'});
-  expect(page.hasMore).toBe(true);
-  expect(page.nextOffset).toBe(21);
-  expect(page.conversations).toEqual([{
-    id: 'c1', kind: 'DIRECT', status: 'OPEN', title: 'Ananya Sharma', avatarUrl: 'https://cdn/a.png',
+test('maps the direct participant and the per-user inbox state', () => {
+  expect(toConversation(row({folder_id: 'f1', folder_name: 'Work', is_pinned: true, is_archived: false}))).toEqual({
+    type: 'CONVERSATION', id: 'c1', kind: 'DIRECT', status: 'OPEN', title: 'Ananya Sharma', avatarUrl: 'https://cdn/a.png',
     contactId: 'u2', unreadCount: 3, lastActivityAt: '2026-10-07T10:00:00.000Z',
     lastMessageAt: '2026-10-07T10:00:00.000Z', lastMessage: null,
-  }]);
+    folderId: 'f1', folderName: 'Work', pinned: true, archived: false,
+  });
+  // Plain /conversations rows carry no inbox columns.
+  expect(toConversation(row())).toMatchObject({folderId: null, folderName: null, pinned: false, archived: false});
 });
 
 test('maps event threads to the event and organiser, and tolerates missing values', () => {
