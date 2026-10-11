@@ -6,6 +6,7 @@ import IconVideo from '@tabler/icons-react-native/IconVideo';
 import IconX from '@tabler/icons-react-native/IconX';
 import {createParty, getPartyInvitees, type PartySeatCount, type CreatedParty} from './partyService';
 import {PartyColors, partyCategories, type PartyCategory} from './partyPresentation';
+import {TemplatePicker, type TemplateConfig} from '../hostStudio';
 
 const styles = StyleSheet.create({sheet: {maxHeight: '92%'}});
 
@@ -35,6 +36,19 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
     const instant=new Date(Date.now()+(schedule==='HOUR'?60:24*60)*60*1000);
     return {scheduledStartAt:instant.toISOString(),timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'};
   },[schedule]);
+  const selectedCategory=partyCategories.find(item=>item.key===category)!;
+  const templateConfig:TemplateConfig={title,topic,kind,seatCount,visibility,language,category:selectedCategory.category||'SOCIAL',interestTags:[selectedCategory.interest||selectedCategory.key]};
+  const applyTemplate=(config:TemplateConfig)=>{
+    if(config.title!==undefined)setTitle(config.title);
+    if(config.topic!==undefined)setTopic(config.topic);
+    if(config.kind)setKind(config.kind);
+    if(config.seatCount!==undefined)setAudioSeats(config.seatCount<=4?4:8);// the sheet only offers 4 or 8 seats
+    if(config.visibility)setVisibility(config.visibility);
+    if(config.language)setLanguage(config.language);
+    const match=partyCategories.find(item=>item.key!=='all'&&(config.interestTags||[]).includes(item.interest||item.key)&&(!item.category||item.category===config.category))
+      ||partyCategories.find(item=>item.key!=='all'&&item.category&&item.category===config.category);
+    if(match)setCategory(match.key);
+  };
   const invalid=!title.trim() || saving || (visibility==='PRIVATE' && selectedInvitees.length===0);
   const submit = async () => {
     if (!title.trim() || saving) return;
@@ -62,6 +76,7 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
             <Pressable accessibilityRole="button" accessibilityLabel="Close create party" disabled={saving} onPress={onClose} className="h-10 w-10 items-center justify-center rounded-full bg-card"><IconX size={20} color={PartyColors.text} /></Pressable>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-5">
+            <TemplatePicker current={templateConfig} onApply={applyTemplate} disabled={saving} />
             <Text className="mb-2 text-sm font-semibold text-foreground">Party name</Text>
             <TextInput accessibilityLabel="Party name" value={title} onChangeText={setTitle} maxLength={120} placeholder="Give your room a vibe" placeholderTextColor={PartyColors.muted} className="h-12 rounded-[14px] border border-border bg-card px-4 text-[15px] text-foreground" />
             <Text className="mb-2 mt-4 text-sm font-semibold text-foreground">What's it about?</Text>
