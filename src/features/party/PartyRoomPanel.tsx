@@ -29,6 +29,7 @@ import IconGift from '@tabler/icons-react-native/IconGift';
 import IconUser from '@tabler/icons-react-native/IconUser';
 import BottomSheet, {SheetButton, SheetRow, SheetSection, SheetTile, SheetTileGrid} from '../../components/BottomSheet';
 import {PartyColors, roomCover, roomTags, tagClasses} from './partyPresentation';
+import {PaidAccessSection} from '../paidRooms';
 import {GamesView, GiftsView, PollsView} from './extras/RoomExtrasViews';
 import {useRoomExtras} from './extras/useRoomExtras';
 import type {PartyChatMessage, PartyParticipant, PartyRoom, PartyRoomSettings, PartySeatRequest} from './partyService';
@@ -299,6 +300,7 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
       <TextInput accessibilityLabel="Edit room name" value={draftTitle} onChangeText={setDraftTitle} maxLength={120} placeholderTextColor={PartyColors.muted} className="mb-4 min-h-12 rounded-xl border border-border bg-card px-4 text-base text-foreground" />
       <Text className="mb-2 ml-1 text-[13px] font-semibold text-muted">Topic</Text>
       <TextInput accessibilityLabel="Edit room topic" value={draftTopic} onChangeText={setDraftTopic} maxLength={120} placeholder="What’s the vibe?" placeholderTextColor={PartyColors.muted} className="mb-2 min-h-12 rounded-xl border border-border bg-card px-4 text-base text-foreground" />
+      {host && !!partyId && <PaidAccessSection partyId={partyId} />}
     </>}
 
     {shown?.kind === 'report' && person && <SheetSection>
