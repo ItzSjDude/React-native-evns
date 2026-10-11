@@ -8,6 +8,7 @@ import IconClock from '@tabler/icons-react-native/IconClock';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconX from '@tabler/icons-react-native/IconX';
 import {Colors} from '../../Constants/Colors';
+import {DiscoveryFilterBar, usePlus, type DiscoveryFilters} from '../plus';
 import {UserProfileModal} from '../users';
 import {useRecentSearches} from './recentSearches';
 import {SEARCH_MAX_LENGTH} from './searchService';
@@ -33,13 +34,17 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
   const [tab, setTab] = useState<SearchTab>('top');
   const [profile, setProfile] = useState<PersonResult | null>(null);
   const inputRef = useRef<TextInputInstance>(null);
-  const search = useSearch(input, {enabled: visible});
+  const {isPlus} = usePlus();
+  const [filters, setFilters] = useState<DiscoveryFilters>({});
+  // Free users never send filters (the server would answer 403 PLUS_REQUIRED).
+  const search = useSearch(input, {enabled: visible, filters: isPlus ? filters : undefined});
   const {recent, remember, remove, clear} = useRecentSearches();
 
   useEffect(() => {
     if (visible) return;
     setInput('');
     setTab('top');
+    setFilters({});
     setProfile(null);
   }, [visible]);
 
@@ -82,6 +87,8 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
           <Text className="text-[15px] font-semibold text-primary">Cancel</Text>
         </Pressable>
       </View>
+
+      <View className="px-5 pb-2"><DiscoveryFilterBar filters={filters} onChange={setFilters} subtitle="Applies to people results" /></View>
 
       {search.typedQuery ? <View accessibilityRole="tablist" className="mx-5 mb-1 flex-row rounded-full border border-border bg-card p-1">
         {TABS.map(item => {

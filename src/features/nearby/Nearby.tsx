@@ -9,6 +9,7 @@ import IconRadar from '@tabler/icons-react-native/IconRadar';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
+import {DiscoveryFilterBar, usePlus, type DiscoveryFilters} from '../plus';
 import {UserProfileModal, type UserPreview} from '../users';
 import {getDeviceLocation} from './deviceLocation';
 import {distanceLabel, MIN_RADIUS_METERS} from './distance';
@@ -62,10 +63,15 @@ const Nearby = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const {isPlus} = usePlus();
+  const [filters, setFilters] = useState<DiscoveryFilters>({});
   const request = useRef(0);
   const positionInFlight = useRef<Promise<boolean> | null>(null);
   const radiusRef = useRef(radius);
   const visibleRef = useRef(visible);
+  // Free users never send filters (the server would answer 403 PLUS_REQUIRED).
+  const filtersRef = useRef<DiscoveryFilters | undefined>(undefined);
+  filtersRef.current = isPlus ? filters : undefined;
   radiusRef.current = radius;
   visibleRef.current = visible;
 
@@ -74,7 +80,7 @@ const Nearby = () => {
     if (pull) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const results = await getNearbyPeople(meters);
+      const results = await getNearbyPeople(meters, filtersRef.current);
       if (id === request.current) setPeople(results);
     } catch (cause) {
       if (id === request.current) setError(messageOf(cause));
@@ -247,11 +253,12 @@ const Nearby = () => {
           </View>
 
           {showList && !locationNotice && <>
-            <View className="mb-6 flex-row gap-2">
+            <View className="mb-3 flex-row gap-2">
               {radii.map(option => <Pressable key={option.meters} accessibilityRole="button" accessibilityState={{selected: radius === option.meters}} onPress={() => { setRadius(option.meters); radiusRef.current = option.meters; loadPeople(option.meters); }} className={`h-9 min-w-[70px] items-center justify-center rounded-full px-4 ${radius === option.meters ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
                 <Text className={`text-[13px] font-semibold ${radius === option.meters ? 'text-text-dark' : 'text-muted'}`}>{option.label}</Text>
               </Pressable>)}
             </View>
+            <View className="mb-6"><DiscoveryFilterBar filters={filters} onChange={next => {filtersRef.current = next; setFilters(next); loadPeople(radiusRef.current);}} /></View>
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-xl font-bold text-foreground">People around you</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Refresh nearby people" onPress={refresh} className="h-10 w-10 items-center justify-center rounded-full active:bg-card"><IconRefresh size={20} color={Colors.muted} /></Pressable>

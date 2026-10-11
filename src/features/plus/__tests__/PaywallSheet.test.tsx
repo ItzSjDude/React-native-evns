@@ -57,6 +57,12 @@ test('shows Play prices, the intro offer, yearly savings and the reason headline
   expect(renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && node.props.accessibilityState?.checked)[0].props.accessibilityLabel).toMatch(/^Yearly/);
 });
 
+test('the filters reason has its own headline and the filter benefit is listed', async () => {
+  const text = allText(await render({reason: 'filters'}));
+  expect(text).toContain('Filter by city, interest and language with Plus');
+  expect(text).toContain('City, interest, language and active-now filters');
+});
+
 test('the Play management link carries the sku and package', async () => {
   const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   const renderer = await render();

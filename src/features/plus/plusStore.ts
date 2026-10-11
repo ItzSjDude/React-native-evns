@@ -1,7 +1,7 @@
-import {isLimitReached} from './limits';
+import {isLimitReached, isPlusRequired} from './limits';
 import {loadCachedSubscription, saveCachedSubscription} from './plusCache';
 import {getSubscription} from './plusService';
-import type {LimitReachedDetails, LimitReason, PaywallState, Subscription} from './types';
+import type {LimitReachedDetails, PaywallReason, PaywallState, Subscription} from './types';
 
 /**
  * Server state for the signed-in user's subscription, cached in memory and shared by every `usePlus()`
@@ -82,15 +82,23 @@ export function refreshSubscription({maxAgeMs = 0}: {maxAgeMs?: number} = {}): P
  * Opens the app-wide paywall. If the subscription hasn't loaded yet it loads first. Nothing opens when Plus
  * is disabled, or for a limit error unless the server says `plusAvailable: true`.
  */
-export function openPaywall(reason?: LimitReason, details?: LimitReachedDetails) {
+export function openPaywall(reason?: PaywallReason, details?: LimitReachedDetails) {
   if (details && details.plusAvailable !== true) return;
   const show = () => {if (isPlusEnabled()) emit({paywall: {visible: true, reason, details}});};
   if (state.status === 'ready') show();
   else refreshSubscription().then(show).catch(() => {});
 }
 
-/** `onApiError` listener: LIMIT_REACHED opens the paywall, except on message sends, since replies are never capped. */
+/**
+ * `onApiError` listener: LIMIT_REACHED opens the paywall, except on message sends, since replies are never capped.
+ * PLUS_REQUIRED on discovery means our cached plan is stale: open the 'filters' paywall and re-fetch the plan.
+ */
 export function paywallOnLimit(error: unknown, path = '') {
+  if (isPlusRequired(error) && /^\/(nearby|users\/search)(\?|$)/.test(path)) {
+    refreshSubscription().catch(() => {});
+    openPaywall('filters');
+    return;
+  }
   if (isLimitReached(error) && !/\/messages(\?|$)/.test(path)) openPaywall(error.details.limit, error.details);
 }
 

@@ -1,4 +1,4 @@
-import {getPlusState, paywallOnLimit, resetPlus, setSubscription} from '../plusStore';
+import {closePaywall, getPlusState, paywallOnLimit, resetPlus, setSubscription} from '../plusStore';
 import {subscription} from '../__fixtures__/plusFixtures';
 
 const limitError = (plusAvailable = true) => ({
@@ -24,6 +24,17 @@ test('no paywall when Plus is disabled or the server says Plus would not help', 
   setSubscription(subscription());
   paywallOnLimit(limitError(false), '/conversations/direct');
   expect(getPlusState().paywall.visible).toBe(false);
+});
+
+test('PLUS_REQUIRED on discovery (stale cached plan) opens the filters paywall, elsewhere it is ignored', () => {
+  const error = {status: 403, code: 'PLUS_REQUIRED', message: 'Hiva Plus is required for advanced discovery filters'};
+  paywallOnLimit(error, '/settings');
+  expect(getPlusState().paywall.visible).toBe(false);
+  paywallOnLimit(error, '/nearby?radiusMeters=2000&limit=50&city=Pune');
+  expect(getPlusState().paywall).toMatchObject({visible: true, reason: 'filters'});
+  closePaywall();
+  paywallOnLimit(error, '/users/search?q=a&limit=20&offset=0&activeNow=true');
+  expect(getPlusState().paywall).toMatchObject({visible: true, reason: 'filters'});
 });
 
 test('replies never open the paywall, and other errors are ignored', () => {

@@ -1,6 +1,13 @@
 /** Which daily/lifetime allowance a 429 `LIMIT_REACHED` refers to. */
 export type LimitReason = 'dmStarts' | 'vibeNotes' | 'vibeNoteLifetime' | 'randomMatches';
 
+/** Why the paywall opened: a limit that was hit, or a Plus-only feature (`filters`) that was tapped. */
+export type PaywallReason = LimitReason | 'filters';
+
+/** Advanced discovery filters of `GET /nearby` and `GET /users/search` (Plus only; a free user gets 403 `PLUS_REQUIRED`). */
+export type DiscoveryLanguage = 'en' | 'hi' | 'hinglish';
+export type DiscoveryFilters = {city?: string; interest?: string; language?: DiscoveryLanguage; activeNow?: boolean};
+
 export type PlusPlanKind = 'free' | 'plus';
 
 /** Allowlisted by the backend (`settings.schema.js#profileTheme`). */
@@ -85,7 +92,7 @@ export type PlanOption = {
   autoRenews: boolean;
 };
 
-export type PaywallState = {visible: boolean; reason?: LimitReason; details?: LimitReachedDetails};
+export type PaywallState = {visible: boolean; reason?: PaywallReason; details?: LimitReachedDetails};
 
 export type BillingErrorKind =
   | 'cancelled' | 'unavailable' | 'alreadyOwned' | 'pending' | 'network'

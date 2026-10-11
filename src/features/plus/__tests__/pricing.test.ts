@@ -45,6 +45,7 @@ test('headlines are tied to the limit that was hit', () => {
   expect(paywallHeadline('vibeNotes', {limit: 'vibeNotes', max: 2, plusMax: 10})).toBe('You’ve posted today’s 2 vibe notes — Plus gives you 10');
   expect(paywallHeadline('vibeNoteLifetime', {limit: 'vibeNoteLifetime', max: 240, plusMax: 1440})).toBe('Free vibe notes last 4 h — Plus keeps them up for 24 h');
   expect(paywallHeadline('randomMatches', {limit: 'randomMatches', max: 5, plusMax: 20})).toBe('You’ve used today’s 5 random matches — Plus gives you 20');
+  expect(paywallHeadline('filters')).toBe('Filter by city, interest and language with Plus');
   expect(paywallHeadline()).toBe('Meet more people with Hiva Plus');
 });
 

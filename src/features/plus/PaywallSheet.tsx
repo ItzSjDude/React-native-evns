@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Linking, Pressable, Text, View} from 'react-native';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
+import IconFilter from '@tabler/icons-react-native/IconFilter';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconPalette from '@tabler/icons-react-native/IconPalette';
 import IconRosetteDiscountCheck from '@tabler/icons-react-native/IconRosetteDiscountCheck';
@@ -10,16 +11,17 @@ import {loadPlanOptions, purchasePlan, restorePurchases, toBillingError, UNAVAIL
 import {introLabel, paywallHeadline, paywallRenewalNote, periodLabel, periodsPerYear, planTitle, plusAllowance, yearlySavingsPercent} from './pricing';
 import {DEFAULT_PLANS, DEFAULT_PRODUCT_ID, manageSubscriptionUrl} from './plusService';
 import {getPlusState} from './plusStore';
-import type {LimitReachedDetails, LimitReason, PlanOption} from './types';
+import type {LimitReachedDetails, PaywallReason, PlanOption} from './types';
 
-export type PaywallSheetProps = {visible: boolean; onClose: () => void; reason?: LimitReason; details?: LimitReachedDetails};
+export type PaywallSheetProps = {visible: boolean; onClose: () => void; reason?: PaywallReason; details?: LimitReachedDetails};
 
 type IconComponent = React.ComponentType<{size?: number; color?: string}>;
 
 /** Only list perks the app actually delivers; each later feature adds its own row when it ships. */
-const benefits = (reason?: LimitReason, details?: LimitReachedDetails): {icon: IconComponent; label: string}[] => [
+const benefits = (reason?: PaywallReason, details?: LimitReachedDetails): {icon: IconComponent; label: string}[] => [
   {icon: IconMessageCircle, label: `${plusAllowance('dmStarts', reason === 'dmStarts' ? details : undefined)} new chats a day`},
   {icon: IconRosetteDiscountCheck, label: 'Optional Plus badge on your profile and posts'},
+  {icon: IconFilter, label: 'City, interest, language and active-now filters'},
   {icon: IconPalette, label: 'Aurora and Midnight profile themes'},
 ];
 

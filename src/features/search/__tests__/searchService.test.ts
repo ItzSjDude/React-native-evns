@@ -1,5 +1,5 @@
 import {apiRequest} from '../../../core/api/apiClient';
-import {isSearchUnavailable, searchPeople, searchRooms} from '../searchService';
+import {isSearchUnavailable, searchErrorMessage, searchPeople, searchRooms} from '../searchService';
 import {pushRecent} from '../recentSearches';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
@@ -26,6 +26,19 @@ test('searchPeople calls the proposed /users/search contract and normalises rows
     {id: 'u1', name: 'Asha', handle: 'asha', avatarUrl: null, isFollowing: false},
     {id: 'u2', name: 'Hiva user', handle: null, avatarUrl: null, isFollowing: true},
   ]);
+});
+
+test('searchPeople sends only the defined discovery filters', async () => {
+  mockRequest.mockResolvedValue([]);
+  await searchPeople('asha', {filters: {city: 'Pune', interest: 'music & art', language: 'en', activeNow: true}});
+  expect(mockRequest).toHaveBeenLastCalledWith('/users/search?q=asha&limit=20&offset=0&city=Pune&interest=music%20%26%20art&language=en&activeNow=true', {auth: 'required', signal: undefined});
+  await searchPeople('asha', {filters: {}});
+  expect(mockRequest).toHaveBeenLastCalledWith('/users/search?q=asha&limit=20&offset=0', {auth: 'required', signal: undefined});
+});
+
+test('a 403 PLUS_REQUIRED reads as a Plus feature, not a search failure', () => {
+  expect(searchErrorMessage({status: 403, code: 'PLUS_REQUIRED', message: 'x'})).toBe('Filters are a Hiva Plus feature.');
+  expect(isSearchUnavailable({status: 403, code: 'PLUS_REQUIRED'})).toBe(false);
 });
 
 test('missing-route statuses are treated as "not available yet", others as errors', () => {

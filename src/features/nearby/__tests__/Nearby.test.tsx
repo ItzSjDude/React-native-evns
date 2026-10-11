@@ -2,6 +2,8 @@ import React from 'react';
 import {Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import Nearby from '../Nearby';
+import {resetPlus, setSubscription} from '../../plus/plusStore';
+import {subscription} from '../../plus/__fixtures__/plusFixtures';
 import {getDeviceLocation} from '../deviceLocation';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from '../nearbyService';
 
@@ -21,6 +23,7 @@ const setVisibility = setLocationVisibility as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetPlus();
   visibility.mockResolvedValue({visible: false});
   location.mockResolvedValue({lat: 13.0827, lng: 80.2707});
   postLocation.mockResolvedValue({visible: true});
@@ -40,7 +43,7 @@ test('does not publish location until the person explicitly goes visible, and ca
   await ReactTestRenderer.act(async () => { await goVisible.props.onPress(); });
   expect(location).toHaveBeenCalledWith(true);
   expect(postLocation).toHaveBeenCalledWith(13.0827, 80.2707);
-  expect(nearby).toHaveBeenCalledWith(2000);
+  expect(nearby).toHaveBeenCalledWith(2000, undefined);
 
   const goInvisible = renderer!.root.findByProps({accessibilityLabel: 'Go invisible'});
   await ReactTestRenderer.act(async () => { await goInvisible.props.onPress(); });
@@ -113,7 +116,31 @@ test('a 429 from the location update is a retryable error, not a location proble
 
   await ReactTestRenderer.act(async () => { await renderer.root.findByProps({accessibilityLabel: 'Retry nearby'}).props.onPress(); });
   expect(postLocation).toHaveBeenCalledTimes(2);
-  expect(nearby).toHaveBeenCalledWith(2000);
+  expect(nearby).toHaveBeenCalledWith(2000, undefined);
+  await ReactTestRenderer.act(async () => { renderer.unmount(); });
+});
+
+test('discovery filters are locked for free users and sent only for Plus users', async () => {
+  setSubscription(subscription({plan: 'free'}));
+  const free = await renderVisible();
+  expect(free.root.findAllByProps({accessibilityLabel: 'Filters, requires Hiva Plus'}).length).toBeGreaterThan(0);
+  expect(nearby).toHaveBeenLastCalledWith(2000, undefined);
+  await ReactTestRenderer.act(async () => { free.unmount(); });
+
+  resetPlus();
+  setSubscription(subscription({plan: 'plus', status: 'ACTIVE'}));
+  const plus = await renderVisible();
+  await ReactTestRenderer.act(async () => { plus.root.findAllByProps({accessibilityLabel: 'Filters'})[0].props.onPress(); });
+  await ReactTestRenderer.act(async () => { plus.root.findAllByProps({accessibilityLabel: 'Hinglish'})[0].props.onPress(); });
+  await ReactTestRenderer.act(async () => { plus.root.findAllByProps({accessibilityLabel: 'Apply filters'})[0].props.onPress(); });
+  expect(nearby).toHaveBeenLastCalledWith(2000, {language: 'hinglish'});
+  await ReactTestRenderer.act(async () => { plus.unmount(); });
+});
+
+test('a 403 PLUS_REQUIRED from /nearby shows friendly copy', async () => {
+  nearby.mockRejectedValue({status: 403, code: 'PLUS_REQUIRED', message: 'Hiva Plus is required for advanced discovery filters'});
+  const renderer = await renderVisible();
+  expect(texts(renderer)).toContain('Filters are a Hiva Plus feature. Tap to retry.');
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
 
