@@ -110,14 +110,16 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
 
   useEffect(() => {if (settings) onSettingsChange?.(settings);}, [settings, onSettingsChange]);
 
-  const patchSettings = async (patch: Partial<UserSettings>) => {
+  /** Saves optimistically and rolls back on failure; the error is rethrown so a caller can show it where the user is looking. */
+  const savePatch = async (patch: Partial<UserSettings>) => {
     if (!settings || busy) return;
     const previous = settings;
     setBusy(true); setError(null); setSettings({...settings, ...patch});
     try {setSettings(await updateMySettings(patch));}
-    catch (cause) {setSettings(previous); setError(messageOf(cause));}
+    catch (cause) {setSettings(previous); throw cause;}
     finally {setBusy(false);}
   };
+  const patchSettings = (patch: Partial<UserSettings>) => savePatch(patch).catch(cause => setError(messageOf(cause)));
   // The backend only gates turning a Plus setting on; a lapsed member who still has it on can switch it off.
   const toggleQuietHours = () => {
     if (!settings) return;
@@ -250,7 +252,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         </Group>
       </ScrollView>
 
-      {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} preferences={settings} onChange={patchSettings} />}
+      {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} preferences={settings} onChange={savePatch} />}
 
       <BottomSheet visible={panel === 'quiet'} onClose={closeQuiet} title="Quiet hours"
         subtitle="Push notifications are paused in this window. Everything still shows up in the app.">

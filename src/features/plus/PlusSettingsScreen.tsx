@@ -10,7 +10,7 @@ import {planTitle, subscriptionNote} from './pricing';
 import {DEFAULT_PLANS, manageSubscriptionUrl} from './plusService';
 import {openPaywall} from './plusStore';
 import PlusBadge from './PlusBadge';
-import {PROFILE_THEMES} from './profileTheme';
+import ProfileThemePicker from './ProfileThemePicker';
 import type {PlusPreferences, SubscriptionStatus} from './types';
 import {usePlus} from './usePlus';
 
@@ -35,7 +35,7 @@ const Line = ({label, value, first}: {label: string; value: string; first?: bool
 export default function PlusSettingsScreen({visible, onClose, preferences, onChange}: {
   visible: boolean; onClose: () => void;
   /** Badge and theme from `/me/settings`; null hides the customize group. Owned by the caller so this feature stays independent of profile. */
-  preferences?: PlusPreferences | null; onChange?: (patch: Partial<PlusPreferences>) => void;
+  preferences?: PlusPreferences | null; onChange?: (patch: Partial<PlusPreferences>) => Promise<unknown> | void;
 }) {
   const {subscription, isPlus, refresh} = usePlus();
   const [busy, setBusy] = useState(false);
@@ -53,6 +53,10 @@ export default function PlusSettingsScreen({visible, onClose, preferences, onCha
   const date = formatDate(subscription?.expiresAt ?? null);
   const dateLabel = subscription?.autoRenewing ? 'Renews on' : 'Expires on';
   const note = subscriptionNote(subscription, date);
+
+  const changeBadge = (showPlusBadge: boolean) => {
+    Promise.resolve(onChange?.({showPlusBadge})).catch(error => setNotice({error: true, text: (error as {message?: string})?.message ?? 'Couldn’t save that. Please try again.'}));
+  };
 
   const restore = async () => {
     if (busy) return;
@@ -91,7 +95,7 @@ export default function PlusSettingsScreen({visible, onClose, preferences, onCha
 
         {!!preferences && <View className="overflow-hidden rounded-[20px] border border-border bg-card dark:bg-[#15121E]">
           <Pressable accessibilityRole="switch" accessibilityLabel="Show Plus badge" accessibilityState={{checked: isPlus && preferences.showPlusBadge}}
-            onPress={() => (isPlus ? onChange?.({showPlusBadge: !preferences.showPlusBadge}) : openPaywall())}
+            onPress={() => (isPlus ? changeBadge(!preferences.showPlusBadge) : openPaywall())}
             className="min-h-14 flex-row items-center gap-3 px-4 py-2 active:bg-white/5">
             <View className="min-w-0 flex-1">
               <Text className="text-[14px] font-semibold text-foreground">Show Plus badge</Text>
@@ -101,21 +105,7 @@ export default function PlusSettingsScreen({visible, onClose, preferences, onCha
               <View className={`h-[22px] w-[22px] rounded-full ${isPlus && preferences.showPlusBadge ? 'self-end bg-gold-ink' : 'self-start bg-muted'}`} />
             </View>
           </Pressable>
-          <View className="border-t border-border/60 dark:border-[#211D2C] px-4 py-3">
-            <Text className="text-[14px] font-semibold text-foreground">Profile theme</Text>
-            <Text className="mb-2.5 text-xs text-muted">{isPlus ? 'Everyone who visits your profile sees it.' : 'Plus members can theme their profile.'}</Text>
-            <View accessibilityRole="radiogroup" className="flex-row gap-2.5">
-              {PROFILE_THEMES.map(theme => {
-                const active = (isPlus ? preferences.profileTheme : 'default') === theme.id;
-                return <Pressable key={theme.id} accessibilityRole="radio" accessibilityState={{checked: active}} accessibilityLabel={`${theme.label} theme`}
-                  onPress={() => (isPlus ? onChange?.({profileTheme: theme.id}) : openPaywall())}
-                  className={`h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-2 active:opacity-80 ${active ? 'border-gold bg-gold-bg' : 'border-border'}`}>
-                  <View style={{backgroundColor: theme.swatch}} className="h-3.5 w-3.5 rounded-full" />
-                  <Text className="text-[13px] font-bold text-foreground">{theme.label}</Text>
-                </Pressable>;
-              })}
-            </View>
-          </View>
+          <ProfileThemePicker selected={preferences.profileTheme} onChange={onChange} />
         </View>}
 
         {!isPlus && <Pressable accessibilityRole="button" accessibilityLabel="See Plus plans" onPress={() => openPaywall()}

@@ -9,4 +9,5 @@ export {usePlus, usePaywall} from './usePlus';
 export {openPaywall, closePaywall, refreshSubscription} from './plusStore';
 export {isLimitReached, isPlusRequired, limitMessage, PLUS_REQUIRED_MESSAGE} from './limits';
 export {useProfileTheme} from './profileTheme';
-export type {DiscoveryFilters, DiscoveryLanguage, PaywallReason, LimitReachedDetails, LimitReachedError, LimitReason, PlusPreferences, ProfileThemeId, Subscription, SubscriptionLimits, SubscriptionUsage} from './types';
+export {useProfileThemes, useOwnProfileTheme} from './useProfileThemes';
+export type {DiscoveryFilters, DiscoveryLanguage, PaywallReason, LimitReachedDetails, LimitReachedError, LimitReason, PlusPreferences, ProfileThemeEntry, ProfileThemeId, Subscription, SubscriptionLimits, SubscriptionUsage} from './types';

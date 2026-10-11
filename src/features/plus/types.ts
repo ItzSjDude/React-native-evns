@@ -10,8 +10,11 @@ export type DiscoveryFilters = {city?: string; interest?: string; language?: Dis
 
 export type PlusPlanKind = 'free' | 'plus';
 
-/** Allowlisted by the backend (`settings.schema.js#profileTheme`). */
-export type ProfileThemeId = 'default' | 'aurora' | 'midnight';
+/** Owned by the server's theme catalog (`^[a-z][a-z0-9_]{0,39}$`). The client only stores the id; ids without a client palette render as default. */
+export type ProfileThemeId = string;
+
+/** One row of `GET /me/profile-themes`. `productId` only exists for PURCHASE themes while permanent themes are on sale. */
+export type ProfileThemeEntry = {id: ProfileThemeId; name: string; access: 'FREE' | 'PLUS' | 'PURCHASE'; available: boolean; owned: boolean; productId?: string};
 
 /** The Plus-only fields of `GET/PATCH /me/settings` the Plus screen edits. */
 export type PlusPreferences = {showPlusBadge: boolean; profileTheme: ProfileThemeId};

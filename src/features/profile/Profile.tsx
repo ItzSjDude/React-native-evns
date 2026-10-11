@@ -17,7 +17,7 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi} from '../auth';
 import {usePartySession} from '../party';
-import {PlusBadge, usePlus, useProfileTheme} from '../plus';
+import {PlusBadge, usePlus, useOwnProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
 import {getGiftSummary, getMyProfile, getMySettings, getProfilePage, updateMyProfile} from './profileService';
 import {EventDetailSheet} from '../events';
@@ -56,7 +56,8 @@ const Profile = () => {
   // Only the Plus badge and theme are read from here; null while loading or if the server has no settings API.
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const plus = usePlus();
-  const theme = useProfileTheme(plus.isPlus ? settings?.profileTheme : 'default');
+  // Only a theme the server catalog says this account can use right now; the stored selection itself is kept across Plus expiry.
+  const theme = useOwnProfileTheme(settings?.profileTheme);
   const accent = theme?.accent ?? ACCENT;
   const onAccent = theme?.onAccent ?? ON_ACCENT;
   const profileRequest = useRef(0);
