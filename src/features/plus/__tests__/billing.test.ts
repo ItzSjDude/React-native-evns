@@ -1,6 +1,6 @@
 import {Platform} from 'react-native';
 import * as Iap from 'react-native-iap';
-import {connectBilling, purchasePlan, resetBillingForTests, restorePurchases, syncAvailablePurchases} from '../billing';
+import {connectBilling, isOneTimePurchasePending, loadOneTimePrices, purchaseOneTime, purchasePlan, resetBillingForTests, restorePurchases, syncAvailablePurchases} from '../billing';
 import {buildPlanOptions} from '../pricing';
 import {verifyGooglePlayPurchase} from '../plusService';
 import {getPlusState, resetPlus, setSubscription} from '../plusStore';
@@ -48,6 +48,30 @@ test('a pending payment resolves as pending and is not posted', async () => {
   await expect(pending).resolves.toEqual({status: 'pending'});
   expect(verify).not.toHaveBeenCalled();
   expect(Iap.finishTransaction).not.toHaveBeenCalled();
+});
+
+test('a pending one-time Play purchase keeps its original verification handler until settled', async () => {
+  const originalVerify = jest.fn().mockResolvedValue(undefined);
+  const replacementVerify = jest.fn().mockResolvedValue(undefined);
+  const original: Parameters<typeof purchaseOneTime>[1] = {messages: {}, verify: originalVerify};
+  const replacement: Parameters<typeof purchaseOneTime>[1] = {messages: {}, verify: replacementVerify};
+  (Iap.fetchProducts as jest.Mock).mockResolvedValue([{id: 'gift_rose', displayPrice: '₹49'}]);
+
+  const pending = purchaseOneTime('gift_rose', original);
+  await flush();
+  iap.__emitPurchase(purchase({productId: 'gift_rose', purchaseState: 'pending'}));
+  await expect(pending).resolves.toEqual({status: 'pending'});
+  expect(isOneTimePurchasePending('gift_rose')).toBe(true);
+
+  await loadOneTimePrices(['gift_rose'], replacement);
+  expect(await purchaseOneTime('gift_rose', replacement)).toEqual({status: 'pending'});
+  expect(Iap.requestPurchase).toHaveBeenCalledTimes(1);
+
+  iap.__emitPurchase(purchase({productId: 'gift_rose', purchaseToken: 'gift-token'}));
+  await flush();
+  expect(originalVerify).toHaveBeenCalledWith('gift_rose', 'gift-token');
+  expect(replacementVerify).not.toHaveBeenCalled();
+  expect(isOneTimePurchasePending('gift_rose')).toBe(false);
 });
 
 test('TOKEN_IN_USE is reported', async () => {

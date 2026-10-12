@@ -10,3 +10,16 @@ export const getEvents = async (offset = 0, limit = EVENTS_PAGE_SIZE, search?: s
 
 export const getEvent = (eventId: string) =>
   apiRequest<EventDetailResponse>(`/events/${encodeURIComponent(eventId)}`, {auth: 'optional'});
+
+export const setEventInterest = (eventId: string, status: 'INTERESTED' | 'CANCELLED') =>
+  apiRequest<{status: string}>(`/events/${encodeURIComponent(eventId)}/interest`, {
+    auth: 'required', method: 'POST', body: JSON.stringify({status}),
+  });
+
+export type EventTicketRequest =
+  | {mode: 'TICKET_ISSUED'; ticket: {id: string; code: string}; conversationId?: string | null}
+  | {mode: 'CHAT_OPENED'; conversationId: string};
+
+/** Free events issue a ticket; paid events open an organiser chat for payment instructions. */
+export const requestEventTicket = (eventId: string) =>
+  apiRequest<EventTicketRequest>(`/events/${encodeURIComponent(eventId)}/purchase`, {auth: 'required', method: 'POST'});

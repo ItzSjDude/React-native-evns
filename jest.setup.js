@@ -18,6 +18,12 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+// The native Razorpay activity isn't available in Jest; payment-flow tests mock `open` per scenario.
+jest.mock('react-native-razorpay', () => ({
+  __esModule: true,
+  default: {open: jest.fn()},
+}));
+
 // Local follow-up reminders: the native notification module is unavailable under Jest.
 jest.mock('@notifee/react-native', () => ({
   __esModule: true,

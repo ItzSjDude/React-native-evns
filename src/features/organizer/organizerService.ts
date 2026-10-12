@@ -1,5 +1,5 @@
 import {apiRequestPage, apiRequest} from '../../core/api/apiClient';
-import type {ApiCreditOverview, ApiWorkspace, CreditOverview, Workspace} from './types';
+import type {ApiCreditOverview, ApiCreditPurchase, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, Workspace} from './types';
 
 export const LEDGER_PAGE_SIZE = 20;
 
@@ -26,6 +26,11 @@ const toCreditOverview = (data: ApiCreditOverview): CreditOverview => ({
   })),
 });
 
+const toCreditPurchase = (row: ApiCreditPurchase) => ({
+  id: row.id, quantity: row.quantity, amountMinor: row.amount_minor, currency: row.currency,
+  status: row.status, packKey: row.pack_key, createdAt: row.created_at, paidAt: row.paid_at,
+});
+
 /** Workspaces the viewer is an active member of, each with their role in it. */
 export async function listMyWorkspaces(): Promise<Workspace[]> {
   const page = await apiRequestPage<ApiWorkspace[]>('/workspaces?limit=50', {auth: 'required'});
@@ -42,4 +47,18 @@ export async function getCreditOverview(workspaceId: string, offset = 0, limit =
     {auth: 'required'},
   );
   return toCreditOverview(data);
+}
+
+/** The server catalog is the sole source of pack quantities and prices. */
+export function listCreditPacks(workspaceId: string): Promise<CreditPack[]> {
+  return apiRequest<CreditPack[]>(`/workspaces/${encodeURIComponent(workspaceId)}/credit-packs`, {auth: 'required'});
+}
+
+/** Create an idempotent Razorpay order for a catalog pack. The server decides amount and quantity. */
+export async function startCreditPackPurchase(workspaceId: string, packKey: string, idempotencyKey: string): Promise<{purchase: ReturnType<typeof toCreditPurchase>; checkout: CreditCheckout}> {
+  const data = await apiRequest<{purchase: ApiCreditPurchase; checkout: CreditCheckout}>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/credits/purchases`,
+    {auth: 'required', method: 'POST', body: JSON.stringify({packKey, idempotencyKey})},
+  );
+  return {purchase: toCreditPurchase(data.purchase), checkout: data.checkout};
 }
