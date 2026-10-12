@@ -1,0 +1,196 @@
+/* eslint-env jest */
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const storage = new Map();
+  return {
+    getItem: jest.fn(key => Promise.resolve(storage.get(key) ?? null)),
+    setItem: jest.fn((key, value) => {
+      storage.set(key, value);
+      return Promise.resolve();
+    }),
+    removeItem: jest.fn(key => {
+      storage.delete(key);
+      return Promise.resolve();
+    }),
+    clear: jest.fn(() => {
+      storage.clear();
+      return Promise.resolve();
+    }),
+  };
+});
+
+// Local follow-up reminders: the native notification module is unavailable under Jest.
+jest.mock('@notifee/react-native', () => ({
+  __esModule: true,
+  default: {
+    requestPermission: jest.fn().mockResolvedValue({authorizationStatus: 1}),
+    createChannel: jest.fn().mockResolvedValue('follow-ups'),
+    createTriggerNotification: jest.fn().mockResolvedValue('id'),
+    cancelNotification: jest.fn().mockResolvedValue(undefined),
+    getInitialNotification: jest.fn().mockResolvedValue(null),
+    onForegroundEvent: jest.fn(() => jest.fn()),
+    onBackgroundEvent: jest.fn(),
+  },
+  AndroidImportance: {DEFAULT: 3},
+  AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2},
+  EventType: {PRESS: 1},
+  TriggerType: {TIMESTAMP: 0},
+}));
+
+// Native time picker is unavailable under Jest; tests don't drive it.
+jest.mock('@react-native-community/datetimepicker', () => ({
+  __esModule: true,
+  default: () => null,
+  DateTimePickerAndroid: {open: jest.fn(), dismiss: jest.fn()},
+}));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn().mockResolvedValue(true),
+    signIn: jest.fn(),
+    signOut: jest.fn().mockResolvedValue(undefined),
+  },
+  isSuccessResponse: response => response?.type === 'success',
+  statusCodes: {
+    SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+  },
+}));
+
+jest.mock('@react-native-firebase/app', () => ({
+  getApp: jest.fn(),
+}));
+
+jest.mock('@react-native-firebase/auth', () => ({
+  getAuth: jest.fn(() => ({currentUser: null})),
+  GoogleAuthProvider: {
+    credential: jest.fn(token => ({providerId: 'google.com', token})),
+  },
+  signInWithCredential: jest.fn().mockResolvedValue({
+    user: {getIdToken: jest.fn().mockResolvedValue('firebase-id-token')},
+  }),
+  getIdToken: jest.fn().mockResolvedValue('firebase-id-token'),
+  signOut: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('react-native-keychain', () => ({
+  setGenericPassword: jest.fn().mockResolvedValue(true),
+  getGenericPassword: jest.fn().mockResolvedValue(false),
+  resetGenericPassword: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('@react-native-community/geolocation', () => ({
+  __esModule: true,
+  default: {
+    setRNConfiguration: jest.fn(),
+    getCurrentPosition: jest.fn(),
+  },
+}));
+
+jest.mock('@livekit/react-native', () => {
+  return {
+    AudioSession: {
+      configureAudio: jest.fn().mockResolvedValue(undefined),
+      startAudioSession: jest.fn().mockResolvedValue(undefined),
+      stopAudioSession: jest.fn().mockResolvedValue(undefined),
+      selectAudioOutput: jest.fn().mockResolvedValue(undefined),
+    },
+    AndroidAudioTypePresets: {communication: {}},
+    LiveKitRoom: ({children}) => children,
+    useConnectionState: () => 'connected',
+    useLocalParticipant: () => ({
+      localParticipant: {identity: '', setMicrophoneEnabled: jest.fn().mockResolvedValue(undefined)},
+      isMicrophoneEnabled: false,
+    }),
+    useParticipants: () => [],
+  };
+});
+
+jest.mock('react-native-reanimated', () => {
+  const {Animated} = require('react-native');
+  return {
+    __esModule: true,
+    default: Animated,
+    Easing: {bezier: () => value => value, linear: value => value},
+    cancelAnimation: jest.fn(),
+    interpolate: value => value,
+    runOnJS: callback => callback,
+    useAnimatedStyle: callback => callback(),
+    useSharedValue: value => ({value}),
+    withDelay: (_delay, animation) => animation,
+    withRepeat: animation => animation,
+    withSequence: (...animations) => animations[animations.length - 1],
+    withTiming: value => value,
+  };
+});
+
+// Native picker module is unavailable under Jest. Default to "cancelled";
+// tests override with launchImageLibrary.mockResolvedValueOnce({assets: [...]}).
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn().mockResolvedValue({didCancel: true}),
+  launchCamera: jest.fn().mockResolvedValue({didCancel: true}),
+}));
+
+// Firebase Cloud Messaging (modular API). Listener subscriptions return unsubscribe
+// functions; tests capture listeners via e.g. `onTokenRefresh.mock.calls[0][1]`.
+jest.mock('@react-native-firebase/messaging', () => {
+  const messagingInstance = {};
+  return {
+    __esModule: true,
+    AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2, EPHEMERAL: 3},
+    getMessaging: jest.fn(() => messagingInstance),
+    getToken: jest.fn().mockResolvedValue('mock-fcm-token-0001'),
+    deleteToken: jest.fn().mockResolvedValue(undefined),
+    onTokenRefresh: jest.fn(() => jest.fn()),
+    onMessage: jest.fn(() => jest.fn()),
+    onNotificationOpenedApp: jest.fn(() => jest.fn()),
+    getInitialNotification: jest.fn().mockResolvedValue(null),
+    requestPermission: jest.fn().mockResolvedValue(1),
+    hasPermission: jest.fn().mockResolvedValue(1),
+    registerDeviceForRemoteMessages: jest.fn().mockResolvedValue(undefined),
+    setBackgroundMessageHandler: jest.fn(),
+  };
+});
+
+jest.mock('@react-native-firebase/crashlytics', () => ({
+  getCrashlytics: jest.fn(() => ({})),
+  log: jest.fn(),
+  recordError: jest.fn(),
+  setUserId: jest.fn().mockResolvedValue(null),
+  setCrashlyticsCollectionEnabled: jest.fn().mockResolvedValue(null),
+}));
+
+// react-native-iap (Nitro) has no native module under Jest. Listeners are captured so tests can
+// drive the purchase flow: require('react-native-iap').__emitPurchase(purchase) / __emitPurchaseError(error).
+jest.mock('react-native-iap', () => {
+  const updateListeners = new Set();
+  const errorListeners = new Set();
+  const subscribe = set => listener => {
+    set.add(listener);
+    return {remove: () => set.delete(listener)};
+  };
+  return {
+    __esModule: true,
+    initConnection: jest.fn().mockResolvedValue(true),
+    endConnection: jest.fn().mockResolvedValue(true),
+    fetchProducts: jest.fn().mockResolvedValue([]),
+    requestPurchase: jest.fn().mockResolvedValue(null),
+    finishTransaction: jest.fn().mockResolvedValue(undefined),
+    getAvailablePurchases: jest.fn().mockResolvedValue([]),
+    purchaseUpdatedListener: jest.fn(subscribe(updateListeners)),
+    purchaseErrorListener: jest.fn(subscribe(errorListeners)),
+    __emitPurchase: purchase => updateListeners.forEach(listener => listener(purchase)),
+    __emitPurchaseError: error => errorListeners.forEach(listener => listener(error)),
+    __resetListeners: () => {
+      updateListeners.clear();
+      errorListeners.clear();
+    },
+  };
+});
+
+// Lottie renders natively; under Jest it's an empty view.
+jest.mock('lottie-react-native', () => {
+  const {View} = require('react-native');
+  return {__esModule: true, default: View};
+});

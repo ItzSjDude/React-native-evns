@@ -1,0 +1,45 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/BricolageGrotesque-Bold.ttf",
+      "sha1": "107c0c29234585f6b2fa573eca35d62ab82a326a"
+    },
+    {
+      "path": "assets/fonts/BricolageGrotesque-ExtraBold.ttf",
+      "sha1": "66de3be678a1267becf10e1a3644e1958878220e"
+    },
+    {
+      "path": "assets/fonts/BricolageGrotesque-OFL.txt",
+      "sha1": "f63c11ad3638f6ccc44b188755fea3db7ad4405a"
+    },
+    {
+      "path": "assets/fonts/BricolageGrotesque-SemiBold.ttf",
+      "sha1": "1ded828e4ed888aef945872d41f32472758b0b8d"
+    },
+    {
+      "path": "assets/fonts/Manrope-Bold.ttf",
+      "sha1": "18bbb0d9a3b5b8efac1bd4d184eb094faad8b8a1"
+    },
+    {
+      "path": "assets/fonts/Manrope-ExtraBold.ttf",
+      "sha1": "71ff8a8dddd53275236f27d335d3d5c9f4517c98"
+    },
+    {
+      "path": "assets/fonts/Manrope-Medium.ttf",
+      "sha1": "c5c3f54dea381c1d114677609bc259f2f249b370"
+    },
+    {
+      "path": "assets/fonts/Manrope-OFL.txt",
+      "sha1": "12c29b4c541b7ba0f0d5d86818697558c1c28d76"
+    },
+    {
+      "path": "assets/fonts/Manrope-Regular.ttf",
+      "sha1": "b8716f45c1d5a8784ce964536c93d1ba0f17db1d"
+    },
+    {
+      "path": "assets/fonts/Manrope-SemiBold.ttf",
+      "sha1": "5d235c658b81813e775354225b5613db91f47253"
+    }
+  ]
+}
