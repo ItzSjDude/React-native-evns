@@ -1,5 +1,5 @@
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
-import {getCreditOverview, listMyWorkspaces} from '../organizerService';
+import {getCreditOverview, listCreditPacks, listMyWorkspaces, startCreditPackPurchase} from '../organizerService';
 import type {ApiCreditOverview, ApiWorkspace} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
@@ -47,4 +47,27 @@ test('getCreditOverview encodes the workspace id and respects pagination args', 
   (apiRequest as jest.Mock).mockResolvedValueOnce({balance: 0, ledger: [], recentPurchases: []});
   await getCreditOverview('w 2', 40, 10);
   expect(apiRequest).toHaveBeenCalledWith('/workspaces/w%202/credits?limit=10&offset=40', {auth: 'required'});
+});
+
+test('listCreditPacks reads the server catalog for the selected workspace', async () => {
+  const packs = [{key: 'tickets_100', quantity: 100, amountMinor: 14900, currency: 'INR'}];
+  (apiRequest as jest.Mock).mockResolvedValueOnce(packs);
+
+  await expect(listCreditPacks('w 2')).resolves.toEqual(packs);
+  expect(apiRequest).toHaveBeenCalledWith('/workspaces/w%202/credit-packs', {auth: 'required'});
+});
+
+test('startCreditPackPurchase sends only pack key and idempotency key, then maps authoritative order data', async () => {
+  (apiRequest as jest.Mock).mockResolvedValueOnce({
+    purchase: {id: 'purchase-1', quantity: 100, amount_minor: 14900, currency: 'INR', status: 'PENDING', pack_key: 'tickets_100', created_at: 'now', paid_at: null},
+    checkout: {provider: 'razorpay', orderId: 'order-1', amountMinor: 14900, currency: 'INR', keyId: 'rzp_test_key'},
+  });
+
+  await expect(startCreditPackPurchase('w1', 'tickets_100', 'credit-pack:test:unique-key')).resolves.toEqual({
+    purchase: {id: 'purchase-1', quantity: 100, amountMinor: 14900, currency: 'INR', status: 'PENDING', packKey: 'tickets_100', createdAt: 'now', paidAt: null},
+    checkout: {provider: 'razorpay', orderId: 'order-1', amountMinor: 14900, currency: 'INR', keyId: 'rzp_test_key'},
+  });
+  expect(apiRequest).toHaveBeenCalledWith('/workspaces/w1/credits/purchases', {
+    auth: 'required', method: 'POST', body: JSON.stringify({packKey: 'tickets_100', idempotencyKey: 'credit-pack:test:unique-key'}),
+  });
 });

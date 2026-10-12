@@ -57,7 +57,9 @@ export function useRoomExtras(partyId: string | undefined, active: boolean, watc
       game: guard('game', () => getActivePartyGame(partyId, signal), data => setGameState({available: true, data: data ?? null})),
       gifts: dead.current.gifts ? Promise.resolve() : (async () => {
         if (!giftsEnabled.current) {
-          await guard('gifts', () => getPartyMonetization(partyId, signal), m => {giftsEnabled.current = !!m.giftsEnabled;});
+          await guard('gifts', () => getPartyMonetization(partyId, signal), m => {
+            giftsEnabled.current = !!(m.giftsEnabled || m.playGiftCatalogAvailable);
+          });
           if (!giftsEnabled.current && mounted.current) setGifts({available: false, enabled: false, data: []});
         }
         if (giftsEnabled.current && watch.current) {

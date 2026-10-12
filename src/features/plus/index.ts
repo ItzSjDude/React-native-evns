@@ -11,6 +11,6 @@ export {isLimitReached, isPlusRequired, limitMessage, PLUS_REQUIRED_MESSAGE} fro
 export {useProfileTheme} from './profileTheme';
 export {useProfileThemes, useOwnProfileTheme} from './useProfileThemes';
 export type {DiscoveryFilters, DiscoveryLanguage, PaywallReason, LimitReachedDetails, LimitReachedError, LimitReason, PlusPreferences, ProfileThemeEntry, ProfileThemeId, Subscription, SubscriptionLimits, SubscriptionUsage} from './types';
-export {loadOneTimePrice, purchaseOneTime, restoreOneTime, isBillingError} from './billing';
+export {loadOneTimePrice, loadOneTimePrices, purchaseOneTime, restoreOneTime, isBillingError, isOneTimePurchasePending} from './billing';
 export type {OneTimeProduct, OneTimeOutcome} from './billing';
 export type {BillingError, BillingErrorKind} from './types';

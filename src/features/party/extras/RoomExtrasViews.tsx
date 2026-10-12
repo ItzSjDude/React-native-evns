@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {Pressable, Text, TextInput, View} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {ActivityIndicator, Pressable, Text, TextInput, View} from 'react-native';
 import IconChartBar from '@tabler/icons-react-native/IconChartBar';
 import IconDice from '@tabler/icons-react-native/IconDice5';
 import IconGift from '@tabler/icons-react-native/IconGift';
@@ -9,10 +9,13 @@ import IconX from '@tabler/icons-react-native/IconX';
 import {SheetSection} from '../../../components/BottomSheet';
 import {PartyColors} from '../partyPresentation';
 import type {PartyParticipant} from '../partyService';
+import {isBillingError, loadOneTimePrices, purchaseOneTime, restoreOneTime, type OneTimeProduct} from '../../plus';
 import {
-  advancePartyGame, createPartyPoll, endPartyGame, errorMessage, errorStatus, pollTotal, spinPartyGame, startPartyGame, votePartyPoll,
-  type PartyGame, type PartyGameType, type PartyPoll,
+  advancePartyGame, cancelPartyGiftReservation, createPartyPoll, endPartyGame, errorMessage, errorStatus,
+  listPartyGiftCatalog, pollTotal, purchasePartyGift, reservePartyGift, spinPartyGame, startPartyGame, votePartyPoll,
+  type PartyGame, type PartyGameType, type PartyGiftProduct, type PartyGiftReservation, type PartyPoll,
 } from './extrasService';
+import {clearPendingGiftPurchase, getPendingGiftPurchase, savePendingGiftPurchase} from './pendingGiftPurchase';
 import type {RoomExtras} from './useRoomExtras';
 
 type ViewProps = {partyId: string; manager: boolean; identity: string; participants: PartyParticipant[]; extras: RoomExtras};
@@ -202,8 +205,168 @@ const money = (minor: number, currency: string) => {
   try {return new Intl.NumberFormat(undefined, {style: 'currency', currency}).format(minor / 100);} catch {return `${currency} ${(minor / 100).toFixed(2)}`;}
 };
 
-export function GiftsView({extras}: ViewProps) {
+const GIFT_BILLING_MESSAGES = {
+  alreadyOwned: 'Google Play still has a gift purchase to finish. Please wait a moment and try again.',
+  pending: 'Your payment is pending. The gift will appear after Google Play confirms it.',
+  tokenInUse: 'This Google Play purchase is already linked to another Hiva account.',
+  disabled: 'Creator gifts aren’t available right now.',
+  notFound: 'No pending creator gift was found on this Google account.',
+};
+
+export function GiftsView({partyId, identity, participants, extras}: ViewProps) {
   const paid = extras.gifts.data.filter(gift => gift.status === 'PAID');
+  const refreshExtras = extras.refresh;
+  const [recipient, setRecipient] = useState<PartyParticipant | null>(null);
+  const [catalog, setCatalog] = useState<PartyGiftProduct[]>([]);
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [busyProduct, setBusyProduct] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [held, setHeld] = useState<(PartyGiftReservation & {creatorId: string; productId: string; pending?: boolean}) | null>(null);
+  const [pendingGift, setPendingGift] = useState<{creatorId: string; productId: string} | null>(null);
+  const [recoverableGift, setRecoverableGift] = useState<{creatorId: string; productId: string; reservationId: string | null; expiresAt: string | null} | null>(null);
+  const others = participants.filter(person => person.active && person.userId !== identity);
+  const giftBilling: OneTimeProduct = {
+    messages: GIFT_BILLING_MESSAGES,
+    onVerified: async () => {
+      await clearPendingGiftPurchase();
+      setPendingGift(null); setHeld(null);
+      setRecoverableGift(null);
+      setNotice(`Gift sent to ${recipient?.name || 'creator'}.`);
+      await refreshExtras();
+    },
+    verify: async (productId, purchaseToken) => {
+      if (!recipient) throw new Error('Choose a creator again before confirming the gift.');
+      const reservationId = held?.creatorId === recipient.userId && held.productId === productId ? held.reservationId : undefined;
+      await purchasePartyGift(partyId, {creatorId: recipient.userId, productId, purchaseToken, ...(reservationId ? {reservationId} : {})});
+    },
+  };
+  useEffect(() => {
+    let live = true;
+    getPendingGiftPurchase(partyId, identity).then(saved => {
+      if (!live || !saved) return;
+      setRecoverableGift({creatorId: saved.creatorId, productId: saved.productId, reservationId: saved.reservationId, expiresAt: saved.expiresAt});
+      setPendingGift({creatorId: saved.creatorId, productId: saved.productId});
+      const recoveryProduct: OneTimeProduct = {
+        messages: GIFT_BILLING_MESSAGES,
+        verify: async (id, purchaseToken) => {
+          await purchasePartyGift(partyId, {creatorId: saved.creatorId, productId: id, purchaseToken, ...(saved.reservationId ? {reservationId: saved.reservationId} : {})});
+        },
+        onVerified: async () => {
+          await clearPendingGiftPurchase();
+          if (!live) return;
+          setPendingGift(null); setHeld(null); setRecoverableGift(null);
+          setNotice('Gift sent to creator.');
+          await refreshExtras();
+        },
+      };
+      // Register the purchase handler before reconnecting to Play: a delayed callback can arrive
+      // as soon as billing reconnects after process death.
+      loadOneTimePrices([saved.productId], recoveryProduct).catch(() => {});
+    });
+    return () => {live = false;};
+  }, [partyId, identity, refreshExtras]);
+
+  const chooseRecipient = async (person: PartyParticipant) => {
+    setRecipient(person); setCatalog([]); setPrices({}); setError(null); setNotice(null); setLoadingCatalog(true);
+    try {
+      const products = await listPartyGiftCatalog(partyId, person.userId);
+      setCatalog(products);
+      if (!products.length) {setError('No gifts are available for this person in this room right now.'); return;}
+      try {setPrices(await loadOneTimePrices(products.map(item => item.productId), giftBilling));}
+      catch (e) {setError(errorMessage(e, 'Google Play prices couldn’t be loaded. Check your connection and try again.'));}
+    } catch (e) {
+      setError(errorStatus(e) === 404 || errorStatus(e) === 400
+        ? 'Gifts aren’t available for this person in this room.'
+        : errorMessage(e, 'Couldn’t load the gift catalog. Please try again.'));
+    } finally {setLoadingCatalog(false);}
+  };
+
+  const sendGift = async (product: PartyGiftProduct) => {
+    if (!recipient || busyProduct) return;
+    setBusyProduct(product.productId); setError(null); setNotice(null);
+    let reservation: (PartyGiftReservation & {creatorId: string; productId: string; pending?: boolean}) | null =
+      held?.creatorId === recipient.userId && held.productId === product.productId ? held : null;
+    try {
+      if (product.reservationRequired && !reservation) {
+        const reserved = await reservePartyGift(partyId, {
+          creatorId: recipient.userId, productId: product.productId,
+          idempotencyKey: `gift:${Date.now()}:${Math.random().toString(36).slice(2, 14)}`,
+        });
+        reservation = {...reserved, creatorId: recipient.userId, productId: product.productId};
+        setHeld(reservation);
+      }
+      const pendingContext = {
+        partyId, senderId: identity, creatorId: recipient.userId, productId: product.productId,
+        reservationId: reservation?.reservationId ?? null, expiresAt: reservation?.expiresAt ?? null,
+      };
+      await savePendingGiftPurchase(pendingContext);
+      setRecoverableGift({creatorId: pendingContext.creatorId, productId: pendingContext.productId, reservationId: pendingContext.reservationId, expiresAt: pendingContext.expiresAt});
+      const outcome = await purchaseOneTime(product.productId, {
+        ...giftBilling,
+        verify: async (productId, purchaseToken) => {
+          await purchasePartyGift(partyId, {
+            creatorId: recipient.userId, productId, purchaseToken,
+            ...(reservation ? {reservationId: reservation.reservationId} : {}),
+          });
+        },
+      });
+      if (outcome.status === 'pending') {
+        setPendingGift({creatorId: recipient.userId, productId: product.productId});
+        if (reservation) setHeld({...reservation, pending: true});
+        setNotice('Payment is pending in Google Play. We’ll show the gift once it’s confirmed.');
+        return;
+      }
+      await clearPendingGiftPurchase();
+      setRecoverableGift(null);
+      setHeld(null); setCatalog([]); setRecipient(null);
+      setNotice(`Gift sent to ${recipient.name || 'creator'}.`);
+      await refreshExtras();
+    } catch (e) {
+      if (isBillingError(e) && ['cancelled', 'unavailable'].includes(e.kind)) {
+        try {
+          if (reservation) await cancelPartyGiftReservation(partyId, reservation.reservationId);
+          await clearPendingGiftPurchase();
+          setRecoverableGift(null);
+          setPendingGift(null);
+          setHeld(null);
+        } catch {
+          if (reservation) setHeld(reservation);
+          setError('Purchase did not start, but the gift limit hold could not be released yet. Please retry shortly.');
+          return;
+        }
+      }
+      setError(errorMessage(e, isBillingError(e) ? e.message : 'Couldn’t send the gift. If Google Play opened, retry the same gift so your reservation is reused.'));
+    } finally {setBusyProduct(null);}
+  };
+
+  const recoverGift = async () => {
+    if (!recoverableGift || busyProduct) return;
+    const {creatorId, productId, reservationId, expiresAt} = recoverableGift;
+    const savedRecipient = participants.find(person => person.userId === creatorId);
+    setBusyProduct(productId); setError(null); setNotice(null);
+    const recoveryProduct: OneTimeProduct = {
+      ...giftBilling,
+      verify: async (id, purchaseToken) => {
+        await purchasePartyGift(partyId, {creatorId, productId: id, purchaseToken, ...(reservationId ? {reservationId} : {})});
+      },
+      onVerified: async () => {
+        await clearPendingGiftPurchase();
+        setPendingGift(null); setHeld(null); setRecoverableGift(null);
+        setNotice(`Gift sent to ${savedRecipient?.name || 'creator'}.`);
+        await refreshExtras();
+      },
+    };
+    try {
+      await restoreOneTime(productId, recoveryProduct);
+    } catch (e) {
+      setError(expiresAt && Date.parse(expiresAt) <= Date.now()
+        ? 'The gift reservation may have expired. Contact support before trying another purchase.'
+        : errorMessage(e, isBillingError(e) ? e.message : 'Couldn’t recover the gift yet. Check your connection and retry.'));
+    } finally {setBusyProduct(null);}
+  };
+
   return <>
     {paid.length ? <SheetSection label="Gifts in this room">
       {paid.map(gift => <View key={gift.id} className="min-h-[56px] flex-row items-center gap-3 border-b border-sheet px-4 py-2.5">
@@ -215,6 +378,49 @@ export function GiftsView({extras}: ViewProps) {
         <Text className="text-[13px] font-bold text-muted">{money(gift.amountMinor, gift.currency)}</Text>
       </View>)}
     </SheetSection> : <Empty icon={IconGift} title="No gifts yet" body="Gifts sent to creators in this room will show up here." />}
+    {extras.gifts.enabled && <SheetSection label="Send a gift">
+      {(held?.pending || (pendingGift && !recoverableGift)) && <View className="border-b border-sheet px-4 py-3"><Text className="text-[13px] leading-5 text-muted">Google Play is still processing this gift. It will appear after confirmation; don’t start another gift until then.</Text></View>}
+      {!!recoverableGift && <View className="border-b border-sheet px-4 py-3">
+        <Text className="text-[13px] leading-5 text-muted">An earlier gift checkout hasn’t been reconciled yet. Check Google Play and Hiva before starting another gift.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Recover interrupted gift purchase" accessibilityState={{disabled: !!busyProduct, busy: busyProduct === recoverableGift.productId}}
+          disabled={!!busyProduct} onPress={recoverGift} className="mt-2 min-h-11 flex-row items-center justify-center rounded-full bg-gold px-4 active:opacity-80">
+          {busyProduct === recoverableGift.productId ? <ActivityIndicator size="small" color={PartyColors.ink} /> : <Text className="text-[13px] font-bold text-gold-ink">Check purchase</Text>}
+        </Pressable>
+      </View>}
+      {!recipient && <>
+        <View className="px-4 pb-2 pt-3"><Text className="text-[13px] leading-5 text-muted">Choose a creator who’s in this room.</Text></View>
+        {others.map(person => <Pressable key={person.userId} accessibilityRole="button" accessibilityLabel={`Choose ${person.name || 'creator'} to gift`} onPress={() => chooseRecipient(person)} disabled={!!held?.pending || !!pendingGift || !!recoverableGift}
+          className="min-h-[52px] flex-row items-center gap-3 border-b border-sheet px-4 py-2.5 active:bg-background/60">
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-primary-dark"><IconGift size={16} color={PartyColors.accent} /></View>
+          <Text numberOfLines={1} className="min-w-0 flex-1 text-[15px] font-semibold text-foreground">{person.name || 'Guest'}</Text>
+          {loadingCatalog && <ActivityIndicator size="small" color={PartyColors.accent} />}
+          {!loadingCatalog && <Text className="text-[13px] font-semibold text-primary">Choose</Text>}
+        </Pressable>)}
+        {!others.length && <Text className="px-4 pb-3 text-[13px] text-muted">Invite a creator into the room to send a gift.</Text>}
+      </>}
+      {!!recipient && <>
+        <View className="flex-row items-center justify-between border-b border-sheet px-4 py-2.5">
+          <Text className="text-[14px] font-semibold text-foreground">To {recipient.name || 'creator'}</Text>
+          {!held?.pending && !pendingGift && <Pressable accessibilityRole="button" accessibilityLabel="Choose a different person" onPress={() => {setRecipient(null); setCatalog([]); setPrices({}); setError(null);}} className="min-h-11 justify-center px-2 active:opacity-70"><Text className="text-[13px] font-semibold text-primary">Change</Text></Pressable>}
+        </View>
+        {loadingCatalog && <View className="items-center py-5"><ActivityIndicator color={PartyColors.accent} /></View>}
+        {catalog.map(product => {
+          const price = prices[product.productId];
+          const pendingThis = held?.pending && held.productId === product.productId && held.creatorId === recipient.userId;
+          return <View key={product.productId} className="min-h-[64px] flex-row items-center gap-3 border-b border-sheet px-4 py-2.5">
+            <View className="h-10 w-10 items-center justify-center rounded-2xl bg-primary-dark"><IconGift size={19} color={PartyColors.accent} /></View>
+            <View className="min-w-0 flex-1"><Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">{product.name}</Text>
+              <Text className="mt-0.5 text-xs text-muted">{price || 'Price unavailable'}</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Send ${product.name}${price ? ` for ${price}` : ''}`} accessibilityState={{disabled: !price || !!busyProduct || !!held?.pending || !!pendingGift, busy: busyProduct === product.productId}}
+              disabled={!price || !!busyProduct || !!held?.pending || !!pendingGift} onPress={() => sendGift(product)} className={`min-h-9 min-w-16 items-center justify-center rounded-full px-3 ${price ? 'bg-gold' : 'bg-background'} ${!price || busyProduct || held?.pending || pendingGift ? 'opacity-50' : ''}`}>
+              {busyProduct === product.productId ? <ActivityIndicator size="small" color={PartyColors.ink} /> : <Text className="text-[13px] font-bold text-gold-ink">{pendingThis ? 'Pending' : price ? 'Send' : 'Unavailable'}</Text>}
+            </Pressable>
+          </View>;
+        })}
+      </>}
+      {!!error && <View className="px-4 py-2"><Text accessibilityRole="alert" className="text-[13px] leading-5 text-coral">{error}</Text></View>}
+      {!!notice && <View className="px-4 py-2"><Text className="text-[13px] leading-5 text-muted">{notice}</Text></View>}
+    </SheetSection>}
     {extras.error && <Text className="pb-1 text-center text-xs text-muted">{extras.error}</Text>}
   </>;
 }

@@ -86,7 +86,12 @@ export function isBillingError(error: unknown): error is BillingError {
  * A one-time product owned by another feature (paid rooms). `verify` posts the token to that feature's endpoint, which
  * verifies AND acknowledges it; this module still never finishes a transaction. `messages` are that feature's copy.
  */
-export type OneTimeProduct = {verify: (productId: string, purchaseToken: string) => Promise<void>; messages: OneTimeMessages};
+export type OneTimeProduct = {
+  verify: (productId: string, purchaseToken: string) => Promise<void>;
+  /** Called for a completed purchase, including a Play payment that first arrived as pending. */
+  onVerified?: () => void | Promise<void>;
+  messages: OneTimeMessages;
+};
 export type OneTimeOutcome = {status: 'owned'} | {status: 'pending'};
 
 type Waiter = {productId: string; resolve: (outcome: PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome) => void; reject: (error: BillingError) => void};
@@ -98,6 +103,8 @@ let waiter: Waiter | null = null;
 const themeProducts = new Set<string>();
 /** Feature-owned one-time products seen this session (see `OneTimeProduct`). */
 const oneTimeProducts = new Map<string, OneTimeProduct>();
+/** A Play payment reported as pending must keep its original recipient/reservation handler until settlement. */
+const pendingOneTimeProducts = new Set<string>();
 /** Tokens already sent to the backend in this session, so replays from Play aren't posted twice. */
 const handledTokens = new Set<string>();
 
@@ -136,6 +143,8 @@ async function syncOneTimePurchase(purchase: Purchase, product: OneTimeProduct):
   if (!token) throw billingError('verifyFailed');
   await product.verify(purchase.productId, token);
   handledTokens.add(token);
+  try {await product.onVerified?.();} catch { /* UI refresh must never turn a verified purchase into a billing failure. */ }
+  pendingOneTimeProducts.delete(purchase.productId);
   return {status: 'owned'};
 }
 
@@ -147,6 +156,7 @@ const toError = (productId: string, error: unknown) => {
 
 async function onPurchaseUpdated(purchase: Purchase) {
   if (purchase.purchaseState === 'pending') {
+    if (oneTimeProducts.has(purchase.productId)) pendingOneTimeProducts.add(purchase.productId);
     settle(purchase.productId, {outcome: {status: 'pending'}});
     return;
   }
@@ -154,6 +164,7 @@ async function onPurchaseUpdated(purchase: Purchase) {
   if (handledTokens.has(purchase.purchaseToken) && !waiter) return;
   try {
     const custom = oneTimeProducts.get(purchase.productId);
+    if (custom) pendingOneTimeProducts.add(purchase.productId);
     const outcome: PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome = custom
       ? await syncOneTimePurchase(purchase, custom)
       : themeProducts.has(purchase.productId)
@@ -202,6 +213,7 @@ export async function disconnectBilling() {
   handledTokens.clear();
   themeProducts.clear();
   oneTimeProducts.clear();
+  pendingOneTimeProducts.clear();
   if (wasConnected) await endConnection().catch(() => {});
 }
 
@@ -256,11 +268,18 @@ export function purchaseTheme(productId: string) {
 
 /** Play's localized price of one feature-owned one-time product, or null when Play doesn't know it. */
 export async function loadOneTimePrice(productId: string, product: OneTimeProduct): Promise<string | null> {
+  const prices = await loadOneTimePrices([productId], product);
+  return prices[productId] ?? null;
+}
+
+/** Play's localized prices for a feature-owned one-time product set. */
+export async function loadOneTimePrices(productIds: string[], product: OneTimeProduct): Promise<Record<string, string>> {
+  if (!productIds.length) return {};
   if (!(await connectBilling())) throw billingError('unavailable');
-  oneTimeProducts.set(productId, product);
+  productIds.forEach(productId => {if (!pendingOneTimeProducts.has(productId)) oneTimeProducts.set(productId, product);});
   try {
-    const products = await fetchProducts({skus: [productId], type: 'in-app'});
-    return products?.find(item => item.id === productId)?.displayPrice ?? null;
+    const products = await fetchProducts({skus: productIds, type: 'in-app'});
+    return Object.fromEntries((products ?? []).map(item => [item.id, item.displayPrice]));
   } catch (error) {
     throw toOneTimeError(error, product.messages);
   }
@@ -268,9 +287,13 @@ export async function loadOneTimePrice(productId: string, product: OneTimeProduc
 
 /** Buys one feature-owned one-time product. Resolves `owned` only after the feature's backend verified the token. */
 export function purchaseOneTime(productId: string, product: OneTimeProduct) {
+  if (pendingOneTimeProducts.has(productId)) return Promise.resolve<OneTimeOutcome>({status: 'pending'});
   oneTimeProducts.set(productId, product);
   return runPurchase<OneTimeOutcome>(productId, {type: 'in-app', request: {google: {skus: [productId]}}});
 }
+
+/** True while Play has an unsettled one-time purchase for this SKU in the current process. */
+export const isOneTimePurchasePending = (productId: string) => pendingOneTimeProducts.has(productId);
 
 /** Re-posts this Google account's purchase of a feature-owned product. Rejects with `notFound` when Play has none. */
 export async function restoreOneTime(productId: string, product: OneTimeProduct): Promise<void> {
@@ -351,4 +374,5 @@ export function resetBillingForTests() {
   handledTokens.clear();
   themeProducts.clear();
   oneTimeProducts.clear();
+  pendingOneTimeProducts.clear();
 }

@@ -10,7 +10,23 @@ export type PartyGame = {
   id: string; partyId: string; startedBy: string; startedAt: string; endedAt: string | null;
 } & ({type: 'TRUTH_OR_DARE'; state: TruthOrDareState} | {type: 'LUCKY_WHEEL'; state: LuckyWheelState});
 
-export type PartyMonetization = {giftsEnabled: boolean; paidRoomsEnabled: boolean};
+export type PartyMonetization = {
+  giftsEnabled: boolean;
+  playGiftCatalogAvailable?: boolean;
+  playGiftRiskControlsEnabled?: boolean;
+  paidRoomsEnabled: boolean;
+};
+export type PartyGiftProduct = {
+  productId: string;
+  giftType: string;
+  name: string;
+  animation: string;
+  currency: string;
+  customerPriceMinor: number;
+  reservationRequired: boolean;
+};
+export type PartyGiftReservation = {reservationId: string; expiresAt: string};
+export type PartyGiftPurchase = {gift: PartyGift; alreadyPurchased: boolean; consumptionPending: boolean};
 export type PartyGiftStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUND_REQUESTED' | 'REFUNDED';
 export type PartyGift = {
   id: string; partyId: string; senderId: string; creatorId: string;
@@ -43,6 +59,14 @@ export const getPartyMonetization = (partyId: string, signal?: AbortSignal) =>
   apiRequest<PartyMonetization>(`/parties/${partyId}/monetization`, {auth: 'required', signal});
 export const listPartyGifts = (partyId: string, signal?: AbortSignal) =>
   apiRequest<PartyGift[]>(`/parties/${partyId}/gifts?limit=20`, {auth: 'required', signal});
+export const listPartyGiftCatalog = (partyId: string, creatorId: string, signal?: AbortSignal) =>
+  apiRequest<PartyGiftProduct[]>(`/parties/${partyId}/gifts/catalog?creatorId=${encodeURIComponent(creatorId)}`, {auth: 'required', signal});
+export const reservePartyGift = (partyId: string, body: {creatorId: string; productId: string; idempotencyKey: string}) =>
+  apiRequest<PartyGiftReservation>(`/parties/${partyId}/gifts/play-reservations`, json('POST', body));
+export const cancelPartyGiftReservation = (partyId: string, reservationId: string) =>
+  apiRequest<void>(`/parties/${partyId}/gifts/play-reservations/${encodeURIComponent(reservationId)}`, json('DELETE'));
+export const purchasePartyGift = (partyId: string, body: {creatorId: string; productId: string; purchaseToken: string; reservationId?: string}) =>
+  apiRequest<PartyGiftPurchase>(`/parties/${partyId}/gifts/play-purchase`, json('POST', body));
 
 export const errorStatus = (error: unknown) => (error as {status?: number} | null)?.status ?? 0;
 /** 404 (route/party missing) and 403 (feature disabled or not allowed) mean "hide this feature". */

@@ -16,7 +16,7 @@ import {ConversationRow, InboxChips, PartyRow, RequestRow, VIEWS} from './InboxR
 import {getFolders, getInbox, INBOX_MAX_PAGE_SIZE, INBOX_PAGE_SIZE, MAX_PINS, updateConversationState, updatePartyState} from './inboxService';
 import {markConversationRead} from './messagesService';
 import {applyRealtimeToConversations, isMessageEvent} from './realtimeEvents';
-import type {ApiMessage, Conversation, InboxFolder, InboxItem, InboxQuery, MessagesRealtimeEvent, PartyChat} from './types';
+import type {ApiMessage, Conversation, InboxFolder, InboxItem, InboxQuery, InboxView, MessagesRealtimeEvent, PartyChat} from './types';
 import {useMessagesRealtime} from './useMessagesRealtime';
 
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Could not load conversations.';
@@ -47,13 +47,17 @@ export type MessagesProps = {
    * depends on messages. Returns false when nothing could handle it.
    */
   onOpenParty?: (partyId: string) => boolean;
+  /** Optional inbox view selected by a deep navigation action, e.g. an event ticket request. */
+  initialView?: InboxView;
+  /** Opens the matching conversation after the selected inbox view has loaded it. */
+  initialConversationId?: string;
 };
 
-const Messages = ({onOpenParty}: MessagesProps) => {
+const Messages = ({onOpenParty, initialView, initialConversationId}: MessagesProps) => {
   const isFocused = useIsFocused();
   const plus = usePlus();
   const plusOffered = plus.status !== 'unavailable';
-  const [query, setQuery] = useState<InboxQuery>(ALL);
+  const [query, setQuery] = useState<InboxQuery>(() => ({view: initialView ?? 'all'}));
   const [items, setItems] = useState<InboxItem[]>([]);
   const [folders, setFolders] = useState<InboxFolder[]>([]);
   const [reminders, setReminders] = useState<FollowUps>({});
@@ -68,6 +72,9 @@ const Messages = ({onOpenParty}: MessagesProps) => {
   const [target, setTarget] = useState<InboxItem | null>(null);
   const [foldersOpen, setFoldersOpen] = useState(false);
   const queryRef = useRef(query);
+  const initialViewRef = useRef(initialView);
+  const requestedConversationRef = useRef<string | null>(null);
+  const openConversationRef = useRef<((conversation: Conversation) => void) | null>(null);
   const request = useRef(0);
   const loaded = useRef(false);
   const state = useRef({count: 0, nextOffset: 0, hasMore: false, loadingMore: false});
@@ -152,6 +159,22 @@ const Messages = ({onOpenParty}: MessagesProps) => {
   selectViewRef.current = selectView;
 
   useEffect(() => {
+    if (initialView && initialView !== initialViewRef.current) {
+      initialViewRef.current = initialView;
+      selectViewRef.current({view: initialView});
+    }
+  }, [initialView]);
+
+  useEffect(() => {
+    if (!initialConversationId || loading || requestedConversationRef.current === initialConversationId) return;
+    const conversation = items.find(item => isConversation(item) && item.id === initialConversationId);
+    if (conversation && isConversation(conversation)) {
+      requestedConversationRef.current = initialConversationId;
+      openConversationRef.current?.(conversation);
+    }
+  }, [initialConversationId, items, loading]);
+
+  useEffect(() => {
     if (isFocused) load(loaded.current ? 'silent' : 'initial');
   }, [isFocused, load]);
 
@@ -202,6 +225,7 @@ const Messages = ({onOpenParty}: MessagesProps) => {
     markConversationRead(conversation.id).catch(() => {});
     forgetReminder(conversation.id);
   };
+  openConversationRef.current = openConversation;
 
   const closeConversation = () => {
     setOpen(null);
