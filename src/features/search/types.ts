@@ -1,4 +1,5 @@
 import type {PartyRoom} from '../party';
+import type {DiscoveryFilters} from '../plus';
 
 export type SearchTab = 'top' | 'people' | 'rooms';
 
@@ -29,4 +30,4 @@ export type SearchResults = {
   rooms: SearchSection<RoomResult>;
 };
 
-export type SearchRequestOptions = {limit?: number; offset?: number; signal?: AbortSignal};
+export type SearchRequestOptions = {limit?: number; offset?: number; filters?: DiscoveryFilters; signal?: AbortSignal};

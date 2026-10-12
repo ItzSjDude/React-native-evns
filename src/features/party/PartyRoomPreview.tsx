@@ -8,6 +8,7 @@ import IconVideo from '@tabler/icons-react-native/IconVideo';
 import {HostAvatar} from './PartyRoomCard';
 import {PartyColors, roomCover, roomTags, roomTitle, startsAt, tagClasses} from './partyPresentation';
 import {loadSession} from '../auth';
+import {isPaidAccessRequired, PaidRoomGate} from '../paidRooms';
 import {cancelScheduledParty, getPartyRoom, setPartyReminder, startScheduledParty, joinParty, type JoinedParty, type PartyRoom} from './partyService';
 
 const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, onResume, onBlocked}: {
@@ -22,6 +23,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
   const MediaIcon = room.kind === 'VIDEO' ? IconVideo : IconHeadphones;
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gated, setGated] = useState(false);
   const join = async () => {
     if (joining || room.kind !== 'AUDIO') return;
     if(activePartyId===room.id){onResume?.();return;}
@@ -30,7 +32,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
     setJoining(true);
     setError(null);
     try { onJoined(await joinParty(room.id)); }
-    catch (cause) { setError((cause as {message?: string})?.message || 'Could not join this party.'); }
+    catch (cause) { if (isPaidAccessRequired(cause)) setGated(true); else setError((cause as {message?: string})?.message || 'Could not join this party.'); }
     finally { setJoining(false); }
   };
   const scheduleAction=async()=>{
@@ -81,6 +83,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
             </Text>}
           </Pressable>
         </View>
+      {gated && <PaidRoomGate partyId={room.id} onClose={() => setGated(false)} onEntitled={() => {setGated(false); join();}} />}
       </SafeAreaView>
     </Modal>
   );

@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {Alert, AppState, Linking, PermissionsAndroid, Platform} from 'react-native';
+import {AppState, Linking, PermissionsAndroid, Platform} from 'react-native';
+import {showDialog} from '../../../components/Dialog';
 import {Track, type LocalParticipant, type LocalVideoTrack} from 'livekit-client';
 import {setPartyState} from '../partyService';
 
 const denied = (cause: unknown) => /notallowed|permission|denied/i.test(`${(cause as Error)?.name} ${(cause as Error)?.message}`);
-const showDenied = () => Alert.alert('Camera access needed', 'Allow camera access in Settings to turn on your video.', [
+const showDenied = () => showDialog('Camera access needed', 'Allow camera access in Settings to turn on your video.', [
   {text: 'Cancel', style: 'cancel'}, {text: 'Open Settings', onPress: () => {Linking.openSettings().catch(() => {});}},
 ]);
 

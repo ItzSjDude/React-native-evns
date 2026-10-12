@@ -1,3 +1,5 @@
+import type {ProfileThemeId} from '../plus';
+
 export type ProfileTab = 'posts' | 'parties' | 'events';
 
 export type UserProfile = {
@@ -72,6 +74,22 @@ export type UserSettings = {
   privateProfile: boolean;
   seatInvitesFrom: SeatInvitesFrom;
   language: 'en' | 'hi' | 'hinglish';
+  /** Plus-only; the server rejects non-default values from free users with 403 PLUS_REQUIRED. */
+  showPlusBadge: boolean;
+  profileTheme: ProfileThemeId;
+  /** Plus-only (403 PLUS_REQUIRED for free users turning it on). Suppresses device push; the in-app row is kept. */
+  quietHoursEnabled: boolean;
+  /** GET returns 'HH:mm:ss', PATCH accepts 'HH:mm' or 'HH:mm:ss'. */
+  quietStartLocal: string;
+  quietEndLocal: string;
+  /** IANA zone. Quiet hours and the digest both run in this zone. */
+  quietTimezone: string;
+  /** 0-6 with 0 = Sunday. The weekday is checked at delivery time, so an overnight window uses the day each moment falls on. */
+  quietDays: number[];
+  /** Direct messages still push during quiet hours. */
+  quietAllowDirectMentions: boolean;
+  /** Plus-only. Sent 09:00 local on quietDays, only when something is unread; unread counts by type, no message text. */
+  digestEnabled: boolean;
 };
 
 export type BlockedUser = {id: string; name: string; handle: string | null; avatarUrl: string | null; blockedAt: string};

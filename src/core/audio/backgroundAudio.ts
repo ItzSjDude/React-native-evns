@@ -10,3 +10,4 @@ export async function startPartyAudioService(microphone: boolean) {
 export async function stopPartyAudioService() {
   if (Platform.OS === 'android') await module?.stop();
 }
+

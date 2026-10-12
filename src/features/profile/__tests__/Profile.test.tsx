@@ -25,7 +25,7 @@ jest.mock('../../auth', () => {
   const slice = jest.requireActual('../../auth/authSlice');
   return {authReducer: slice.default, clearSession: slice.clearSession, logoutFromApi: jest.fn().mockResolvedValue(undefined)};
 });
-const settingsDefaults = {notifyFollowedLive: true, notifyGiftsMentions: true, joinMuted: true, hideOnlineStatus: false, privateProfile: false, seatInvitesFrom: 'everyone', language: 'hinglish'};
+const settingsDefaults = {notifyFollowedLive: true, notifyGiftsMentions: true, joinMuted: true, hideOnlineStatus: false, privateProfile: false, seatInvitesFrom: 'everyone', language: 'hinglish', showPlusBadge: false, profileTheme: 'default'};
 
 const profile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
   id: 'u1', name: 'Sachin Jangir', email: 'me@example.com', avatar_url: null, cover_image_url: null,
@@ -123,7 +123,7 @@ test('on the new backend, stats show fans, following and gifts and a gifts tab l
   (getMyProfile as jest.Mock).mockResolvedValue(profile({stats: {following: 3, hosted: 96, posts: 12, followers: 1200, giftsReceived: 27}}));
   (getGiftSummary as jest.Mock).mockResolvedValue({totalReceived: 27, byGift: [{type: 'rose', name: 'rose', count: 20}], topSupporters: [{id: 's1', name: 'Rina', avatarUrl: null, total: 8}]});
   tree = await render();
-  expect(texts(tree)).toEqual(expect.arrayContaining(['Fans', '1.2k', 'Gifts mile', '27', 'Gifts']));
+  expect(texts(tree)).toEqual(expect.arrayContaining(['Fans', '1.2k', '27', 'Gifts']));
   await ReactTestRenderer.act(async () => {
     tree!.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function')[3].props.onPress();
   });
@@ -169,4 +169,29 @@ test('deleting the account requires typing DELETE, then signs out', async () => 
   await ReactTestRenderer.act(async () => buttons[buttons.length - 1].props.onPress());
   expect(deleteMyAccount).toHaveBeenCalled();
   expect(logoutFromApi).toHaveBeenCalled();
+});
+
+const hasBadge = (renderer: ReactTestRenderer.ReactTestRenderer) => renderer.root.findAll(node => node.props.accessibilityLabel === 'Hiva Plus member').length > 0;
+
+test('the Plus badge shows on your own profile only for a Plus member who opted in', async () => {
+  const {resetPlus, setSubscription} = jest.requireActual('../../plus/plusStore');
+  const {subscription} = jest.requireActual('../../plus/__fixtures__/plusFixtures');
+  resetPlus();
+  setSubscription(subscription({plan: 'plus', status: 'ACTIVE', expiresAt: '2030-01-01T00:00:00Z'}));
+  (getMySettings as jest.Mock).mockResolvedValue({...settingsDefaults, showPlusBadge: true});
+  tree = await render();
+  expect(hasBadge(tree)).toBe(true);
+  await ReactTestRenderer.act(() => tree?.unmount());
+
+  (getMySettings as jest.Mock).mockResolvedValue({...settingsDefaults, showPlusBadge: false});
+  tree = await render();
+  expect(hasBadge(tree)).toBe(false);
+
+  // An expired member never shows it, even if the stored setting is still on.
+  await ReactTestRenderer.act(() => tree?.unmount());
+  setSubscription(subscription());
+  (getMySettings as jest.Mock).mockResolvedValue({...settingsDefaults, showPlusBadge: true});
+  tree = await render();
+  expect(hasBadge(tree)).toBe(false);
+  resetPlus();
 });

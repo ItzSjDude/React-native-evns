@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppDispatch, useAppSelector} from '../../core/store/hooks';
 import {imagePicker, uploadErrorMessage, uploadMedia} from '../../core/media';
@@ -181,7 +182,7 @@ const Onboarding = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
           <ProgressDots step={step} total={TOTAL_STEPS} />

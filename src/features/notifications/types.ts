@@ -17,6 +17,7 @@ export type NotificationType =
   | 'USER_ARRIVED'
   | 'PARTY_INVITE' | 'PARTY_REMINDER' | 'PARTY_SCHEDULED_START' | 'PARTY_CANCELLED'
   | 'VIBE_NOTE_NEARBY'
+  | 'USER_FOLLOWED' | 'POST_LIKED' | 'POST_COMMENTED'
   | (string & {});
 
 export type ApiNotification = {
@@ -40,6 +41,34 @@ export type AppNotification = {
   readAt: string | null;
   createdAt: string;
   target: NotificationTarget;
+};
+
+/**
+ * Keys gathr-api puts in `data` (docs/NOTIFICATIONS_API_CONTRACT.md). Display keys are omitted, never null,
+ * when unknown; avatar/image are always absolute https URLs. Values are strings here because the app
+ * normalises REST and FCM data the same way (see toStringData).
+ */
+export type NotificationDisplayData = {
+  /** Who triggered it (snapshot at creation); `actorId` drives "Follow back". */
+  actorId?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
+  /** Thumbnail of the post (or event cover) the notification is about. */
+  imageUrl?: string;
+  /** Grouped likes: how many people, newest first ids (JSON array string here). */
+  actorCount?: string;
+  actorIds?: string;
+  userId?: string;
+  postId?: string;
+  commentId?: string;
+  partyId?: string;
+  conversationId?: string;
+  eventId?: string;
+  noteId?: string;
+  paymentCardId?: string;
+  kind?: 'AUDIO' | 'VIDEO';
+  scheduledStartAt?: string;
+  reminderKind?: string;
 };
 
 export type DevicePlatform = 'android' | 'ios' | 'web';

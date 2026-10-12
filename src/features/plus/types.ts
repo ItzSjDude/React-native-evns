@@ -1,7 +1,26 @@
 /** Which daily/lifetime allowance a 429 `LIMIT_REACHED` refers to. */
 export type LimitReason = 'dmStarts' | 'vibeNotes' | 'vibeNoteLifetime' | 'randomMatches';
 
+/** Why the paywall opened: a limit that was hit, or a Plus-only feature (`filters`) that was tapped. */
+export type PaywallReason = LimitReason | 'filters' | 'passport' | 'inbox';
+
+/** Advanced discovery filters of `GET /nearby` and `GET /users/search` (Plus only; a free user gets 403 `PLUS_REQUIRED`). */
+export type DiscoveryLanguage = 'en' | 'hi' | 'hinglish';
+export type DiscoveryFilters = {city?: string; interest?: string; language?: DiscoveryLanguage; activeNow?: boolean};
+
 export type PlusPlanKind = 'free' | 'plus';
+
+/** Owned by the server's theme catalog (`^[a-z][a-z0-9_]{0,39}$`). The client only stores the id; ids without a client palette render as default. */
+export type ProfileThemeId = string;
+
+/** One row of `GET /me/profile-themes`. `productId` only exists for PURCHASE themes while permanent themes are on sale. */
+export type ProfileThemeEntry = {id: ProfileThemeId; name: string; access: 'FREE' | 'PLUS' | 'PURCHASE'; available: boolean; owned: boolean; productId?: string};
+
+/** The Plus-only fields of `GET/PATCH /me/settings` the Plus screen edits. */
+export type PlusPreferences = {showPlusBadge: boolean; profileTheme: ProfileThemeId};
+
+export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'GRACE_PERIOD', 'ON_HOLD', 'PAUSED', 'CANCELED', 'EXPIRED', 'REVOKED'] as const;
+export type SubscriptionStatus = typeof SUBSCRIPTION_STATUSES[number];
 
 /** One Play subscription base plan the backend is willing to sell. */
 export type SubscriptionPlanRef = {productId: string; basePlanId: string};
@@ -24,7 +43,7 @@ export type SubscriptionUsage = {
 export type Subscription = {
   enabled: boolean;
   plan: PlusPlanKind;
-  status: string | null;
+  status: SubscriptionStatus | null;
   productId: string | null;
   basePlanId: string | null;
   expiresAt: string | null;
@@ -72,9 +91,11 @@ export type PlanOption = {
   regular: PlanPhase;
   /** Free trial or discounted first period(s) when Play says this user is eligible. */
   intro: PlanPhase | null;
+  /** False for a prepaid base plan, which is paid once and never renews. */
+  autoRenews: boolean;
 };
 
-export type PaywallState = {visible: boolean; reason?: LimitReason; details?: LimitReachedDetails};
+export type PaywallState = {visible: boolean; reason?: PaywallReason; details?: LimitReachedDetails};
 
 export type BillingErrorKind =
   | 'cancelled' | 'unavailable' | 'alreadyOwned' | 'pending' | 'network'

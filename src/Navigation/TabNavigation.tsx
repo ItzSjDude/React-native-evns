@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -24,7 +24,9 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {HomeScreen} from '../features/home';
 import {NearbyScreen} from '../features/nearby';
 import {PartyScreen} from '../features/party';
-import {MessagesScreen} from '../features/messages';
+import {MessagesScreen, useFollowUpOpened} from '../features/messages';
+import {resolveNotificationTarget, useNotifications} from '../features/notifications';
+import {navigateWhenReady} from './navigationRef';
 import {ProfileScreen} from '../features/profile';
 
 import {Colors} from '../Constants/Colors';
@@ -103,7 +105,7 @@ const TabButton = ({
     <Animated.View style={[styles.tabSlot, containerStyle]}>
       <Animated.View
         pointerEvents="none"
-        style={[styles.activeTab, activeStyle]}
+        style={[styles.activeTab, {backgroundColor: Colors.gold, borderColor: Colors.gold}, activeStyle]}
       />
 
       <Pressable
@@ -113,16 +115,16 @@ const TabButton = ({
         hitSlop={{left: 2, right: 2}}
         onPress={onPress}
         onLongPress={onLongPress}
-        className="h-[50px] w-full flex-row items-center justify-center gap-1 px-[5px] active:opacity-70">
+        className="h-[46px] w-full flex-row items-center justify-center gap-1 px-[5px] active:opacity-70">
         <AppIcon
           name={tabIcons[name]}
           size={24}
-          color={focused ? Colors.text : Colors.muted}
+          color={focused ? Colors.goldInk : Colors.muted}
           filled={focused}
         />
 
         {focused && (
-          <Text className="text-sm font-semibold text-foreground">
+          <Text className="text-sm font-semibold text-gold-ink">
             {name}
           </Text>
         )}
@@ -143,10 +145,10 @@ const CustomTabBar = ({
 
   const availableWidth =
     pillWidth ||
-    screenWidth * (screenWidth < 360 ? 0.9 : 0.74);
+    screenWidth * (screenWidth < 360 ? 0.94 : 0.86);
 
   const activeWidth = Math.min(
-    115,
+    80,
     Math.max(0, availableWidth - 12 - 4 * 43),
   );
 
@@ -168,7 +170,7 @@ const CustomTabBar = ({
       edges={['bottom']}
       className="absolute bottom-0 left-0 right-0 items-center bg-transparent">
       <View
-        className={`h-[55px] flex-row items-center justify-center rounded-[28px] border border-[#514B62] bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[90%]' : 'w-[74%]'}`}
+        className={`h-[50px] flex-row items-center justify-center rounded-[25px] border border-border-muted dark:border-[#514B62] bg-nav-background dark:bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[94%]' : 'w-[86%]'}`}
         onLayout={event =>
           setPillWidth(event.nativeEvent.layout.width)
         }>
@@ -220,7 +222,20 @@ const renderTabBar = (props: BottomTabBarProps) => (
   <CustomTabBar {...props} />
 );
 
-const TabNavigation = () => (
+// A tapped follow-up reminder lands on the Messages tab. Chat is a tab of the root navigator, which the typed ref does not list.
+const openMessagesTab = () => (navigateWhenReady as (name: string) => void)('Chat');
+
+const TabNavigation = () => {
+  useFollowUpOpened(openMessagesTab);
+  // Party rooms open through the notification navigator (Home), so Messages needs no party import.
+  const {navigateTo} = useNotifications();
+  const navigateRef = useRef(navigateTo);
+  navigateRef.current = navigateTo;
+  const renderMessages = useCallback(
+    () => <MessagesScreen onOpenParty={partyId => navigateRef.current(resolveNotificationTarget(undefined, {partyId}))} />,
+    [],
+  );
+  return (
   <Tab.Navigator
     initialRouteName="Home"
     tabBar={renderTabBar}
@@ -244,22 +259,20 @@ const TabNavigation = () => (
       component={PartyScreen}
     />
 
-    <Tab.Screen
-      name="Chat"
-      component={MessagesScreen}
-    />
+    <Tab.Screen name="Chat">{renderMessages}</Tab.Screen>
 
     <Tab.Screen
       name="Me"
       component={ProfileScreen}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 export default TabNavigation;
 
 // Reanimated needs native style objects for the tab width and fading overlays.
 const styles = StyleSheet.create({
-  tabSlot: {height: 50, justifyContent: 'center'},
-  activeTab: {position: 'absolute', left: 0, right: 0, top: 5, bottom: 5, borderRadius: 20, backgroundColor: '#13111F', borderWidth: 1.5, borderColor: '#73679D'},
+  tabSlot: {height: 46, justifyContent: 'center'},
+  activeTab: {position: 'absolute', left: 0, right: 0, top: 6, bottom: 6, borderRadius: 16, borderWidth: 1.5},
 });

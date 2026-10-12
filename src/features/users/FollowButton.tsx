@@ -28,7 +28,7 @@ export default function FollowButton({name, following, pending, onPress, size = 
   return <Pressable accessibilityRole="button" accessibilityLabel={following ? `Unfollow ${name}` : `Follow ${name}`}
     accessibilityState={{selected: following, busy: !!pending}} onPress={onPress}
     className={`flex-row items-center justify-center rounded-full ${shape} ${following ? 'border-[1.5px] border-purple-line active:opacity-70' : 'bg-gold active:opacity-80'}`}>
-    <Icon size={large ? 16 : 14} color={following ? '#E6E0FF' : Colors.goldInk} />
-    <Text className={`${large ? 'text-[13px]' : 'text-[12px]'} font-extrabold ${following ? 'text-[#E6E0FF]' : 'text-gold-ink'}`}>{label}</Text>
+    <Icon size={large ? 16 : 14} color={following ? Colors.textSoft : Colors.goldInk} />
+    <Text className={`${large ? 'text-[13px]' : 'text-[12px]'} font-extrabold ${following ? 'text-foreground dark:text-[#E6E0FF]' : 'text-gold-ink'}`}>{label}</Text>
   </Pressable>;
 }

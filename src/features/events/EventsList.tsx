@@ -1,7 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, Text, View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import IconX from '@tabler/icons-react-native/IconX';
+import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
@@ -11,9 +9,8 @@ import {formatEventPrice, formatEventWhen, goingLabel, messageOf} from './events
 import {getEvents} from './eventsService';
 import type {ApiEvent} from './types';
 
-type Props = {visible: boolean; onClose: () => void};
-
-const LIST_CONTENT = {paddingHorizontal: 20, paddingBottom: 32, flexGrow: 1};
+// Bottom padding clears the floating tab bar, matching the Home feed it replaces.
+const LIST_CONTENT = {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 130, flexGrow: 1};
 const Separator = () => <View className="h-3" />;
 
 const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
@@ -36,7 +33,8 @@ const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
   </Pressable>;
 };
 
-const EventsScreen = ({visible, onClose}: Props) => {
+/** The events list, embedded under Home's tab row. Loads its first page when mounted. */
+const EventsList = () => {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -67,52 +65,43 @@ const EventsScreen = ({visible, onClose}: Props) => {
 
   useEffect(() => {
     const counter = request;
-    if (!visible) { counter.current++; busy.current = false; return; }
-    setEvents([]); setHasMore(false);
     load(0, 'initial');
     return () => { counter.current++; };
-  }, [visible, load]);
+  }, [load]);
 
   const loadMore = () => { if (hasMore && !busy.current && !error) load(events.length, 'more'); };
 
   const empty = loading
-    ? <ActivityIndicator accessibilityLabel="Loading events" color={Colors.gold} className="mt-16" />
+    ? <View className="flex-1 items-center justify-center"><ActivityIndicator accessibilityLabel="Loading events" color={Colors.gold} /></View>
     : error
-      ? <View className="mt-16 items-center px-6">
+      ? <View className="flex-1 items-center justify-center px-6">
         <Text accessibilityRole="alert" className="text-center text-[14px] text-coral">{error}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={() => load(0, 'initial')} className="mt-3 rounded-full bg-gold px-5 py-2.5">
           <Text className="text-[13px] font-extrabold text-gold-ink">Retry</Text>
         </Pressable>
       </View>
-      : <View className="mt-16 items-center px-6">
+      : <View className="flex-1 items-center justify-center px-6">
         <Text className="text-[34px]">🎟️</Text>
         <Text className="mt-2 text-[16px] font-extrabold text-foreground">No upcoming events</Text>
         <Text className="mt-1 text-center text-[13px] text-muted">Pull down to check again.</Text>
       </View>;
 
-  return <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between px-5 py-3">
-        <Text accessibilityRole="header" className="text-[22px] font-extrabold text-foreground">Events</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close events" onPress={onClose} hitSlop={10} className="h-10 w-10 items-center justify-center rounded-full bg-card">
-          <IconX size={20} color={Colors.text} />
-        </Pressable>
-      </View>
-      <FlatList
-        data={events}
-        keyExtractor={item => item.id}
-        renderItem={({item}) => <EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />}
-        ItemSeparatorComponent={Separator}
-        contentContainerStyle={LIST_CONTENT}
-        ListEmptyComponent={empty}
-        ListFooterComponent={loadingMore ? <ActivityIndicator accessibilityLabel="Loading more events" color={Colors.gold} className="my-4" /> : undefined}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(0, 'refresh')} tintColor={Colors.gold} />}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-      />
-      <EventDetailSheet eventId={selected?.id ?? null} initial={selected} visible={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </SafeAreaView>
-  </Modal>;
+  return <>
+    <FlatList
+      data={events}
+      keyExtractor={item => item.id}
+      renderItem={({item}) => <EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />}
+      ItemSeparatorComponent={Separator}
+      contentContainerStyle={LIST_CONTENT}
+      showsVerticalScrollIndicator={false}
+      ListEmptyComponent={empty}
+      ListFooterComponent={loadingMore ? <ActivityIndicator accessibilityLabel="Loading more events" color={Colors.gold} className="my-4" /> : undefined}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(0, 'refresh')} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+    />
+    <EventDetailSheet eventId={selected?.id ?? null} initial={selected} visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+  </>;
 };
 
-export default EventsScreen;
+export default EventsList;

@@ -1,79 +1,62 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useIsFocused} from '@react-navigation/native';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 
+import {showDialog} from '../../components/Dialog';
 import {Colors} from '../../Constants/Colors';
+import {isPlusRequired, openPaywall, refreshSubscription, usePlus} from '../plus';
 import DirectConversation from './DirectConversation';
-import {initialsOf, isOwnMessage, messageText, relativeTime} from './conversationPresentation';
-import {CONVERSATIONS_PAGE_SIZE, getConversations, markConversationRead} from './messagesService';
+import {isConversation} from './conversationPresentation';
+import {cancelFollowUp, getFollowUps, scheduleFollowUp, type FollowUps, type ReminderOption} from './followUpReminders';
+import {FolderManagerSheet, InboxActionsSheet} from './InboxSheets';
+import {ConversationRow, InboxChips, PartyRow, RequestRow, VIEWS} from './InboxRows';
+import {getFolders, getInbox, INBOX_MAX_PAGE_SIZE, INBOX_PAGE_SIZE, MAX_PINS, updateConversationState, updatePartyState} from './inboxService';
+import {markConversationRead} from './messagesService';
 import {applyRealtimeToConversations, isMessageEvent} from './realtimeEvents';
-import type {ApiMessage, Conversation, MessagesRealtimeEvent} from './types';
-import {OnlineDot, usePresence} from './presence';
+import type {ApiMessage, Conversation, InboxFolder, InboxItem, InboxQuery, MessagesRealtimeEvent, PartyChat} from './types';
 import {useMessagesRealtime} from './useMessagesRealtime';
 
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Could not load conversations.';
-const MAX_PAGE_SIZE = 100;
 /** `last_message_at` is stamped just after the message row, so allow a small gap before calling a cached preview stale. */
 const PREVIEW_STALE_AFTER_MS = 5000;
+const ALL: InboxQuery = {view: 'all'};
 
 type LoadMode = 'initial' | 'refresh' | 'silent' | 'more';
 
-const Avatar = ({conversation}: {conversation: Conversation}) => conversation.avatarUrl
-  ? <Image source={{uri: conversation.avatarUrl}} className="h-12 w-12 rounded-full" />
-  : (
-    <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
-      <Text className="text-sm font-bold text-foreground">{initialsOf(conversation.title)}</Text>
-    </View>
-  );
+const itemKey = (item: InboxItem) => `${item.type ?? 'CONVERSATION'}:${item.id}`;
+const itemTitle = (item: InboxItem) => item.type === 'PARTY_REQUEST' ? item.partyTitle : item.title;
+const itemSearchText = (item: InboxItem, preview?: string | null) =>
+  `${itemTitle(item)} ${item.type === 'PARTY_REQUEST' ? item.requesterName : ''} ${preview ?? ''}`.toLowerCase();
 
-const previewOf = (conversation: Conversation, latest: ApiMessage | null) => {
-  if (latest) {
-    const prefix = isOwnMessage(latest, conversation.kind, conversation.contactId) ? 'You: ' : '';
-    return prefix + messageText(latest);
-  }
-  if (conversation.unreadCount > 0) return `${conversation.unreadCount} new ${conversation.unreadCount === 1 ? 'message' : 'messages'}`;
-  return conversation.lastMessageAt ? 'Tap to open the conversation' : 'No messages yet';
+const EMPTY: Record<string, [string, string]> = {
+  all: ['No conversations yet', 'Say hi to someone from Nearby.'],
+  unread: ['You are all caught up', 'Chats with new messages show up here.'],
+  requests: ['No seat requests', 'When someone asks for a seat in a party room you host, it shows up here.'],
+  events: ['No event chats', 'Chats with event organisers show up here.'],
+  parties: ['No party chats', 'Party rooms you join or are invited to show up here.'],
+  archived: ['Nothing archived', 'Archived chats are tucked away here. New messages still reach you.'],
+  folder: ['This folder is empty', 'Use "Move to folder" on a chat to add it here.'],
 };
 
-const ConversationRow = ({conversation, latest, onPress}: {conversation: Conversation; latest: ApiMessage | null; onPress: () => void}) => {
-  const unread = conversation.unreadCount;
-  // Direct chats only: event/organiser threads have no single person to be "online".
-  const presence = usePresence(conversation.contactId ? [conversation.contactId] : []);
-  const online = !!conversation.contactId && presence[conversation.contactId]?.online === true;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open conversation with ${conversation.title}${unread ? `, ${unread} unread` : ''}`}
-      onPress={onPress}
-      className="min-h-[76px] flex-row items-center gap-3 border-b border-border py-3 active:opacity-70">
-      <View>
-        <Avatar conversation={conversation} />
-        {online && <View className="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-background"><OnlineDot online size={12} /></View>}
-      </View>
-      <View className="min-w-0 flex-1">
-        <View className="flex-row items-center justify-between gap-2">
-          <Text className="flex-1 text-[16px] font-semibold text-foreground" numberOfLines={1}>{conversation.title}</Text>
-          <Text className={`text-xs ${unread ? 'text-primary' : 'text-muted'}`}>{relativeTime(conversation.lastActivityAt)}</Text>
-        </View>
-        <View className="mt-1 flex-row items-center justify-between gap-3">
-          <Text className={`flex-1 text-sm ${unread ? 'font-semibold text-foreground' : 'text-muted'}`} numberOfLines={1}>{previewOf(conversation, latest)}</Text>
-          {unread > 0 && (
-            <View testID={`unread-${conversation.id}`} className="h-5 min-w-[20px] items-center justify-center rounded-full bg-gold px-1">
-              <Text className="text-[11px] font-bold text-text-dark">{unread > 99 ? '99+' : unread}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </Pressable>
-  );
+export type MessagesProps = {
+  /**
+   * Opens a party room (join/resume preview). Injected by the navigation layer because the party feature
+   * depends on messages. Returns false when nothing could handle it.
+   */
+  onOpenParty?: (partyId: string) => boolean;
 };
 
-const Messages = () => {
+const Messages = ({onOpenParty}: MessagesProps) => {
   const isFocused = useIsFocused();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const plus = usePlus();
+  const plusOffered = plus.status !== 'unavailable';
+  const [query, setQuery] = useState<InboxQuery>(ALL);
+  const [items, setItems] = useState<InboxItem[]>([]);
+  const [folders, setFolders] = useState<InboxFolder[]>([]);
+  const [reminders, setReminders] = useState<FollowUps>({});
   const [previews, setPreviews] = useState<Record<string, ApiMessage>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,16 +65,28 @@ const Messages = () => {
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<Conversation | null>(null);
+  const [target, setTarget] = useState<InboxItem | null>(null);
+  const [foldersOpen, setFoldersOpen] = useState(false);
+  const queryRef = useRef(query);
   const request = useRef(0);
   const loaded = useRef(false);
   const state = useRef({count: 0, nextOffset: 0, hasMore: false, loadingMore: false});
-  state.current.count = conversations.length;
-  const conversationsRef = useRef(conversations);
-  conversationsRef.current = conversations;
+  state.current.count = items.length;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const openIdRef = useRef<string | null>(null);
   openIdRef.current = open?.id ?? null;
 
+  /** A stale subscription answers 403 PLUS_REQUIRED: re-check the plan and offer the paywall. Reading and replying never do this. */
+  const onPlusRequired = useCallback((cause: unknown) => {
+    if (!isPlusRequired(cause)) return false;
+    refreshSubscription().catch(() => {});
+    openPaywall('inbox');
+    return true;
+  }, []);
+
   const load = useCallback(async (mode: LoadMode) => {
+    const current = queryRef.current;
     if (mode === 'more') {
       const {hasMore: more, loadingMore: busy, nextOffset} = state.current;
       if (!more || busy) return;
@@ -99,11 +94,11 @@ const Messages = () => {
       setLoadingMore(true);
       const id = request.current;
       try {
-        const page = await getConversations(nextOffset);
+        const page = await getInbox(current, nextOffset);
         if (id !== request.current) return;
-        setConversations(current => {
-          const seen = new Set(current.map(item => item.id));
-          return [...current, ...page.conversations.filter(item => !seen.has(item.id))];
+        setItems(existing => {
+          const seen = new Set(existing.map(itemKey));
+          return [...existing, ...page.items.filter(item => !seen.has(itemKey(item)))];
         });
         state.current.nextOffset = page.nextOffset;
         state.current.hasMore = page.hasMore;
@@ -122,33 +117,64 @@ const Messages = () => {
     if (mode === 'refresh') setRefreshing(true);
     setError(null);
     // Keep already-loaded pages visible when refreshing so the list does not collapse.
-    const limit = Math.min(MAX_PAGE_SIZE, Math.max(CONVERSATIONS_PAGE_SIZE, state.current.count));
+    const limit = Math.min(INBOX_MAX_PAGE_SIZE, Math.max(INBOX_PAGE_SIZE, state.current.count));
     try {
-      const page = await getConversations(0, limit);
+      const page = await getInbox(current, 0, limit);
       if (id !== request.current) return;
       loaded.current = true;
-      setConversations(page.conversations);
+      setItems(page.items);
       state.current.nextOffset = page.nextOffset;
       state.current.hasMore = page.hasMore;
       setHasMore(page.hasMore);
     } catch (cause) {
-      if (id === request.current) setError(messageOf(cause));
+      if (id !== request.current) return;
+      // A lapsed member still on a folder view: offer the paywall and fall back to All.
+      if (current.view === 'folder' && onPlusRequired(cause)) { selectViewRef.current(ALL); return; }
+      setError(messageOf(cause));
     } finally {
       if (id === request.current) { setLoading(false); setRefreshing(false); }
     }
-  }, []);
+  }, [onPlusRequired]);
+
+  const selectView = (next: InboxQuery) => {
+    const current = queryRef.current;
+    if (next.view === current.view && next.folderId === current.folderId) return;
+    queryRef.current = next;
+    setQuery(next);
+    request.current += 1;
+    state.current = {count: 0, nextOffset: 0, hasMore: false, loadingMore: false};
+    setItems([]);
+    setHasMore(false);
+    setLoadingMore(false);
+    load('initial');
+  };
+  const selectViewRef = useRef(selectView);
+  selectViewRef.current = selectView;
 
   useEffect(() => {
     if (isFocused) load(loaded.current ? 'silent' : 'initial');
   }, [isFocused, load]);
 
+  useEffect(() => {
+    if (isFocused) getFollowUps().then(setReminders).catch(() => {});
+  }, [isFocused]);
+
+  // Folders are Plus only; a free account never asks for them.
+  useEffect(() => {
+    if (!plus.isPlus) { setFolders([]); return; }
+    if (isFocused) getFolders().then(setFolders).catch(onPlusRequired);
+  }, [isFocused, plus.isPlus, onPlusRequired]);
+
   const onRealtimeEvent = (event: MessagesRealtimeEvent) => {
     if (!isMessageEvent(event)) return;
-    if (event.type === 'message.created' && !conversationsRef.current.some(item => item.id === event.conversationId)) {
+    const {view} = queryRef.current;
+    // These views hold only party rows, which chat events never touch.
+    if (view === 'requests' || view === 'parties') return;
+    if (event.type === 'message.created' && !itemsRef.current.some(item => isConversation(item) && item.id === event.conversationId)) {
       load('silent');
       return;
     }
-    setConversations(current => applyRealtimeToConversations(current, event, openIdRef.current).conversations);
+    setItems(current => applyRealtimeToConversations(current, event, openIdRef.current).conversations);
     if (event.type !== 'message.created') {
       const {conversationId, message} = event;
       setPreviews(current => current[conversationId]?.id === message.id
@@ -163,16 +189,37 @@ const Messages = () => {
     onResync: () => { if (loaded.current) load('silent'); },
   });
 
+  const forgetReminder = (id: string) => {
+    if (!reminders[id]) return;
+    setReminders(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+    cancelFollowUp(id).catch(() => {});
+  };
+
   const openConversation = (conversation: Conversation) => {
     setOpen(conversation);
-    setConversations(current => current.map(item => item.id === conversation.id ? {...item, unreadCount: 0} : item));
+    setItems(current => current.map(item => isConversation(item) && item.id === conversation.id ? {...item, unreadCount: 0} : item));
     // Fetching messages also marks the thread read server-side; this explicit call clears it even if that fetch fails.
     markConversationRead(conversation.id).catch(() => {});
+    forgetReminder(conversation.id);
   };
 
   const closeConversation = () => {
     setOpen(null);
     load('silent');
+  };
+
+  /** Party chats and seat requests open the room itself, like a party notification does. */
+  const openRoom = (partyId: string) => {
+    if (!onOpenParty?.(partyId)) showDialog('Room not available', 'Could not open this party room. Please try again.');
+  };
+
+  const openParty = (party: PartyChat) => {
+    openRoom(party.id);
+    forgetReminder(party.id);
+    if (party.unreadCount > 0) {
+      setItems(current => current.map(item => item.type === 'PARTY' && item.id === party.id ? {...item, unreadCount: 0} : item));
+      updatePartyState(party.id, {read: true}).catch(() => {});
+    }
   };
 
   const rememberLatest = useCallback((conversationId: string, message: ApiMessage) => {
@@ -188,15 +235,79 @@ const Messages = () => {
     return activity - new Date(cached.created_at).getTime() > PREVIEW_STALE_AFTER_MS ? server : cached;
   };
 
-  const query = search.trim().toLowerCase();
-  const filtered = useMemo(() => !query ? conversations : conversations.filter(item =>
-    item.title.toLowerCase().includes(query) ||
-    (previews[item.id] ?? item.lastMessage)?.body?.toLowerCase().includes(query),
-  ), [conversations, previews, query]);
+  /** Applies an optimistic change, then the request; on failure restores the list like profile settings do. */
+  const mutate = async (apply: (list: InboxItem[]) => InboxItem[], send: () => Promise<unknown>, failure: string, {reconcile = false, pinning = false} = {}) => {
+    const previous = itemsRef.current;
+    setItems(apply);
+    try {
+      await send();
+      if (reconcile) load('silent');
+    } catch (cause) {
+      setItems(previous);
+      if (onPlusRequired(cause)) return;
+      const conflict = (cause as {status?: number})?.status === 409;
+      showDialog(failure, pinning && conflict ? `You can pin up to ${MAX_PINS} chats. Unpin one to pin another.` : (cause as {message?: string})?.message ?? 'Please try again.');
+    }
+  };
+  const patchConversation = (id: string, patch: Partial<Conversation>) => (list: InboxItem[]) =>
+    list.map(item => isConversation(item) && item.id === id ? {...item, ...patch} : item);
+  const without = (id: string) => (list: InboxItem[]) => list.filter(item => item.id !== id);
 
+  const pin = (conversation: Conversation) => {
+    setTarget(null);
+    const pinned = !conversation.pinned;
+    if (pinned && !plus.isPlus) { openPaywall('inbox'); return; }
+    mutate(list => {
+      const updated = patchConversation(conversation.id, {pinned})(list);
+      const moved = updated.find(item => item.id === conversation.id);
+      return pinned && moved ? [moved, ...updated.filter(item => item !== moved)] : updated;
+    }, () => updateConversationState(conversation.id, {pinned}), pinned ? 'Could not pin' : 'Could not unpin', {reconcile: true, pinning: pinned});
+  };
+
+  const moveToFolder = (conversation: Conversation, folderId: string | null) => {
+    setTarget(null);
+    const folder = folders.find(item => item.id === folderId);
+    const leaves = queryRef.current.view === 'folder' && queryRef.current.folderId !== folderId;
+    mutate(leaves ? without(conversation.id) : patchConversation(conversation.id, {folderId, folderName: folder?.name ?? null}),
+      () => updateConversationState(conversation.id, {folderId}), 'Could not move chat');
+  };
+
+  const archive = (item: Conversation | PartyChat) => {
+    setTarget(null);
+    const archived = !item.archived;
+    mutate(without(item.id), () => item.type === 'PARTY' ? updatePartyState(item.id, {archived}) : updateConversationState(item.id, {archived}),
+      archived ? 'Could not archive' : 'Could not unarchive');
+  };
+
+  const markPartyRead = (party: PartyChat) => {
+    setTarget(null);
+    const read = party.unreadCount > 0;
+    mutate(list => list.map(item => item.type === 'PARTY' && item.id === party.id ? {...item, unreadCount: read ? 0 : 1} : item),
+      () => updatePartyState(party.id, {read}), 'Could not update chat', {reconcile: !read});
+  };
+
+  const remind = async (item: Conversation | PartyChat, option: ReminderOption) => {
+    setTarget(null);
+    try {
+      const followUp = await scheduleFollowUp(item.id, item.title, option);
+      if (!followUp) { showDialog('Notifications are off', 'Allow notifications for Hiva in your phone settings to get follow-up reminders.'); return; }
+      setReminders(current => ({...current, [item.id]: followUp}));
+    } catch {
+      showDialog('Reminder not set', 'We could not schedule that reminder. Please try again.');
+    }
+  };
+
+  const openFolders = () => { if (plus.isPlus) setFoldersOpen(true); else openPaywall('inbox'); };
+
+  const text = search.trim().toLowerCase();
+  const filtered = useMemo(() => !text ? items : items.filter(item =>
+    itemSearchText(item, isConversation(item) ? (previews[item.id] ?? item.lastMessage)?.body : item.type === 'PARTY' ? item.preview : null).includes(text),
+  ), [items, previews, text]);
+
+  const [emptyTitle, emptyHint] = EMPTY[query.view];
   const emptyState = () => {
-    if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.primary} /></View>;
-    if (error && !conversations.length) {
+    if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.gold} /></View>;
+    if (error && !items.length) {
       return (
         <View className="items-center px-6 pt-20">
           <Text className="text-center text-base font-semibold text-foreground">Couldn't load conversations</Text>
@@ -207,7 +318,7 @@ const Messages = () => {
         </View>
       );
     }
-    if (query && conversations.length) {
+    if (text && items.length) {
       return (
         <View className="items-center pt-20">
           <Text className="text-base font-semibold text-foreground">No conversations found</Text>
@@ -218,16 +329,23 @@ const Messages = () => {
     return (
       <View className="items-center px-6 pt-20">
         <IconMessageCircle size={44} color={Colors.muted} strokeWidth={1.5} />
-        <Text className="mt-4 text-center text-base font-semibold text-foreground">No conversations yet</Text>
-        <Text className="mt-2 text-center text-sm leading-5 text-muted">Say hi to someone from Nearby.</Text>
+        <Text className="mt-4 text-center text-base font-semibold text-foreground">{emptyTitle}</Text>
+        <Text className="mt-2 text-center text-sm leading-5 text-muted">{emptyHint}</Text>
       </View>
     );
   };
 
+  const targetConversation = target && isConversation(target) ? target : null;
+  const targetChat = targetConversation ?? (target?.type === 'PARTY' ? target : null);
+  const sectionLabel = query.view === 'all' ? 'Recent' : query.view === 'folder'
+    ? folders.find(folder => folder.id === query.folderId)?.name ?? 'Folder'
+    : VIEWS.find(({view}) => view === query.view)?.label ?? 'Recent';
+
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-5 pt-5">
-        <Text className="text-[30px] font-bold text-foreground">Messages</Text>
+      <View className="px-5 pt-3">
+        {/* Same size and position as the Home header. */}
+        <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Messages</Text></View>
         <Text className="mt-1 text-sm text-muted">Catch up with your people</Text>
         <View className="mt-6 h-12 flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4">
           <IconSearch size={20} color={Colors.muted} strokeWidth={2} />
@@ -242,28 +360,60 @@ const Messages = () => {
             returnKeyType="search"
           />
         </View>
-        <Text className="mt-7 text-xs font-semibold uppercase tracking-[1.5px] text-muted">Recent</Text>
+        <InboxChips query={query} folders={folders} showFolders={plusOffered} foldersLocked={!plus.isPlus} onSelect={selectView} onFolders={openFolders} />
+        <Text className="mt-5 text-xs font-semibold uppercase tracking-[1.5px] text-muted">{sectionLabel}</Text>
       </View>
 
       <FlatList
         data={filtered}
-        keyExtractor={item => item.id}
-        renderItem={({item}) => <ConversationRow conversation={item} latest={latestFor(item)} onPress={() => openConversation(item)} />}
+        keyExtractor={itemKey}
+        renderItem={({item}) => {
+          if (item.type === 'PARTY') return <PartyRow party={item} reminder={!!reminders[item.id]} onPress={() => openParty(item)} onMenu={() => setTarget(item)} />;
+          if (item.type === 'PARTY_REQUEST') return <RequestRow request={item} onPress={() => openRoom(item.partyId)} />;
+          return <ConversationRow conversation={item} latest={latestFor(item)} reminder={!!reminders[item.id]} onPress={() => openConversation(item)} onMenu={() => setTarget(item)} />;
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerClassName="flex-grow px-5 pb-[115px]"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.primary} colors={[Colors.primary]} />}
-        onEndReached={() => { if (hasMore && !loading && !query) load('more'); }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
+        onEndReached={() => { if (hasMore && !loading && !text) load('more'); }}
         onEndReachedThreshold={0.4}
-        ListHeaderComponent={error && conversations.length ? (
+        ListHeaderComponent={error && items.length ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversations" onPress={() => load('refresh')} className="mt-3 rounded-xl bg-card p-3">
             <Text className="text-sm text-coral">{error} Tap to retry.</Text>
           </Pressable>
         ) : undefined}
-        ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={Colors.primary} /> : undefined}
+        ListFooterComponent={loadingMore ? <ActivityIndicator className="my-4" color={Colors.gold} /> : undefined}
         ListEmptyComponent={emptyState()}
       />
 
+      <InboxActionsSheet
+        item={target}
+        plusOffered={plusOffered}
+        isPlus={plus.isPlus}
+        folders={folders}
+        reminderAt={target ? reminders[target.id]?.at ?? null : null}
+        onClose={() => setTarget(null)}
+        onPin={() => targetConversation && pin(targetConversation)}
+        onFolder={folderId => targetConversation && moveToFolder(targetConversation, folderId)}
+        onLocked={() => { setTarget(null); openPaywall('inbox'); }}
+        onArchive={() => targetChat && archive(targetChat)}
+        onRead={() => target?.type === 'PARTY' && markPartyRead(target)}
+        onRemind={option => targetChat && remind(targetChat, option)}
+        onCancelReminder={() => { if (target) forgetReminder(target.id); setTarget(null); }}
+        onManageFolders={() => { setTarget(null); setFoldersOpen(true); }}
+      />
+      <FolderManagerSheet
+        visible={foldersOpen}
+        folders={folders}
+        onClose={() => setFoldersOpen(false)}
+        onPlusRequired={cause => { const required = onPlusRequired(cause); if (required) setFoldersOpen(false); return required; }}
+        onChange={next => {
+          setFolders(next);
+          if (query.folderId && !next.some(folder => folder.id === query.folderId)) selectView(ALL);
+          else load('silent');
+        }}
+      />
       {open && (
         <DirectConversation
           conversationId={open.id}

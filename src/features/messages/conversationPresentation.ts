@@ -1,4 +1,4 @@
-import type {ApiMessage, ConversationKind} from './types';
+import type {ApiMessage, Conversation, ConversationKind, InboxItem} from './types';
 
 export const initialsOf = (name: string) => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -40,3 +40,6 @@ export const relativeTime = (value: string, now: Date = new Date()) => {
     ? {month: 'short', day: 'numeric'}
     : {month: 'short', day: 'numeric', year: 'numeric'});
 };
+
+/** Conversation rows have no `type` discriminator of their own; party and request rows do. */
+export const isConversation = (item: InboxItem): item is Conversation => item.type !== 'PARTY' && item.type !== 'PARTY_REQUEST';

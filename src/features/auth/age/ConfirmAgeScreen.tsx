@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
-import {ActivityIndicator, Pressable, ScrollView, StatusBar, Text, View} from 'react-native';
+import {ActivityIndicator, Pressable, ScrollView, Text, View} from 'react-native';
+import ThemedStatusBar from '../../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconCake from '@tabler/icons-react-native/IconCake';
 import {useAppDispatch} from '../../../core/store/hooks';
@@ -43,7 +44,7 @@ const ConfirmAgeScreen = () => {
   const busy = saving || loggingOut;
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-5 pb-6 pt-10">
         <View className="mb-6 h-14 w-14 items-center justify-center rounded-full bg-primary-dark"><IconCake size={28} color={Colors.primary} /></View>
         <Text accessibilityRole="header" className="text-[26px] font-bold text-foreground">Confirm your age</Text>

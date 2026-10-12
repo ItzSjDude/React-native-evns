@@ -2,18 +2,19 @@ import type {ImageSourcePropType} from 'react-native';
 import {Colors} from '../../Constants/Colors';
 import type {PartyRoom} from './partyService';
 
+// Getters so these follow the current theme instead of freezing the palette at import time.
 export const PartyColors = {
-  background: Colors.background,
-  card: Colors.card,
-  border: Colors.border,
-  accent: Colors.primary,
-  text: Colors.text,
-  muted: Colors.muted,
-  ink: Colors.textDark,
-  coral: Colors.coral,
-  gold: Colors.gold,
-  goldInk: Colors.goldInk,
-} as const;
+  get background() {return Colors.background;},
+  get card() {return Colors.card;},
+  get border() {return Colors.border;},
+  get accent() {return Colors.primary;},
+  get text() {return Colors.text;},
+  get muted() {return Colors.muted;},
+  get ink() {return Colors.textDark;},
+  get coral() {return Colors.coral;},
+  get gold() {return Colors.gold;},
+  get goldInk() {return Colors.goldInk;},
+};
 
 export type PartyCategory = 'all' | 'music' | 'chill' | 'gaming' | 'talk' | 'study' | 'travel' | 'sports';
 export const partyCategories: {key: PartyCategory; label: string; category?: string; interest?: string}[] = [
@@ -60,11 +61,11 @@ export const startsAt = (value: string | null) => value ? new Date(value).toLoca
 export const tagClasses = (tag: string) => {
   switch (normalizeTag(tag)) {
     case 'music': return 'bg-primary-dark text-primary';
-    case 'chill': return 'bg-[#32232B] text-coral';
+    case 'chill': return 'bg-coral/15 dark:bg-[#32232B] text-coral';
     case 'gaming':
-    case 'travel': return 'bg-[#212238] text-[#B5B3E5]';
+    case 'travel': return 'bg-purple-tint dark:bg-[#212238] text-purple-soft dark:text-[#B5B3E5]';
     case 'study': return 'bg-primary-dark text-primary';
-    case 'sports': return 'bg-[#32232B] text-coral';
-    default: return 'bg-[#262331] text-[#C2BECE]';
+    case 'sports': return 'bg-coral/15 dark:bg-[#32232B] text-coral';
+    default: return 'bg-card dark:bg-[#262331] text-muted dark:text-[#C2BECE]';
   }
 };

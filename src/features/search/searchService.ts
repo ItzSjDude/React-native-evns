@@ -1,4 +1,5 @@
 import {apiRequest} from '../../core/api/apiClient';
+import {discoveryQuery, isPlusRequired, PLUS_REQUIRED_MESSAGE} from '../plus';
 import type {PersonResult, RoomResult, SearchRequestOptions} from './types';
 
 /** Both backend validators cap the term at 80 characters (`search: z.string().trim().max(80)`). */
@@ -16,7 +17,7 @@ const statusOf = (error: unknown) => (error as {status?: number} | null)?.status
 export const isSearchUnavailable = (error: unknown) => [404, 405, 501].includes(statusOf(error) ?? 0);
 
 export const searchErrorMessage = (error: unknown) =>
-  statusOf(error) === 429 ? 'You’re searching a little fast. Try again in a moment.'
+  isPlusRequired(error) ? PLUS_REQUIRED_MESSAGE : statusOf(error) === 429 ? 'You’re searching a little fast. Try again in a moment.'
     : (error as {message?: string} | null)?.message || 'Search failed. Please try again.';
 
 type PersonRow = {id: string; name: string | null; handle?: string | null; avatarUrl?: string | null; isFollowing?: boolean};
@@ -24,11 +25,12 @@ type PersonRow = {id: string; name: string | null; handle?: string | null; avata
 /**
  * People search: `GET /users/search?q=&limit=&offset=` -> `[{id, name, handle, avatarUrl, isFollowing}]`.
  * An older server without the route answers 404 and the screen shows "People search is coming soon"
- * (see `isSearchUnavailable`).
+ * (see `isSearchUnavailable`). `filters` (city, interest, language, activeNow) are Plus-only: callers pass them
+ * only for Plus users, otherwise the server answers 403 PLUS_REQUIRED.
  */
-export async function searchPeople(query: string, {limit = 20, offset = 0, signal}: SearchRequestOptions = {}): Promise<PersonResult[]> {
+export async function searchPeople(query: string, {limit = 20, offset = 0, filters, signal}: SearchRequestOptions = {}): Promise<PersonResult[]> {
   const q = encodeURIComponent(query.trim().slice(0, SEARCH_MAX_LENGTH));
-  const rows = await apiRequest<PersonRow[]>(`/users/search?q=${q}&limit=${limit}&offset=${offset}`, {auth: 'required', signal});
+  const rows = await apiRequest<PersonRow[]>(`/users/search?q=${q}&limit=${limit}&offset=${offset}${discoveryQuery(filters)}`, {auth: 'required', signal});
   return (rows ?? []).map(row => ({
     id: row.id,
     name: row.name?.trim() || 'Hiva user',

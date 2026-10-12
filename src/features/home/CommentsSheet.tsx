@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, TextInput, View} from 'react-native';
+import {ActivityIndicator, Image, Pressable, type ScrollViewInstance, TextInput, View} from 'react-native';
 import BottomSheet from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import Typography from '../../Constants/Typography';
@@ -15,6 +15,8 @@ type CommentsSheetProps = {
   onClose: () => void;
   /** Keeps the feed's comment count in sync with adds/deletes made here. */
   onCountChange: (postId: string, delta: number) => void;
+  /** Comment to scroll to and highlight, e.g. the one a notification is about. */
+  focusCommentId?: string | null;
 };
 
 const CommentAvatar = ({name, url}: {name: string; url: string | null}) => url
@@ -25,7 +27,7 @@ const CommentAvatar = ({name, url}: {name: string; url: string | null}) => url
     </View>
   );
 
-const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: CommentsSheetProps) => {
+const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange, focusCommentId}: CommentsSheetProps) => {
   const postId = post?.id ?? null;
   const [comments, setComments] = useState<HomeComment[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -36,6 +38,15 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const request = useRef(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(() => {if (!visible) scrolledTo.current = null;}, [visible]);
+  // Once the focused comment has laid out, bring it into view (only once per open).
+  const onFocusedLayout = (y: number) => {
+    if (!focusCommentId || scrolledTo.current === focusCommentId) return;
+    scrolledTo.current = focusCommentId;
+    scrollRef.current?.scrollTo({y: Math.max(0, y - 12), animated: true});
+  };
 
   const load = useCallback(async (id: string, offset: number) => {
     const token = offset === 0 ? ++request.current : request.current;
@@ -108,9 +119,9 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
   const footer = (
     <View>
       {actionError ? <Typography size={13} color={Colors.coral} className="mb-[8px]">{actionError}</Typography> : null}
-      <View className="flex-row items-end rounded-[16px] border border-border-muted bg-background px-[12px] py-[7px]">
-        <TextInput accessibilityLabel="New comment" value={draft} onChangeText={setDraft} placeholder="Write a comment..." placeholderTextColor={Colors.muted} multiline maxLength={COMMENT_BODY_MAX_LENGTH} className="max-h-[90px] min-h-[38px] flex-1 px-[2px] text-[15px] text-foreground" />
-        <Pressable accessibilityRole="button" accessibilityLabel="Add comment" accessibilityState={{disabled: saving || !draft.trim(), busy: saving}} disabled={saving || !draft.trim()} onPress={submit} className={`ml-[8px] rounded-full bg-gold px-[13px] py-[9px] active:opacity-70 ${saving || !draft.trim() ? 'opacity-50' : ''}`}>
+      <View className="min-h-[46px] flex-row items-center gap-2 rounded-[22px] border border-border-muted bg-background py-[5px] pl-4 pr-[5px]">
+        <TextInput accessibilityLabel="New comment" value={draft} onChangeText={setDraft} placeholder="Write a comment..." placeholderTextColor={Colors.muted} multiline maxLength={COMMENT_BODY_MAX_LENGTH} textAlignVertical="center" className="max-h-[90px] flex-1 px-0 py-[6px] text-[14px] text-foreground" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Add comment" accessibilityState={{disabled: saving || !draft.trim(), busy: saving}} disabled={saving || !draft.trim()} onPress={submit} className={`h-9 items-center justify-center rounded-full bg-gold px-4 active:opacity-70 ${saving || !draft.trim() ? 'opacity-50' : ''}`}>
           <Typography size={13} color={Colors.textDark} fontWeight="700">{saving ? '...' : 'Send'}</Typography>
         </Pressable>
       </View>
@@ -119,8 +130,8 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
   );
 
   return (
-    <BottomSheet visible={visible && post !== null} onClose={onClose} title="Comments" subtitle={post ? `${post.author}'s post` : null} footer={footer} maxHeight={0.78}>
-      {loading ? <ActivityIndicator accessibilityLabel="Loading comments" color={Colors.primary} className="my-[30px]" /> : null}
+    <BottomSheet visible={visible && post !== null} onClose={onClose} title="Comments" subtitle={post ? `${post.author}'s post` : null} footer={footer} maxHeight={0.78} scrollRef={scrollRef}>
+      {loading ? <ActivityIndicator accessibilityLabel="Loading comments" color={Colors.gold} className="my-[30px]" /> : null}
       {!loading && loadError ? (
         <View className="items-center py-[20px]">
           <Typography size={14} color={Colors.coral} className="text-center">{loadError}</Typography>
@@ -131,9 +142,9 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
       ) : null}
       {!loading && !loadError && comments.length === 0 ? <Typography size={14} color={Colors.muted} className="py-[28px] text-center">No comments yet. Be the first to comment.</Typography> : null}
       {comments.map(item => (
-        <View key={item.id} className="mb-[14px] flex-row">
+        <View key={item.id} className="mb-[14px] flex-row" onLayout={item.id === focusCommentId ? event => onFocusedLayout(event.nativeEvent.layout.y) : undefined}>
           <CommentAvatar name={item.author.name} url={item.author.avatarUrl} />
-          <View className="ml-[10px] flex-1 rounded-[14px] bg-[#252235] px-[12px] py-[9px]">
+          <View className={`ml-[10px] flex-1 rounded-[14px] bg-card dark:bg-[#252235] px-[12px] py-[9px] ${item.id === focusCommentId ? 'border border-gold' : ''}`}>
             <View className="flex-row items-center">
               <Typography size={13} color={Colors.text} fontWeight="600" className="shrink">{item.author.name}</Typography>
               <Typography size={11} color={Colors.muted} className="ml-[6px] flex-1">{formatRelativeTime(item.createdAt)}</Typography>
@@ -149,7 +160,7 @@ const CommentsSheet = ({visible, post, viewerId, onClose, onCountChange}: Commen
       ))}
       {!loading && hasMore && !loadError ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Load more comments" disabled={loadingMore} onPress={() => postId && load(postId, comments.length)} className="mb-[10px] items-center py-[8px] active:opacity-70">
-          {loadingMore ? <ActivityIndicator color={Colors.primary} /> : <Typography size={13} color={Colors.primary} fontWeight="600">Load more comments</Typography>}
+          {loadingMore ? <ActivityIndicator color={Colors.gold} /> : <Typography size={13} color={Colors.primary} fontWeight="600">Load more comments</Typography>}
         </Pressable>
       ) : null}
     </BottomSheet>

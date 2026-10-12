@@ -5,3 +5,4 @@ export type {FollowListSheetProps} from './FollowListSheet';
 export {followUser, unfollowUser, blockUser, unblockUser, reportUser} from './usersService';
 export {useFollowToggle, useIsFollowing, useViewerId} from './followState';
 export type {FollowListKind, FollowListUser, FollowResult, PublicUserProfile, UserPreview} from './types';
+export {Avatar} from './UserProfileItems';

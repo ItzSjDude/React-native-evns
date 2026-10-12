@@ -1,18 +1,27 @@
+import {themed} from '../../Constants/Colors';
+
 /**
- * Home feed palette, sampled from the feed design: neutral near-black surfaces (not the app's
- * purple-tinted ones), light-grey text and a lavender accent. Mirrors the `feed-*` Tailwind tokens for
- * places that need a raw colour (icons, SVG).
+ * Home feed palette, sampled from the feed design: neutral grey cards and dividers, light-grey text and a
+ * lavender accent, on the app's shared background. Mirrors the `feed-*` Tailwind tokens for places that
+ * need a raw colour (icons, SVG).
  */
-export const FeedColors = {
-  background: '#0B0B0D',
+export const FeedColors = themed({
   line: '#1A1A1F',
   card: '#17171C',
   text: '#EDEDF0',
   label: '#C4C4CB',
   muted: '#6B6B73',
   dim: '#5E5E65',
-  accent: '#988DF8',
-} as const;
+  accent: '#A78BFA',
+}, {
+  line: '#ECEBF0',
+  card: '#F4F4F7',
+  text: '#15141A',
+  label: '#3D3C44',
+  muted: '#76757E',
+  dim: '#9A99A2',
+  accent: '#6C5CE7',
+});
 
 /** Avatar tints for people without a photo, picked per name so the same person always gets the same colour. */
 const AVATAR_TINTS = [

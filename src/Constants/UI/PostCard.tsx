@@ -7,7 +7,7 @@ import IconFlag from '@tabler/icons-react-native/IconFlag';
 import IconHeart from '@tabler/icons-react-native/IconHeart';
 import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
-import IconSend from '@tabler/icons-react-native/IconSend';
+import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconTrash from '@tabler/icons-react-native/IconTrash';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../Colors';
@@ -19,7 +19,7 @@ export type PostCardData = {
   author: string;
   authorAvatarUrl?: string | null;
   /** Author has Hiva Plus; no badge when the server doesn't send it. */
-  authorIsPlus?: boolean;
+  authorShowPlusBadge?: boolean;
   time: string;
   content: string;
   likes: number;
@@ -47,9 +47,6 @@ type PostCardProps = PostCardData & {
   onToggleSave?: () => void;
   /** Rendered between the author and the ⋯ menu, e.g. a Follow button. */
   headerAction?: React.ReactNode;
-  /** The signed-in user, shown beside the "Add a reply…" prompt. */
-  viewerName?: string;
-  viewerAvatarUrl?: string | null;
 };
 
 const initialsOf = (name: string) => name.trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || '?';
@@ -97,19 +94,45 @@ const PostOptionsSheet = ({visible, confirming, reporting, canDelete, onClose, o
   </BottomSheet>
 );
 
-const ActionButton = ({icon: Icon, label, count, color, accessibilityLabel, onPress, disabled}: {
-  icon: typeof IconHeart; label?: string; count?: number; color: string; accessibilityLabel: string; onPress?: () => void; disabled?: boolean;
+const CAPTION_LINES = 3;
+
+/** Post text above the media, clamped to a few lines with a "more" toggle when it runs longer. */
+const Caption = ({text, large}: {text: string; large: boolean}) => {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const textClass = `font-body text-feed-text ${large ? 'text-[16px] leading-[23px]' : 'text-[15px] leading-[22px]'}`;
+  return (
+    <View className="mt-2.5 px-4">
+      <View>
+        <Text selectable numberOfLines={expanded ? undefined : CAPTION_LINES} className={textClass}>{text}</Text>
+        {/* Invisible full-length copy: counts the real lines so "more" only shows when text is actually cut. */}
+        {!expanded && (
+          <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none"
+            onTextLayout={event => setOverflows(event.nativeEvent.lines.length > CAPTION_LINES)}
+            className={`absolute left-0 right-0 top-0 opacity-0 ${textClass}`}>{text}</Text>
+        )}
+      </View>
+      {overflows && !expanded && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Show full post" hitSlop={6} onPress={() => setExpanded(true)} className="mt-0.5 self-start active:opacity-60">
+          <Text className="font-body-semibold text-[14px] text-feed-muted">more</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+};
+
+const ActionButton = ({icon: Icon, count, color, accessibilityLabel, onPress, disabled}: {
+  icon: typeof IconHeart; count?: number; color: string; accessibilityLabel: string; onPress?: () => void; disabled?: boolean;
 }) => (
   <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress}
     hitSlop={6} className="flex-row items-center gap-1.5 py-1.5 active:opacity-60">
     <Icon size={21} color={color} />
-    {!!label && <Text className="font-body-semibold text-[14px] text-feed-label">{label}</Text>}
     {!!count && <Text className="font-body-semibold text-[13px] text-feed-muted">{count}</Text>}
   </Pressable>
 );
 
-const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
-  onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, saved = false, onToggleSave, headerAction, viewerName = 'Me', viewerAvatarUrl}: PostCardProps) => {
+const PostCard = ({author, authorAvatarUrl, authorShowPlusBadge = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
+  onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, saved = false, onToggleSave, headerAction}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -117,9 +140,6 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
   const [activeImage, setActiveImage] = useState(0);
   const mediaWidth = screenWidth - 32;
   const hasMedia = images.length > 0;
-  const caption = !!content && (
-    <Text selectable className={`px-4 font-body text-feed-text ${hasMedia ? 'mt-3 text-[15px] leading-[22px]' : 'mt-2.5 text-[16px] leading-[23px]'}`}>{content}</Text>
-  );
 
   return (
     <View className={`border-b border-feed-line pb-4 pt-4 ${pending ? 'opacity-60' : ''}`}>
@@ -133,7 +153,7 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
             <Pressable accessibilityRole={onPressAuthor ? 'button' : undefined} accessibilityLabel={onPressAuthor ? `View ${author}'s profile` : undefined}
               disabled={!onPressAuthor} onPress={onPressAuthor} className="min-w-0 flex-1 flex-row items-center active:opacity-70">
               <Text numberOfLines={1} className="shrink font-body-semibold text-[16px] text-feed-text">{author}</Text>
-              {authorIsPlus && <PlusBadge />}
+              {authorShowPlusBadge && <PlusBadge />}
             </Pressable>
             <View className="flex-row items-center">
               {headerAction}
@@ -151,7 +171,7 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
         </View>
       </View>
 
-      {!hasMedia && caption}
+      {!!content && <Caption text={content} large={!hasMedia} />}
 
       {hasMedia && (
         <View className="mx-4 mt-3 overflow-hidden rounded-2xl" style={[styles.media, {width: mediaWidth, height: mediaWidth / 1.28}]}>
@@ -170,10 +190,10 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
 
       <View className="mt-3.5 flex-row items-center justify-between px-4">
         <View className="flex-row items-center gap-6">
-          <ActionButton icon={likedByViewer ? IconHeartFilled : IconHeart} label="Like" count={likes} color={likedByViewer ? Colors.coral : FeedColors.label}
+          <ActionButton icon={likedByViewer ? IconHeartFilled : IconHeart} count={likes} color={likedByViewer ? Colors.coral : FeedColors.label}
             accessibilityLabel={likedByViewer ? 'Unlike post' : 'Like post'} onPress={onToggleLike} disabled={pending} />
-          <ActionButton icon={IconMessageCircle} label="Reply" count={comments} color={FeedColors.label} accessibilityLabel="View comments" onPress={onOpenComments} disabled={pending} />
-          <ActionButton icon={IconSend} color={FeedColors.label} accessibilityLabel="Share post" onPress={onShare} disabled={pending || !onShare} />
+          <ActionButton icon={IconMessageCircle} count={comments} color={FeedColors.label} accessibilityLabel="View comments" onPress={onOpenComments} disabled={pending} />
+          <ActionButton icon={IconShare3} color={FeedColors.label} accessibilityLabel="Share post" onPress={onShare} disabled={pending || !onShare} />
         </View>
         {onToggleSave && !pending && (
           <Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Remove from saved' : 'Save post'} accessibilityState={{selected: saved}} onPress={onToggleSave}
@@ -182,17 +202,6 @@ const PostCard = ({author, authorAvatarUrl, authorIsPlus = false, time, content,
           </Pressable>
         )}
       </View>
-
-      {hasMedia && caption}
-
-      {!pending && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a reply" onPress={onOpenComments} className="mt-3 flex-row items-center gap-2.5 px-4 active:opacity-70">
-          <Avatar name={viewerName} url={viewerAvatarUrl} size={28} tint={{background: '#1F2A21', text: '#A0C367'}} />
-          <View className="flex-1 rounded-full border border-feed-line bg-feed-card/60 px-3.5 py-1.5">
-            <Text className="font-body text-[13px] text-feed-dim">Add a reply…</Text>
-          </View>
-        </Pressable>
-      )}
 
       <PostOptionsSheet visible={menuVisible} confirming={confirmingDelete} reporting={reporting} canDelete={canDelete && !!onDelete} onClose={() => setMenuVisible(false)}
         onConfirmStep={() => setConfirmingDelete(true)} onReportStep={() => setReporting(true)} onDelete={onDelete} onReport={onReport} />

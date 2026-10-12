@@ -7,6 +7,8 @@ import {
 import {buildPlanOptions, type SubscriptionProductLike} from './pricing';
 import {verifyGooglePlayPurchase} from './plusService';
 import {setSubscription} from './plusStore';
+import {refreshProfileThemes} from './profileThemeStore';
+import {verifyThemePurchase, type ThemePurchaseOutcome} from './profileThemeService';
 import type {BillingError, BillingErrorKind, PlanOption, PurchaseOutcome, Subscription, SubscriptionPlanRef} from './types';
 
 /**
@@ -14,6 +16,7 @@ import type {BillingError, BillingErrorKind, PlanOption, PurchaseOutcome, Subscr
  * purchase listener and are posted to our backend, which verifies AND acknowledges them. The app never
  * acknowledges or consumes: on Android react-native-iap's `finishTransaction({isConsumable: false})` is
  * exactly an acknowledge call, so it is deliberately not used here (the backend contract forbids it).
+ * The same holds for permanent theme packs (one-time products): the backend verifies, acknowledges and revokes on refund.
  */
 
 export const UNAVAILABLE_MESSAGE = 'Purchases aren’t available on this device';
@@ -32,6 +35,16 @@ const MESSAGES: Record<BillingErrorKind, string> = {
   unknown: 'Something went wrong with Google Play. Please try again.',
 };
 
+/** Theme packs are one-time products with their own copy; everything else falls back to the subscription messages. */
+const THEME_MESSAGES: OneTimeMessages = {
+  alreadyOwned: 'You already own this theme. Tap “Restore theme purchases” to link it.',
+  pending: 'Your payment is pending. The theme unlocks as soon as Google Play confirms it.',
+  tokenInUse: 'This Google Play purchase is already linked to another Hiva account.',
+  disabled: 'Theme packs aren’t available right now.',
+  notFound: 'No theme purchases were found on this Google account.',
+};
+
+type OneTimeMessages = Partial<Record<BillingErrorKind, string>>;
 const billingError = (kind: BillingErrorKind, message = MESSAGES[kind]): BillingError => ({kind, message});
 
 const UNAVAILABLE_CODES = new Set(['billing-unavailable', 'iap-not-available', 'init-connection', 'feature-not-supported', 'service-disconnected', 'connection-closed', 'not-prepared']);
@@ -54,20 +67,41 @@ export function toBillingError(error: unknown): BillingError {
   return billingError('unknown');
 }
 
+/** Like `toBillingError` for one-time purchases: 409 (another account/product), 404 (disabled), 503 (Play not configured), 400 (not complete). */
+function toOneTimeError(error: unknown, messages: OneTimeMessages): BillingError {
+  const status = (error as {status?: unknown} | null)?.status;
+  const kind: BillingErrorKind | null = status === 409 ? 'tokenInUse' : status === 404 || status === 503 ? 'disabled' : status === 400 ? 'invalid' : null;
+  const base = kind ? billingError(kind) : toBillingError(error);
+  return billingError(base.kind, messages[base.kind] ?? base.message);
+}
+
+export const toThemeBillingError = (error: unknown) => toOneTimeError(error, THEME_MESSAGES);
+
 export function isBillingError(error: unknown): error is BillingError {
   const value = error as BillingError | null;
   return !!value && typeof value === 'object' && typeof value.kind === 'string' && typeof value.message === 'string' && value.kind in MESSAGES;
 }
 
-type Waiter = {productId: string; resolve: (outcome: PurchaseOutcome) => void; reject: (error: BillingError) => void};
+/**
+ * A one-time product owned by another feature (paid rooms). `verify` posts the token to that feature's endpoint, which
+ * verifies AND acknowledges it; this module still never finishes a transaction. `messages` are that feature's copy.
+ */
+export type OneTimeProduct = {verify: (productId: string, purchaseToken: string) => Promise<void>; messages: OneTimeMessages};
+export type OneTimeOutcome = {status: 'owned'} | {status: 'pending'};
+
+type Waiter = {productId: string; resolve: (outcome: PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome) => void; reject: (error: BillingError) => void};
 
 let connection: Promise<boolean> | null = null;
 let subscriptions: EventSubscription[] = [];
 let waiter: Waiter | null = null;
+/** Theme pack product ids seen this session: their purchases go to the theme endpoint, not the subscription one. */
+const themeProducts = new Set<string>();
+/** Feature-owned one-time products seen this session (see `OneTimeProduct`). */
+const oneTimeProducts = new Map<string, OneTimeProduct>();
 /** Tokens already sent to the backend in this session, so replays from Play aren't posted twice. */
 const handledTokens = new Set<string>();
 
-const settle = (productId: string, result: {outcome?: PurchaseOutcome; error?: BillingError}) => {
+const settle = (productId: string, result: {outcome?: PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome; error?: BillingError}) => {
   if (!waiter || waiter.productId !== productId) return;
   const current = waiter;
   waiter = null;
@@ -85,6 +119,32 @@ async function syncPurchase(purchase: Purchase): Promise<Subscription> {
   return subscription;
 }
 
+/** Posts one theme purchase (the backend acknowledges it), then refetches the catalog so ownership shows everywhere. */
+async function syncThemePurchase(purchase: Purchase): Promise<string> {
+  const token = purchase.purchaseToken;
+  if (!token) throw billingError('verifyFailed');
+  const result = await verifyThemePurchase(purchase.productId, token);
+  if (!result.owned) throw billingError('invalid', THEME_MESSAGES.invalid);
+  handledTokens.add(token);
+  await refreshProfileThemes();
+  return result.themeId;
+}
+
+/** Posts one feature-owned one-time purchase; the caller refetches its own entitlement afterwards. */
+async function syncOneTimePurchase(purchase: Purchase, product: OneTimeProduct): Promise<OneTimeOutcome> {
+  const token = purchase.purchaseToken;
+  if (!token) throw billingError('verifyFailed');
+  await product.verify(purchase.productId, token);
+  handledTokens.add(token);
+  return {status: 'owned'};
+}
+
+const toError = (productId: string, error: unknown) => {
+  const custom = oneTimeProducts.get(productId);
+  if (custom) return toOneTimeError(error, custom.messages);
+  return themeProducts.has(productId) ? toThemeBillingError(error) : toBillingError(error);
+};
+
 async function onPurchaseUpdated(purchase: Purchase) {
   if (purchase.purchaseState === 'pending') {
     settle(purchase.productId, {outcome: {status: 'pending'}});
@@ -93,16 +153,21 @@ async function onPurchaseUpdated(purchase: Purchase) {
   if (purchase.purchaseState !== 'purchased' || !purchase.purchaseToken) return;
   if (handledTokens.has(purchase.purchaseToken) && !waiter) return;
   try {
-    const subscription = await syncPurchase(purchase);
-    settle(purchase.productId, {outcome: {status: 'active', subscription}});
+    const custom = oneTimeProducts.get(purchase.productId);
+    const outcome: PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome = custom
+      ? await syncOneTimePurchase(purchase, custom)
+      : themeProducts.has(purchase.productId)
+        ? {status: 'owned', themeId: await syncThemePurchase(purchase)}
+        : {status: 'active', subscription: await syncPurchase(purchase)};
+    settle(purchase.productId, {outcome});
   } catch (error) {
-    settle(purchase.productId, {error: toBillingError(error)});
+    settle(purchase.productId, {error: toError(purchase.productId, error)});
   }
 }
 
 function onPurchaseError(error: PurchaseError) {
   if (!waiter) return;
-  settle(waiter.productId, {error: toBillingError(error)});
+  settle(waiter.productId, {error: toError(waiter.productId, error)});
 }
 
 /** Opens the Play connection and attaches listeners once. Resolves false when this device can't buy. */
@@ -135,6 +200,8 @@ export async function disconnectBilling() {
   connection = null;
   if (waiter) settle(waiter.productId, {error: billingError('cancelled')});
   handledTokens.clear();
+  themeProducts.clear();
+  oneTimeProducts.clear();
   if (wasConnected) await endConnection().catch(() => {});
 }
 
@@ -150,38 +217,92 @@ export async function loadPlanOptions(plans: SubscriptionPlanRef[]): Promise<Pla
   }
 }
 
-/**
- * Starts the Play purchase sheet for one base plan offer and resolves once the backend has verified
- * the purchase (or Play reports it pending). Rejects with a `BillingError`.
- */
-export async function purchasePlan(option: PlanOption): Promise<PurchaseOutcome> {
+/** Opens the Play purchase sheet and resolves once the backend has verified the purchase (or Play reports it pending). */
+async function runPurchase<T extends PurchaseOutcome | ThemePurchaseOutcome | OneTimeOutcome>(productId: string, request: Parameters<typeof requestPurchase>[0]): Promise<T> {
   if (!(await connectBilling())) throw billingError('unavailable');
   if (waiter) throw billingError('unknown', 'A purchase is already in progress.');
-  const result = new Promise<PurchaseOutcome>((resolve, reject) => {waiter = {productId: option.productId, resolve, reject};});
+  const result = new Promise<T>((resolve, reject) => {waiter = {productId, resolve: resolve as Waiter['resolve'], reject};});
   try {
-    await requestPurchase({
-      type: 'subs',
-      request: {google: {skus: [option.productId], subscriptionOffers: [{sku: option.productId, offerToken: option.offerToken}]}},
-    });
+    await requestPurchase(request);
   } catch (error) {
-    settle(option.productId, {error: toBillingError(error)});
+    settle(productId, {error: toError(productId, error)});
   }
   return result;
 }
 
-/**
- * Re-links subscriptions this Google account already owns: every active Hiva subscription purchase is
- * posted to the backend and finished. Rejects with `notFound` when there is nothing to restore.
- */
-export async function restorePurchases(productIds: string[]): Promise<Subscription> {
+/** Starts the subscription purchase for one base plan offer. Rejects with a `BillingError`. */
+export const purchasePlan = (option: PlanOption) => runPurchase<PurchaseOutcome>(option.productId, {
+  type: 'subs',
+  request: {google: {skus: [option.productId], subscriptionOffers: [{sku: option.productId, offerToken: option.offerToken}]}},
+});
+
+/** Play's localized price per permanent theme product (`{productId: '₹49'}`); a product Play doesn't know is left out. */
+export async function loadThemePrices(productIds: string[]): Promise<Record<string, string>> {
   if (!(await connectBilling())) throw billingError('unavailable');
-  let purchases: Purchase[];
+  productIds.forEach(id => themeProducts.add(id));
   try {
-    purchases = await getAvailablePurchases();
+    const products = await fetchProducts({skus: productIds, type: 'in-app'});
+    return Object.fromEntries((products ?? []).map(product => [product.id, product.displayPrice]));
+  } catch (error) {
+    throw toThemeBillingError(error);
+  }
+}
+
+/** Buys one permanent theme pack (one-time product). Resolves `owned` after the backend verified it. */
+export function purchaseTheme(productId: string) {
+  themeProducts.add(productId);
+  return runPurchase<ThemePurchaseOutcome>(productId, {type: 'in-app', request: {google: {skus: [productId]}}});
+}
+
+/** Play's localized price of one feature-owned one-time product, or null when Play doesn't know it. */
+export async function loadOneTimePrice(productId: string, product: OneTimeProduct): Promise<string | null> {
+  if (!(await connectBilling())) throw billingError('unavailable');
+  oneTimeProducts.set(productId, product);
+  try {
+    const products = await fetchProducts({skus: [productId], type: 'in-app'});
+    return products?.find(item => item.id === productId)?.displayPrice ?? null;
+  } catch (error) {
+    throw toOneTimeError(error, product.messages);
+  }
+}
+
+/** Buys one feature-owned one-time product. Resolves `owned` only after the feature's backend verified the token. */
+export function purchaseOneTime(productId: string, product: OneTimeProduct) {
+  oneTimeProducts.set(productId, product);
+  return runPurchase<OneTimeOutcome>(productId, {type: 'in-app', request: {google: {skus: [productId]}}});
+}
+
+/** Re-posts this Google account's purchase of a feature-owned product. Rejects with `notFound` when Play has none. */
+export async function restoreOneTime(productId: string, product: OneTimeProduct): Promise<void> {
+  oneTimeProducts.set(productId, product);
+  const ours = await ownedPurchases([productId]);
+  if (!ours.length) throw billingError('notFound', product.messages.notFound);
+  let failure: unknown = null;
+  let restored = false;
+  for (const purchase of ours) {
+    try {await syncOneTimePurchase(purchase, product); restored = true;}
+    catch (error) {failure = error;}
+  }
+  if (!restored) throw toOneTimeError(failure, product.messages);
+}
+
+/** Completed Play purchases of this Google account for the given products. */
+async function ownedPurchases(productIds: string[]): Promise<Purchase[]> {
+  if (!(await connectBilling())) throw billingError('unavailable');
+  try {
+    const purchases = await getAvailablePurchases();
+    return purchases.filter(purchase => productIds.includes(purchase.productId) && purchase.purchaseState === 'purchased' && !!purchase.purchaseToken);
   } catch (error) {
     throw toBillingError(error);
   }
-  const ours = purchases.filter(purchase => productIds.includes(purchase.productId) && purchase.purchaseState === 'purchased' && !!purchase.purchaseToken);
+}
+
+/**
+ * Re-links subscriptions this Google account already owns: every active Hiva subscription purchase is
+ * posted to the backend, which verifies and acknowledges it. Rejects with `notFound` when there is nothing to restore.
+ */
+export async function restorePurchases(productIds: string[]): Promise<Subscription> {
+  const ours = await ownedPurchases(productIds);
   if (!ours.length) throw billingError('notFound');
   let latest: Subscription | null = null;
   let failure: unknown = null;
@@ -191,6 +312,21 @@ export async function restorePurchases(productIds: string[]): Promise<Subscripti
   }
   if (latest) return latest;
   throw toBillingError(failure);
+}
+
+/** Re-posts the permanent themes this Google account owns; resolves with the theme ids the backend confirmed. */
+export async function restoreThemePurchases(productIds: string[]): Promise<string[]> {
+  productIds.forEach(id => themeProducts.add(id));
+  const ours = await ownedPurchases(productIds);
+  if (!ours.length) throw billingError('notFound', THEME_MESSAGES.notFound);
+  const restored: string[] = [];
+  let failure: unknown = null;
+  for (const purchase of ours) {
+    try {restored.push(await syncThemePurchase(purchase));}
+    catch (error) {failure = error;}
+  }
+  if (restored.length) return restored;
+  throw toThemeBillingError(failure);
 }
 
 /**
@@ -213,4 +349,6 @@ export function resetBillingForTests() {
   connection = null;
   waiter = null;
   handledTokens.clear();
+  themeProducts.clear();
+  oneTimeProducts.clear();
 }

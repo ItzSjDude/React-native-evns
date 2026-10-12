@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Share, Text, View} from 'react-native';
+import {ActivityIndicator, FlatList, Pressable, RefreshControl, Share, Text, View} from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import {Colors} from '../../Constants/Colors';
@@ -16,8 +17,7 @@ import {FeedColors} from './feedTheme';
 import {useSavedPosts} from './savedPosts';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
-import {EventDetailSheet, EventsScreen} from '../events';
-import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
+import {EventDetailSheet, EventsList} from '../events';
 import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
@@ -50,7 +50,8 @@ const Home = () => {
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState('');
   const [composeError, setComposeError] = useState<string | null>(null);
-  const [scope, setScope] = useState<FeedScope>('all');
+  // The selected header tab: a feed scope, or the inline events list.
+  const [tab, setTab] = useState<FeedScope | 'events'>('all');
   const scopeRef = useRef<FeedScope>('all');
   const [topIndex, setTopIndex] = useState(0);
   const {saved: savedPosts, toggle: toggleSaved} = useSavedPosts();
@@ -121,14 +122,16 @@ const Home = () => {
       if (reactions) updatePost(post.id, item => ({...item, likedByViewer: reactions.viewerHasLiked, likes: reactions.likeCount}));
     } catch (cause) {
       updatePost(post.id, item => ({...item, likedByViewer: post.likedByViewer, likes: post.likes}));
-      Alert.alert('Could not update like', messageOf(cause));
+      showDialog('Could not update like', messageOf(cause));
     } finally {
       likesInFlight.current.delete(post.id);
     }
   };
 
-  const openComments = (post: HomePost) => {
+  const [focusCommentId, setFocusCommentId] = useState<string | null>(null);
+  const openComments = (post: HomePost, commentId: string | null = null) => {
     setCommentsPost(post);
+    setFocusCommentId(commentId);
     setCommentsVisible(true);
   };
 
@@ -144,19 +147,23 @@ const Home = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
-  const [eventsOpen, setEventsOpen] = useState(false);
   const navigation = useNavigation<{navigate: (route: string) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
-    if (target.kind === 'user' && 'id' in target) {setViewing({id: target.id, initial: {name: 'Hiva user', avatarUrl: null}}); return true;}
+    if (target.kind === 'user' && 'id' in target) {
+      // Social notifications carry the actor's name and photo, so the profile opens with them instead of a placeholder.
+      const actor = target.data.actorId === target.id ? target.data : {};
+      setViewing({id: target.id, initial: {name: actor.actorName || 'Hiva user', avatarUrl: actor.actorAvatarUrl || null}});
+      return true;
+    }
     if (target.kind === 'conversation') {navigation.navigate('Chat'); return true;}
     if (target.kind === 'event' && 'id' in target) {setEventId(target.id); return true;}
     if (target.kind === 'party' && 'id' in target) {
-      getPartyRoom(target.id).then(snapshot => setPreviewRoom(snapshot.party)).catch(() => Alert.alert('Room not available', 'This party has ended or is no longer open.'));
+      getPartyRoom(target.id).then(snapshot => setPreviewRoom(snapshot.party)).catch(() => showDialog('Room not available', 'This party has ended or is no longer open.'));
       return true;
     }
     if (target.kind === 'post' && 'id' in target) {
-      getPost(target.id).then(openComments).catch(() => Alert.alert('Post not available', 'This post was removed or you can no longer see it.'));
+      getPost(target.id).then(post => openComments(post, target.data.commentId || null)).catch(() => showDialog('Post not available', 'This post was removed or you can no longer see it.'));
       return true;
     }
     return false;
@@ -200,21 +207,22 @@ const Home = () => {
         next.splice(Math.min(Math.max(index, 0), next.length), 0, post);
         return next;
       });
-      Alert.alert('Could not delete post', messageOf(cause));
+      showDialog('Could not delete post', messageOf(cause));
     }
   };
 
   const report = async (post: HomePost, reason: string) => {
     try {
       await reportPost(post.id, reason);
-      Alert.alert('Report received', 'Thanks for helping keep Hiva safe. Our team will review it.');
-    } catch (cause) {Alert.alert('Could not send report', messageOf(cause));}
+      showDialog('Report received', 'Thanks for helping keep Hiva safe. Our team will review it.');
+    } catch (cause) {showDialog('Could not send report', messageOf(cause));}
   };
 
   const changeScope = (next: FeedScope) => {
+    setTab(next);
+    // Coming back from Events to the same scope keeps the loaded feed and its scroll position.
     if (next === scopeRef.current) return;
     scopeRef.current = next;
-    setScope(next);
     setPosts([]);
     setNextCursor(null);
     setHasMore(false);
@@ -248,33 +256,27 @@ const Home = () => {
   const topBar = (
     <View>
       <View className="flex-row items-center justify-between px-[19px] pb-1 pt-3">
-        <Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-feed-text">hiva<Text className="text-feed-accent">.</Text></Text>
+        <Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-feed-text">hiva<Text className="text-feed-accent">chat.</Text></Text>
         <View className="flex-row items-center">
-          <Pressable accessibilityRole="button" accessibilityLabel="Events" onPress={() => setEventsOpen(true)} hitSlop={4} className="h-11 w-11 items-center justify-center active:opacity-60">
-            <IconCalendarEvent size={23} color={FeedColors.label} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={4}
+            className="mr-1 h-9 flex-row items-center gap-1 rounded-full bg-gold pl-2.5 pr-3.5 active:opacity-80">
+            <IconPlus size={18} color={Colors.goldInk} />
+            <Text className="font-body-semibold text-[14px] text-gold-ink">Post</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-11 w-11 items-center justify-center active:opacity-60">
+            <IconSearch size={23} color={FeedColors.label} />
           </Pressable>
           <NotificationsBell dot size={23} color={FeedColors.label} />
         </View>
       </View>
-      <View className="flex-row items-end justify-between border-b border-feed-line px-[19px]">
-        <View accessibilityRole="tablist" className="flex-row gap-[26px]">
-          {([['all', 'For you'], ['following', 'Following']] as const).map(([key, label]) => {
-            const selected = scope === key;
-            return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => changeScope(key)} className="pb-3 pt-2 active:opacity-70">
-              <Text className={`font-body-semibold text-[17px] ${selected ? 'text-feed-text' : 'text-feed-muted'}`}>{label}</Text>
-              {selected && <View className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-feed-accent" />}
-            </Pressable>;
-          })}
-        </View>
-        {/* Not in the feed design, but search and posting need an entry point; they sit in the tab row's free space. */}
-        <View className="flex-row items-center pb-1">
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
-            <IconSearch size={21} color={FeedColors.muted} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={4} className="h-10 w-10 items-center justify-center active:opacity-60">
-            <IconPlus size={22} color={FeedColors.accent} />
-          </Pressable>
-        </View>
+      <View accessibilityRole="tablist" className="flex-row gap-[26px] border-b border-feed-line px-[19px]">
+        {([['all', 'For you'], ['following', 'Following'], ['events', 'Events']] as const).map(([key, label]) => {
+          const selected = tab === key;
+          return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => key === 'events' ? setTab(key) : changeScope(key)} className="pb-3 pt-2 active:opacity-70">
+            <Text className={`font-body-semibold text-[17px] ${selected ? 'text-feed-text' : 'text-feed-muted'}`}>{label}</Text>
+            {selected && <View className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-feed-accent" />}
+          </Pressable>;
+        })}
       </View>
     </View>
   );
@@ -286,7 +288,7 @@ const Home = () => {
   ) : null;
 
   const empty = loading ? (
-    <View className="items-center pt-16"><ActivityIndicator accessibilityLabel="Loading feed" color={Colors.primary} /></View>
+    <View className="items-center pt-16"><ActivityIndicator accessibilityLabel="Loading feed" color={Colors.gold} /></View>
   ) : error ? (
     <View className="items-center px-6 pt-16">
       <Typography size={16} color={Colors.text} fontWeight="600" className="text-center">Couldn't load your feed</Typography>
@@ -298,27 +300,30 @@ const Home = () => {
   ) : (
     <View className="items-center px-6 pt-16">
       <AppIcon name="comment" size={44} color={Colors.muted} filled={false} />
-      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">{scope === 'following' ? 'Nothing here yet' : 'No posts yet'}</Typography>
-      <Typography size={14} color={Colors.muted} className="mt-2 text-center">{scope === 'following' ? 'Follow people and their posts will show up here.' : 'Be the first to share something with everyone.'}</Typography>
+      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">{tab === 'following' ? 'Nothing here yet' : 'No posts yet'}</Typography>
+      <Typography size={14} color={Colors.muted} className="mt-2 text-center">{tab === 'following' ? 'Follow people and their posts will show up here.' : 'Be the first to share something with everyone.'}</Typography>
     </View>
   );
 
-  const footer = loadingMore ? <ActivityIndicator className="my-4" color={Colors.primary} /> : moreError ? (
+  const footer = loadingMore ? <ActivityIndicator className="my-4" color={Colors.gold} /> : moreError ? (
     <Pressable accessibilityRole="button" accessibilityLabel="Retry loading more posts" onPress={() => load('more', nextCursor)} className="my-4 items-center active:opacity-70">
       <Typography size={13} color={Colors.coral}>Couldn't load more posts. Tap to retry.</Typography>
     </Pressable>
   ) : undefined;
 
   const viewerId = viewer?.id ?? null;
-  return <SafeAreaView className="flex-1 bg-feed-bg" edges={['top']}>
+  return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     {topBar}
+    {tab === 'events' && <EventsList />}
+    {/* Hidden rather than unmounted under Events, so the feed keeps its posts and scroll and can't refresh or paginate. */}
+    <View className={tab === 'events' ? 'hidden' : 'flex-1'}>
     <FlatList
       ref={listRef}
       data={posts}
       extraData={viewerId}
       keyExtractor={item => item.id}
       renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
-        onReport={reason => report(item, reason)} onShare={() => sharePost(item)} viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl}
+        onReport={reason => report(item, reason)} onShare={() => sharePost(item)}
         saved={savedPosts.has(item.id)} onToggleSave={() => toggleSaved(item.id)}
         headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
         onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
@@ -327,22 +332,24 @@ const Home = () => {
       ListHeaderComponent={listHeader ?? undefined}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={FeedColors.accent} colors={[FeedColors.accent]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       onViewableItemsChanged={onViewableItemsChanged}
       viewabilityConfig={VIEWABILITY}
       onScrollToIndexFailed={({index, averageItemLength}) => listRef.current?.scrollToOffset({offset: index * averageItemLength, animated: true})}
     />
-    {posts.length > 1 && topIndex < posts.length - 1 && (
+    </View>
+    {tab !== 'events' && posts.length > 1 && topIndex < posts.length - 1 && (
       <Pressable accessibilityRole="button" accessibilityLabel="Next post" onPress={nextPost}
         className="absolute bottom-[112px] h-[44px] w-[44px] items-center justify-center self-center rounded-full border border-feed-line bg-feed-card shadow-lg active:opacity-70">
         <IconArrowDown size={21} color={FeedColors.label} />
       </Pressable>
     )}
-    <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount} />
-    <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost} />
-    <EventsScreen visible={eventsOpen} onClose={() => setEventsOpen(false)} />
+    <CommentsSheet visible={commentsVisible} post={commentsPost} viewerId={viewerId} onClose={() => setCommentsVisible(false)} onCountChange={changeCommentCount}
+      focusCommentId={focusCommentId} />
+    <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost}
+      viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl} />
     <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} />
     <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
     {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}

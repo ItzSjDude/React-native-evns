@@ -25,7 +25,7 @@ export const toPostCardData = (post: HomePost, viewerId: string | null, now = Da
   id: post.id,
   author: post.author,
   authorAvatarUrl: post.authorAvatarUrl,
-  authorIsPlus: post.authorIsPlus,
+  authorShowPlusBadge: post.authorShowPlusBadge,
   time: post.pending ? 'Posting...' : formatRelativeTime(post.createdAt, now),
   content: post.content,
   images: post.images,

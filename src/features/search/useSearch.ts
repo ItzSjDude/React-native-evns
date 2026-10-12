@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
+import type {DiscoveryFilters} from '../plus';
 import {isSearchUnavailable, searchErrorMessage, searchPeople, searchRooms, SEARCH_MAX_LENGTH} from './searchService';
 import type {SearchResults, SearchSection} from './types';
 
@@ -15,10 +16,10 @@ const failed = <T,>(error: unknown, canBeMissing: boolean): SearchSection<T> => 
 export const normalizeQuery = (input: string) => input.trim().slice(0, SEARCH_MAX_LENGTH);
 
 /**
- * Debounced people + rooms search for `input`. Each new query (or unmount) aborts the previous
+ * Debounced people + rooms search for `input` (`filters` narrow people only; pass a stable object). Each new query (or unmount) aborts the previous
  * requests through apiRequest's `signal`, and late responses for an old query are dropped.
  */
-export function useSearch(input: string, {enabled = true, debounceMs = SEARCH_DEBOUNCE_MS} = {}) {
+export function useSearch(input: string, {enabled = true, debounceMs = SEARCH_DEBOUNCE_MS, filters}: {enabled?: boolean; debounceMs?: number; filters?: DiscoveryFilters} = {}) {
   const [results, setResults] = useState<SearchResults>(IDLE);
   const [attempt, setAttempt] = useState(0);
   const query = enabled ? normalizeQuery(input) : '';
@@ -38,7 +39,7 @@ export function useSearch(input: string, {enabled = true, debounceMs = SEARCH_DE
       const apply = (patch: Partial<Pick<SearchResults, 'people' | 'rooms'>>) => {
         if (!signal.aborted) setResults(previous => previous.query === query ? {...previous, ...patch} : previous);
       };
-      searchPeople(query, {limit: RESULT_LIMIT, signal}).then(
+      searchPeople(query, {limit: RESULT_LIMIT, filters, signal}).then(
         items => apply({people: {status: 'success', items, error: null}}),
         error => apply({people: failed(error, true)}));
       searchRooms(query, {limit: RESULT_LIMIT, signal}).then(
@@ -49,7 +50,7 @@ export function useSearch(input: string, {enabled = true, debounceMs = SEARCH_DE
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, debounceMs, attempt]);
+  }, [query, debounceMs, attempt, filters]);
 
   const retry = useCallback(() => setAttempt(value => value + 1), []);
   /** Drop a person locally, e.g. after the viewer blocks them from their profile. */

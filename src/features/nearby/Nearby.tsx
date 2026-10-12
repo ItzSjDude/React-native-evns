@@ -6,15 +6,20 @@ import IconEyeOff from '@tabler/icons-react-native/IconEyeOff';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconRadar from '@tabler/icons-react-native/IconRadar';
+import IconLock from '@tabler/icons-react-native/IconLock';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
+import {DiscoveryFilterBar, openPaywall, usePlus, type DiscoveryFilters} from '../plus';
 import {UserProfileModal, type UserPreview} from '../users';
 import {getDeviceLocation} from './deviceLocation';
 import {distanceLabel, MIN_RADIUS_METERS} from './distance';
 import {isRateLimited, nearbyErrorMessage} from './nearbyErrors';
+import PassportResults from './PassportResults';
+import PresetsBar from './PresetsBar';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
-import type {NearbyPerson} from './types';
+import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
+import VibeNotesList from './VibeNotesList';
 
 // Nothing below the server's 500 m minimum.
 const radii = ([
@@ -25,7 +30,8 @@ const radii = ([
 
 const messageOf = nearbyErrorMessage;
 
-type OpenChat = {id: string; person: NearbyPerson};
+type Chatter = Pick<NearbyPerson, 'id' | 'name' | 'avatarUrl'>;
+type OpenChat = {id: string; person: Chatter};
 
 const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPerson; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
   <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={onOpenProfile} className="mb-3 flex-row items-center rounded-[20px] bg-card px-4 py-4 active:opacity-70">
@@ -44,7 +50,7 @@ const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPer
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} onPress={onPress} disabled={opening} hitSlop={6}
       className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-primary-dark active:opacity-70">
-      {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <IconMessageCircle size={21} color={Colors.primary} />}
+      {opening ? <ActivityIndicator size="small" color={Colors.gold} /> : <IconMessageCircle size={21} color={Colors.primary} />}
     </Pressable>
   </Pressable>
 );
@@ -62,10 +68,17 @@ const Nearby = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const {enabled: plusEnabled, isPlus} = usePlus();
+  const [mode, setMode] = useState<DiscoveryPresetMode>('NEARBY');
+  const [passportCity, setPassportCity] = useState('');
+  const [filters, setFilters] = useState<DiscoveryFilters>({});
   const request = useRef(0);
   const positionInFlight = useRef<Promise<boolean> | null>(null);
   const radiusRef = useRef(radius);
   const visibleRef = useRef(visible);
+  // Free users never send filters (the server would answer 403 PLUS_REQUIRED).
+  const filtersRef = useRef<DiscoveryFilters | undefined>(undefined);
+  filtersRef.current = isPlus ? filters : undefined;
   radiusRef.current = radius;
   visibleRef.current = visible;
 
@@ -74,7 +87,7 @@ const Nearby = () => {
     if (pull) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const results = await getNearbyPeople(meters);
+      const results = await getNearbyPeople(meters, filtersRef.current);
       if (id === request.current) setPeople(results);
     } catch (cause) {
       if (id === request.current) setError(messageOf(cause));
@@ -106,8 +119,9 @@ const Nearby = () => {
     else setLocationNotice(messageOf(cause));
   }, []);
 
+  // Social Passport never reads or sends the device location, so none of this runs while it is on.
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || mode === 'PASSPORT') return;
     let active = true;
     const requestRef = request;
     (async () => {
@@ -135,7 +149,27 @@ const Nearby = () => {
       catch (cause) { if (active) reportPositionError(cause); }
     }, 5 * 60 * 1000);
     return () => { active = false; clearInterval(timer); requestRef.current++; };
-  }, [isFocused, loadPeople, reportPositionError, updatePosition]);
+  }, [isFocused, loadPeople, mode, reportPositionError, updatePosition]);
+
+  // Passport is Plus-only: fall back if the plan lapses while it is open.
+  useEffect(() => { if (mode === 'PASSPORT' && !isPlus) setMode('NEARBY'); }, [isPlus, mode]);
+
+  const chooseMode = (next: DiscoveryPresetMode) => {
+    if (next === 'PASSPORT' && !isPlus) { openPaywall('passport'); return; }
+    setMode(next);
+  };
+
+  const applyPreset = (preset: DiscoveryPreset) => {
+    const next: DiscoveryFilters = {interest: preset.interest ?? undefined, language: preset.language ?? undefined, activeNow: preset.activeNow || undefined};
+    filtersRef.current = next;
+    setFilters(next);
+    setRadius(preset.radiusMeters);
+    radiusRef.current = preset.radiusMeters;
+    if (preset.mode === 'PASSPORT') setPassportCity(preset.city ?? '');
+    // Switching from Passport reruns the location effect, which loads the list itself.
+    else if (mode === 'NEARBY' && visibleRef.current) loadPeople(preset.radiusMeters);
+    setMode(preset.mode);
+  };
 
   const toggleVisibility = async () => {
     if (busy) return;
@@ -182,7 +216,7 @@ const Nearby = () => {
     finally { setBusy(false); }
   };
 
-  const openConversation = async (person: NearbyPerson) => {
+  const openConversation = async (person: Chatter) => {
     if (openingId) return;
     setOpeningId(person.id);
     setError(null);
@@ -220,19 +254,35 @@ const Nearby = () => {
   const showList = visible === true;
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-5 pt-5">
-        <Text className="text-[30px] font-bold text-foreground">Nearby</Text>
-        <Text className="mt-1 text-sm text-muted">Find people around you</Text>
+      <View className="px-5 pt-3">
+        {/* Same size and position as the Home header. */}
+        <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Nearby</Text></View>
+        <Text className="mt-1 text-sm text-muted">{mode === 'PASSPORT' ? 'Meet people in another city' : 'Find people around you'}</Text>
+        {plusEnabled && <View className="mt-4 gap-3">
+          <View className="flex-row gap-2">
+            {(['NEARBY', 'PASSPORT'] as const).map(option => {
+              const locked = option === 'PASSPORT' && !isPlus;
+              const label = option === 'NEARBY' ? 'Nearby' : 'Passport';
+              return <Pressable key={option} accessibilityRole="button" accessibilityLabel={locked ? 'Passport, requires Hiva Plus' : label} accessibilityState={{selected: mode === option}} onPress={() => chooseMode(option)}
+                className={`h-9 flex-row items-center justify-center gap-1.5 rounded-full px-5 ${mode === option ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
+                <Text className={`text-[13px] font-semibold ${mode === option ? 'text-text-dark' : 'text-muted'}`}>{label}</Text>
+                {locked && <IconLock size={13} color={Colors.muted} />}
+              </Pressable>;
+            })}
+          </View>
+          <PresetsBar current={{mode, city: passportCity, radiusMeters: radius, filters}} onApply={applyPreset} />
+        </View>}
       </View>
 
-      <FlatList
+      {mode === 'PASSPORT' ? <PassportResults city={passportCity} onCityChange={setPassportCity} filters={filters} onFiltersChange={setFilters} openingId={openingId}
+        onOpenProfile={person => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} onMessage={openConversation} /> : <FlatList
         data={showList && !locationNotice ? people : []}
         keyExtractor={item => item.id}
         renderItem={({item}) => <PersonRow person={item} opening={openingId === item.id} onPress={() => openConversation(item)}
           onOpenProfile={() => setViewing({id: item.id, initial: {name: item.name, avatarUrl: item.avatarUrl}})} />}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="flex-grow px-5 pb-[110px]"
-        refreshControl={showList ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} colors={[Colors.primary]} /> : undefined}
+        refreshControl={showList ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} /> : undefined}
         ListHeaderComponent={<>
           <View className="mb-7 mt-6 flex-row items-center rounded-[20px] bg-card p-4">
             <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-dark"><IconRadar size={24} color={Colors.primary} /></View>
@@ -241,16 +291,18 @@ const Nearby = () => {
               <Text className="mt-1 text-xs leading-[17px] text-muted">{visible ? 'People nearby can find you while your location is fresh.' : 'Go visible to find people and let them find you.'}</Text>
             </View>
             {visible !== null && <Pressable accessibilityRole="button" accessibilityLabel={visible ? 'Go invisible' : 'Go visible'} disabled={busy} onPress={toggleVisibility} className={`ml-3 min-h-10 items-center justify-center rounded-full px-3 ${visible ? 'border border-border' : 'bg-gold'} ${busy ? 'opacity-50' : 'active:opacity-70'}`}>
-              {busy ? <ActivityIndicator size="small" color={visible ? Colors.primary : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
+              {busy ? <ActivityIndicator size="small" color={visible ? Colors.gold : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
             </Pressable>}
           </View>
 
           {showList && !locationNotice && <>
-            <View className="mb-6 flex-row gap-2">
+            <View className="mb-3 flex-row gap-2">
               {radii.map(option => <Pressable key={option.meters} accessibilityRole="button" accessibilityState={{selected: radius === option.meters}} onPress={() => { setRadius(option.meters); radiusRef.current = option.meters; loadPeople(option.meters); }} className={`h-9 min-w-[70px] items-center justify-center rounded-full px-4 ${radius === option.meters ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
                 <Text className={`text-[13px] font-semibold ${radius === option.meters ? 'text-text-dark' : 'text-muted'}`}>{option.label}</Text>
               </Pressable>)}
             </View>
+            <View className="mb-6"><DiscoveryFilterBar filters={filters} onChange={next => {filtersRef.current = next; setFilters(next); loadPeople(radiusRef.current);}} /></View>
+            <VibeNotesList radiusMeters={radius} reloadKey={people} />
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-xl font-bold text-foreground">People around you</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Refresh nearby people" onPress={refresh} className="h-10 w-10 items-center justify-center rounded-full active:bg-card"><IconRefresh size={20} color={Colors.muted} /></Pressable>
@@ -265,14 +317,14 @@ const Nearby = () => {
           </View>}
           {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry nearby" onPress={retry} className="mb-4 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
         </>}
-        ListEmptyComponent={loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.primary} /></View> : showList && !error && !locationNotice ? (
+        ListEmptyComponent={loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.gold} /></View> : showList && !error && !locationNotice ? (
           <View className="items-center px-6 pt-16">
             <IconRadar size={44} color={Colors.muted} strokeWidth={1.5} />
             <Text className="mt-4 text-center text-base font-semibold text-foreground">No one nearby yet</Text>
             <Text className="mt-2 text-center text-sm leading-5 text-muted">Try a wider range or check back soon.</Text>
           </View>
         ) : undefined}
-      />
+      />}
       {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)}
         onBlocked={id => {setViewing(null); setPeople(current => current.filter(person => person.id !== id));}} />}
       {chat && <DirectConversation conversationId={chat.id} contactId={chat.person.id} contactName={chat.person.name} contactAvatarUrl={chat.person.avatarUrl} onClose={() => setChat(null)} />}

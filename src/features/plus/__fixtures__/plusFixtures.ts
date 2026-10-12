@@ -4,7 +4,7 @@ export const phase = (formattedPrice: string, rupees: number, billingPeriod: str
   formattedPrice, priceAmountMicros: String(rupees * 1_000_000), priceCurrencyCode: 'INR', billingPeriod, recurrenceMode, billingCycleCount,
 });
 
-/** What Play returns for `hiva_plus`: three base plans plus a ₹49 first-month intro offer on monthly. */
+/** What Play returns for `hiva_plus`: weekly, monthly and yearly base plans plus a ₹49 first-month intro offer on monthly. */
 export const playProduct = {
   id: 'hiva_plus',
   type: 'subs',
@@ -17,7 +17,7 @@ export const playProduct = {
   ],
 };
 
-export const plans = ['weekly', 'monthly', 'yearly'].map(basePlanId => ({productId: 'hiva_plus', basePlanId}));
+export const plans = ['monthly', 'yearly'].map(basePlanId => ({productId: 'hiva_plus', basePlanId}));
 
 export const subscription = (overrides: Partial<Subscription> = {}): Subscription => ({
   enabled: true, plan: 'free', status: null, productId: null, basePlanId: null, expiresAt: null, autoRenewing: false,

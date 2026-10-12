@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {Alert, Linking, PermissionsAndroid, Platform} from 'react-native';
+import {Linking, PermissionsAndroid, Platform} from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import type {LocalParticipant} from 'livekit-client';
 import {startPartyAudioService} from '../../core/audio/backgroundAudio';
 import {setPartyState} from './partyService';
@@ -51,7 +52,7 @@ export function usePartyMicrophone(partyId: string, participant: LocalParticipan
         const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
         if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
           locallyUnmuting.current = false;
-          Alert.alert('Microphone access needed', 'Allow microphone access in Settings to speak.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => { Linking.openSettings().catch(() => {}); } }]);
+          showDialog('Microphone access needed', 'Allow microphone access in Settings to speak.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => { Linking.openSettings().catch(() => {}); } }]);
           return;
         }
       }

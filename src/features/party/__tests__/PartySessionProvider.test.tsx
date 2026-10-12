@@ -1,11 +1,13 @@
 import React from 'react';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
+import {showDialog} from '../../../components/Dialog';
 import {act, create, type ReactTestRenderer} from 'react-test-renderer';
 import {PartySessionProvider, resetRetainedPartySession, usePartySession} from '../PartySessionProvider';
 import {joinParty, type JoinedParty} from '../partyService';
 import {stopPartyAudioService} from '../../../core/audio/backgroundAudio';
 
 const mockRoomProps: {current: Record<string, any> | null} = {current: null};
+jest.mock('../../../components/Dialog', () => ({showDialog: jest.fn()}));
 jest.mock('../PartyAudioRoom', () => (props: Record<string, any>) => {mockRoomProps.current = props; return null;});
 jest.mock('../partyService', () => ({joinParty: jest.fn()}));
 jest.mock('../../auth', () => ({loadSession: jest.fn().mockResolvedValue({user: {id: 'me'}})}));
@@ -28,7 +30,6 @@ beforeEach(() => {
   resetRetainedPartySession();
   mockRoomProps.current = null;
   jest.clearAllMocks();
-  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   (AppState as {currentState: string}).currentState = 'active';
 });
 
@@ -45,7 +46,7 @@ test('re-opening the same party refreshes it without the "already in a party" pr
   await act(async () => mockRoomProps.current!.onMinimize());
   expect(mockRoomProps.current!.expanded).toBe(false);
   await act(async () => ctx.open(party('a')));
-  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(showDialog).not.toHaveBeenCalled();
   expect(mockRoomProps.current!.expanded).toBe(true);
   await unmount();
 });
@@ -58,12 +59,12 @@ test('joining another party while in one shows the guidance with a leave option'
   await act(async () => mockRoomProps.current!.onMinimize());
   await act(async () => ctx.open(party('b')));
   expect(ctx.session?.party.id).toBe('a');
-  expect(Alert.alert).toHaveBeenCalledWith('Already in a party', expect.stringContaining('Room a'), expect.any(Array));
-  const buttons = (Alert.alert as jest.Mock).mock.calls[0][2] as {text: string; onPress?: () => void}[];
+  expect(showDialog).toHaveBeenCalledWith('Already in a party', expect.stringContaining('Room a'), expect.any(Array));
+  const buttons = (showDialog as jest.Mock).mock.calls[0][2] as {text: string; onPress?: () => void}[];
   expect(buttons.map(b => b.text)).toEqual(['Stay', 'Return to party', 'Leave current party']);
   const dismissPreview = jest.fn();
   await act(async () => ctx.promptActiveParty(dismissPreview));
-  const leaveButton = ((Alert.alert as jest.Mock).mock.calls[1][2] as {text: string; onPress: () => void}[])[2];
+  const leaveButton = ((showDialog as jest.Mock).mock.calls[1][2] as {text: string; onPress: () => void}[])[2];
   await act(async () => leaveButton.onPress());
   expect(dismissPreview).toHaveBeenCalled();
   expect(leave).toHaveBeenCalled();
@@ -85,7 +86,7 @@ test('a recreated surface restores the party minimized with a fresh media token'
   expect(mockRoomProps.current!.expanded).toBe(false);
   // Join guard still works after restore.
   await act(async () => ctx.open(party('b')));
-  expect(Alert.alert).toHaveBeenCalledWith('Already in a party', expect.any(String), expect.any(Array));
+  expect(showDialog).toHaveBeenCalledWith('Already in a party', expect.any(String), expect.any(Array));
   await unmount();
 });
 
@@ -99,7 +100,7 @@ test('a recreated surface resets cleanly when the stale party is gone', async ()
   expect(ctx.session).toBeNull();
   expect(mockRoomProps.current).toBeNull();
   await act(async () => ctx.open(party('b')));
-  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(showDialog).not.toHaveBeenCalled();
   expect(ctx.session?.party.id).toBe('b');
   await unmount();
 });

@@ -1,16 +1,19 @@
 import {apiRequest} from '../../../core/api/apiClient';
 import {isLimitReached} from '../limits';
-import {buildPlanOptions, introLabel, paywallHeadline, periodsPerYear, yearlySavingsPercent} from '../pricing';
+import {buildPlanOptions, introLabel, paywallHeadline, paywallRenewalNote, periodsPerYear, subscriptionNote, yearlySavingsPercent} from '../pricing';
 import {normalizeSubscription, verifyGooglePlayPurchase} from '../plusService';
 import {phase, plans, playProduct} from '../__fixtures__/plusFixtures';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
 
+const withWeekly = [{productId: 'hiva_plus', basePlanId: 'weekly'}, ...plans];
+
 test('builds one option per backend base plan and prefers the intro offer Play says the user can get', () => {
-  const options = buildPlanOptions([playProduct], plans);
+  const options = buildPlanOptions([playProduct], withWeekly);
   expect(options.map(option => [option.basePlanId, option.offerToken, option.regular.formattedPrice])).toEqual([
     ['weekly', 'tok-weekly', '₹39'], ['monthly', 'tok-monthly-intro', '₹99'], ['yearly', 'tok-yearly', '₹799'],
   ]);
+  expect(options.every(option => option.autoRenews)).toBe(true);
   expect(options[1].intro).toMatchObject({formattedPrice: '₹49', billingPeriod: 'P1M', cycles: 1});
   expect(introLabel(options[1].intro!)).toBe('₹49 for the first month');
   expect(options[0].intro).toBeNull();
@@ -22,7 +25,7 @@ test('skips base plans Play did not return and follows the backend plan order', 
 });
 
 test('yearly savings come from the real prices against twelve months', () => {
-  const options = buildPlanOptions([playProduct], plans);
+  const options = buildPlanOptions([playProduct], withWeekly);
   // 1 - 799 / (99 * 12) = 32.7%
   expect(yearlySavingsPercent(options)).toBe(32);
   // No monthly plan: compares against 52 weeks of the weekly price. 1 - 799 / (39 * 52) = 60.6%
@@ -42,6 +45,7 @@ test('headlines are tied to the limit that was hit', () => {
   expect(paywallHeadline('vibeNotes', {limit: 'vibeNotes', max: 2, plusMax: 10})).toBe('You’ve posted today’s 2 vibe notes — Plus gives you 10');
   expect(paywallHeadline('vibeNoteLifetime', {limit: 'vibeNoteLifetime', max: 240, plusMax: 1440})).toBe('Free vibe notes last 4 h — Plus keeps them up for 24 h');
   expect(paywallHeadline('randomMatches', {limit: 'randomMatches', max: 5, plusMax: 20})).toBe('You’ve used today’s 5 random matches — Plus gives you 20');
+  expect(paywallHeadline('filters')).toBe('Filter by city, interest and language with Plus');
   expect(paywallHeadline()).toBe('Meet more people with Hiva Plus');
 });
 
@@ -63,4 +67,24 @@ test('the purchase POST carries the package name', async () => {
   expect(apiRequest).toHaveBeenCalledWith('/me/subscription/google-play', expect.objectContaining({
     method: 'POST', body: JSON.stringify({productId: 'hiva_plus', purchaseToken: 'tok', packageName: 'com.hivachat.app'}),
   }));
+});
+
+test('a prepaid base plan never says it renews', () => {
+  const prepaid = {id: 'hiva_plus', subscriptionOffers: [{basePlanIdAndroid: 'weekly-prepaid', offerTokenAndroid: 'tok-prepaid', pricingPhasesAndroid: {pricingPhaseList: [phase('₹29', 29, 'P1W', 3, 1)]}}]};
+  const [option] = buildPlanOptions([prepaid], [{productId: 'hiva_plus', basePlanId: 'weekly-prepaid'}]);
+  expect(option.autoRenews).toBe(false);
+  expect(paywallRenewalNote(option.autoRenews)).toContain('doesn’t renew');
+  expect(paywallRenewalNote(true)).toContain('Renews automatically');
+});
+
+test('status screen note follows the server state', () => {
+  expect(subscriptionNote({plan: 'free', status: null, autoRenewing: false}, null)).toBeNull();
+  expect(subscriptionNote({plan: 'plus', status: 'ACTIVE', autoRenewing: true}, '1 Nov 2026')).toContain('Renews automatically');
+  expect(subscriptionNote({plan: 'plus', status: 'CANCELED', autoRenewing: false}, '1 Nov 2026')).toBe('Won’t renew. Plus ends on 1 Nov 2026.');
+  expect(subscriptionNote({plan: 'plus', status: 'GRACE_PERIOD', autoRenewing: true}, '1 Nov 2026')).toContain('Update it in Google Play');
+});
+
+test('an unknown status from the server is dropped instead of shown raw', () => {
+  expect(normalizeSubscription({status: 'WEIRD' as never}).status).toBeNull();
+  expect(normalizeSubscription({status: 'ON_HOLD'}).status).toBe('ON_HOLD');
 });

@@ -1,5 +1,5 @@
-import {isOwnMessage} from './conversationPresentation';
-import type {ApiMessage, Conversation, MessagesRealtimeEvent, RealtimeMessageEvent} from './types';
+import {isConversation, isOwnMessage} from './conversationPresentation';
+import type {ApiMessage, Conversation, InboxItem, MessagesRealtimeEvent, RealtimeMessageEvent} from './types';
 
 const isId = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
@@ -48,39 +48,48 @@ export const applyRealtimeToMessages = (messages: ApiMessage[], event: RealtimeM
   return mergeMessages(messages, [event.message]);
 };
 
-export type ConversationListUpdate = {
-  conversations: Conversation[];
+export type ConversationListUpdate<T extends InboxItem> = {
+  conversations: T[];
   /** A message arrived for a thread the list has not loaded; the caller should refetch. */
   missing: boolean;
 };
 
-/** List: newest message becomes the preview, the thread moves to the top and unread grows unless it is open or ours. */
-export const applyRealtimeToConversations = (
-  conversations: Conversation[],
+const isPinned = (item: InboxItem) => isConversation(item) && item.pinned === true;
+
+/**
+ * List: newest message becomes the preview, the thread moves to the top of its group (pinned threads stay put)
+ * and unread grows unless it is open or ours. Party and request rows are left alone.
+ */
+export const applyRealtimeToConversations = <T extends InboxItem>(
+  items: T[],
   event: RealtimeMessageEvent,
   openConversationId: string | null,
-): ConversationListUpdate => {
-  const index = conversations.findIndex(item => item.id === event.conversationId);
-  if (index < 0) return {conversations, missing: event.type === 'message.created'};
-  const current = conversations[index];
+): ConversationListUpdate<T> => {
+  const index = items.findIndex(item => isConversation(item) && item.id === event.conversationId);
+  if (index < 0) return {conversations: items, missing: event.type === 'message.created'};
+  const current = items[index] as Conversation;
   const {message} = event;
 
   if (event.type !== 'message.created') {
-    if (current.lastMessage?.id !== message.id) return {conversations, missing: false};
-    const updated = {...current, lastMessage: {...current.lastMessage, ...message}};
-    return {conversations: conversations.map((item, i) => i === index ? updated : item), missing: false};
+    if (current.lastMessage?.id !== message.id) return {conversations: items, missing: false};
+    const updated = {...current, lastMessage: {...current.lastMessage, ...message}} as T;
+    return {conversations: items.map((item, i) => i === index ? updated : item), missing: false};
   }
 
   // The same row can arrive twice (REST send result, other device, retry); never double-count it.
-  if (current.lastMessage?.id === message.id) return {conversations, missing: false};
+  if (current.lastMessage?.id === message.id) return {conversations: items, missing: false};
   const newer = !current.lastMessage || message.created_at >= current.lastMessage.created_at;
   const bump = current.id !== openConversationId && !isOwnMessage(message, current.kind, current.contactId);
-  const updated: Conversation = {
+  const updated = {
     ...current,
     ...(newer ? {lastMessage: message, lastMessageAt: message.created_at, lastActivityAt: message.created_at} : null),
     unreadCount: bump ? current.unreadCount + 1 : current.unreadCount,
-  };
-  return {conversations: [updated, ...conversations.filter((_, i) => i !== index)], missing: false};
+  } as T;
+  if (isPinned(current)) return {conversations: items.map((item, i) => i === index ? updated : item), missing: false};
+  const rest = items.filter((_, i) => i !== index);
+  const firstUnpinned = rest.findIndex(item => !isPinned(item));
+  rest.splice(firstUnpinned < 0 ? rest.length : firstUnpinned, 0, updated);
+  return {conversations: rest, missing: false};
 };
 
 export const TYPING_SEND_INTERVAL_MS = 3000;

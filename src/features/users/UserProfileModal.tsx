@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Modal, Pressable, ScrollView, Share, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Circle, Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
@@ -15,7 +16,7 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
-import {PlusBadge} from '../plus';
+import {PlusBadge, useProfileTheme} from '../plus';
 import FollowButton from './FollowButton';
 import FollowListSheet from './FollowListSheet';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
@@ -55,11 +56,11 @@ const StatPill = ({label, value, dot, count, text, onPress}: {
 }) =>
   <Pressable accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={value === null ? label : `${compact(value)} ${label}`}
     disabled={!onPress} onPress={onPress} className="flex-row items-center gap-2.5 active:opacity-70">
-    <View className="h-[30px] w-[92px] flex-row items-center gap-1.5 rounded-full border border-[#3A3168] bg-[#15102C]/80 px-2.5">
-      <View className={`h-1.5 w-1.5 rounded-full ${dot}`} /><Text className="text-[11px] font-bold text-[#B3ACC4]">{label}</Text>
+    <View className="h-[30px] w-[92px] flex-row items-center gap-1.5 rounded-full border border-border dark:border-[#3A3168] bg-card dark:bg-[#15102C]/80 px-2.5">
+      <View className={`h-1.5 w-1.5 rounded-full ${dot}`} /><Text className="text-[11px] font-bold text-muted dark:text-[#B3ACC4]">{label}</Text>
     </View>
     <View className={`h-[30px] min-w-[48px] items-center justify-center rounded-full border px-2.5 ${count}`}>
-      {value === null ? <IconChevronRight size={14} color="#E6E0FF" /> : <Text className={`text-[13px] font-extrabold ${text}`}>{compact(value)}</Text>}
+      {value === null ? <IconChevronRight size={14} color={Colors.textSoft} /> : <Text className={`text-[13px] font-extrabold ${text}`}>{compact(value)}</Text>}
     </View>
   </Pressable>;
 
@@ -180,6 +181,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
   const unavailable = access === 'unavailable';
   const locked = access === 'private';
   const showContent = !unavailable && !locked && !blocked;
+  const theme = useProfileTheme(unavailable ? null : profile?.profileTheme);
   const canModerate = viewerId !== undefined && !isSelf && !blocked;
 
   const toggleFollow = async () => {
@@ -257,13 +259,13 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
 
   return <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
     <View className="flex-1 bg-background">
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
         <View>
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
               <RadialGradient id="userHero" cx="20%" cy="0%" rx="120%" ry="90%" fx="20%" fy="0%">
-                <Stop offset="0" stopColor="#3B2A86" /><Stop offset="0.45" stopColor="#1A1338" /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+                <Stop offset="0" stopColor={theme?.glow ?? Colors.heroGlow} /><Stop offset="0.45" stopColor={theme?.glowMid ?? Colors.heroGlowMid} /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#userHero)" />
@@ -273,26 +275,26 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
               <View className="flex-row items-center gap-2">
                 <Pressable accessibilityRole="button" accessibilityLabel="Close profile" onPress={onClose}
                   className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
-                  <IconArrowLeft size={20} color="#FFFFFF" />
+                  <IconArrowLeft size={20} color={Colors.iconStrong} />
                 </Pressable>
-                <Text numberOfLines={1} className="flex-1 text-center text-[14px] font-bold text-[#C9C2DA]">{handle ? `@${handle}` : ''}</Text>
+                <Text numberOfLines={1} className="flex-1 text-center text-[14px] font-bold text-muted dark:text-[#C9C2DA]">{handle ? `@${handle}` : ''}</Text>
                 {!unavailable ? <Pressable accessibilityRole="button" accessibilityLabel="More options" onPress={() => openSheet('menu')}
                   className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
-                  <IconDots size={20} color="#FFFFFF" />
+                  <IconDots size={20} color={Colors.iconStrong} />
                 </Pressable> : <View className="h-11 w-11" />}
               </View>
 
               <View className="mt-[26px] flex-row items-center gap-[22px] pl-2.5">
                 <View className="h-[112px] w-[112px] items-center justify-center">
-                  <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-[#5A4F8C]" />
+                  <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-purple-line dark:border-[#5A4F8C]" />
                   <Svg width={112} height={112} style={StyleSheet.absoluteFill}>
-                    <Circle cx={56} cy={56} r={52} stroke={unavailable ? Colors.borderMuted : Colors.gold} strokeWidth={5} fill="none" />
+                    <Circle cx={56} cy={56} r={52} stroke={unavailable ? Colors.borderMuted : theme?.accent ?? Colors.gold} strokeWidth={5} fill="none" />
                   </Svg>
                   <Avatar name={name || '?'} url={unavailable ? null : avatarUrl} size={90} />
                 </View>
                 {showContent || locked ? <View className="min-w-0 flex-1 gap-2.5">
-                  <StatPill label="Fans" value={followers} dot="bg-[#8B7CF6]" count="border-[#4A3F8C] bg-[#2A2160]" text="text-foreground" onPress={() => setFollowList('followers')} />
-                  <StatPill label="Following" value={profile?.stats.following ?? null} dot="bg-[#3DDC97]" count="border-[#1F5A40] bg-[#123224]" text="text-foreground" onPress={() => setFollowList('following')} />
+                  <StatPill label="Fans" value={followers} dot="bg-[#8B7CF6]" count="border-purple-line dark:border-[#4A3F8C] bg-purple-tint dark:bg-[#2A2160]" text="text-foreground" onPress={() => setFollowList('followers')} />
+                  <StatPill label="Following" value={profile?.stats.following ?? null} dot="bg-[#3DDC97]" count="border-border dark:border-[#1F5A40] bg-card dark:bg-[#123224]" text="text-foreground" onPress={() => setFollowList('following')} />
                   {giftsReceived !== null && <StatPill label="Gifts mile" value={giftsReceived} dot="bg-gold" count="border-gold bg-gold" text="text-gold-ink" />}
                 </View> : <View className="flex-1" />}
               </View>
@@ -300,12 +302,12 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
               <View className="mt-5 gap-1.5">
                 {name ? <View className="flex-row items-center">
                   <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
-                  {profile?.isPlus === true && !unavailable && <PlusBadge size="md" />}
+                  {profile?.showPlusBadge === true && !unavailable && <PlusBadge size="md" />}
                 </View> : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
-                {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-[#D9D4E4]">{profile.bio}</Text>}
-                {!!profile?.city && showContent && <Text className="text-[11px] text-[#9C95AE]">{profile.city}</Text>}
+                {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-text-body dark:text-[#D9D4E4]">{profile.bio}</Text>}
+                {!!profile?.city && showContent && <Text className="text-[11px] text-muted dark:text-[#9C95AE]">{profile.city}</Text>}
                 {!!profile?.interests?.length && showContent && <View className="mt-1 flex-row flex-wrap gap-1.5">
-                  {profile.interests.slice(0, 3).map((interest, i) => <Text key={interest} className={`overflow-hidden rounded-full px-2.5 py-1.5 text-[11px] font-extrabold capitalize ${i === 0 ? 'bg-[#2E2410] text-gold' : 'bg-[#241D4A] text-purple-soft'}`}>{interest}</Text>)}
+                  {profile.interests.slice(0, 3).map((interest, i) => <Text key={interest} className={`overflow-hidden rounded-full px-2.5 py-1.5 text-[11px] font-extrabold capitalize ${i === 0 ? 'bg-gold-bg dark:bg-[#2E2410] text-gold' : 'bg-purple-tint dark:bg-[#241D4A] text-purple-soft'}`}>{interest}</Text>)}
                 </View>}
               </View>
 
@@ -320,8 +322,8 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
                 <FollowButton name={name} following={follow.following} pending={follow.pending} onPress={toggleFollow} />
                 <Pressable accessibilityRole="button" accessibilityLabel={`Message ${name}`} accessibilityState={{busy: messaging}} disabled={messaging} onPress={openMessage}
                   className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-[1.5px] border-purple-line active:opacity-70">
-                  {messaging ? <ActivityIndicator size="small" color="#E6E0FF" /> : <IconMessageCircle size={16} color="#E6E0FF" />}
-                  <Text className="text-[13px] font-extrabold text-[#E6E0FF]">Message</Text>
+                  {messaging ? <ActivityIndicator size="small" color={Colors.gold} /> : <IconMessageCircle size={16} color={Colors.textSoft} />}
+                  <Text className="text-[13px] font-extrabold text-foreground dark:text-[#E6E0FF]">Message</Text>
                 </Pressable>
               </View>}
               {!!(follow.error || actionError) && <Text accessibilityLiveRegion="polite" className="mt-2 text-[12px] text-coral">{actionError || follow.error}</Text>}
@@ -334,7 +336,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
         {blocked && <StateCard icon={IconBan} title={`You blocked ${name}`} body="You won't see their profile, posts or rooms, and they can't message you.">
           <Pressable accessibilityRole="button" accessibilityLabel={`Unblock ${name}`} disabled={sheetBusy} onPress={unblock}
             className="mt-4 h-11 flex-row items-center justify-center rounded-full border-[1.5px] border-purple-line px-6 active:opacity-70">
-            {sheetBusy ? <ActivityIndicator size="small" color="#E6E0FF" /> : <Text className="text-[13px] font-extrabold text-[#E6E0FF]">Unblock</Text>}
+            {sheetBusy ? <ActivityIndicator size="small" color={Colors.gold} /> : <Text className="text-[13px] font-extrabold text-foreground dark:text-[#E6E0FF]">Unblock</Text>}
           </Pressable>
           {!!sheetError && <Text className="mt-2 text-[12px] text-coral">{sheetError}</Text>}
         </StateCard>}
@@ -342,12 +344,12 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
         {locked && !blocked && <StateCard icon={IconLock} title="This account is private" body={`Follow ${name} to see their posts, rooms and events.`} />}
 
         {showContent && <>
-          <View accessibilityRole="tablist" className="mx-5 mt-[18px] flex-row gap-0.5 rounded-full border border-border bg-[#15121E] p-1">
+          <View accessibilityRole="tablist" className="mx-5 mt-[18px] flex-row gap-0.5 rounded-full border border-border bg-card dark:bg-[#15121E] p-1">
             {visibleTabs.map(tab => {
               const selected = activeTab === tab;
               return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? 'bg-gold' : 'active:opacity-70'}`}>
-                <Text className={`text-[13px] font-extrabold ${selected ? 'text-gold-ink' : 'text-[#A9A3B8]'}`}>{TAB_LABELS[tab]}</Text>
+                style={selected && theme ? {backgroundColor: theme.accent} : undefined} className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? (theme ? '' : 'bg-gold') : 'active:opacity-70'}`}>
+                <Text style={selected && theme ? {color: theme.onAccent} : undefined} className={`text-[13px] font-extrabold ${selected ? (theme ? '' : 'text-gold-ink') : 'text-muted dark:text-[#A9A3B8]'}`}>{TAB_LABELS[tab]}</Text>
               </Pressable>;
             })}
           </View>

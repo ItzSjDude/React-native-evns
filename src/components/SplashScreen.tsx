@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Easing, Image, StatusBar, Text, View} from 'react-native';
+import {AccessibilityInfo, Animated, Easing, Image, Text, View} from 'react-native';
+import ThemedStatusBar from './ThemedStatusBar';
 
 type Props = {ready: boolean; onFinish: () => void};
 
@@ -32,7 +33,7 @@ export default function SplashScreen({ready, onFinish}: Props) {
   }, [minimumElapsed, onFinish, opacity, ready]);
   return (
     <Animated.View accessibilityLabel="Hiva Chat is starting" accessibilityViewIsModal className="absolute inset-0 items-center justify-center bg-background" style={{opacity}}>
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <View className="h-64 w-64 items-center justify-center">
         <Animated.View className="absolute h-52 w-52 rounded-full border border-primary/20 bg-primary-dark/30" style={{opacity: pulse.interpolate({inputRange: [0, 1], outputRange: [0.25, 0.7]}), transform: [{scale: pulse.interpolate({inputRange: [0, 1], outputRange: [0.88, 1.1]})}]}} />
         <Animated.View style={{opacity: reveal, transform: [{scale: reveal.interpolate({inputRange: [0, 1], outputRange: [0.75, 1]})}, {translateY: reveal.interpolate({inputRange: [0, 1], outputRange: [16, 0]})}]}}>

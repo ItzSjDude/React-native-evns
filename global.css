@@ -1,3 +1,61 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Theme colours as RGB channels so Tailwind opacity modifiers (bg-coral/10) keep working.
+   Light is the base; dark mirrors the original palette. Keep in sync with src/Constants/Colors.tsx. */
+:root {
+  --c-background: 255 255 255;
+  --c-foreground: 15 14 22;
+  --c-card: 243 242 247;
+  --c-sheet: 255 255 255;
+  --c-feed-line: 236 235 240;
+  --c-feed-card: 244 244 247;
+  --c-feed-text: 21 20 26;
+  --c-feed-label: 61 60 68;
+  --c-feed-muted: 118 117 126;
+  --c-feed-dim: 154 153 162;
+  --c-feed-accent: 108 92 231;
+  --c-gold-bg: 239 235 255;
+  --c-gold-line: 206 196 244;
+  --c-purple-soft: 103 80 217;
+  --c-purple-line: 206 196 244;
+  --c-purple-tint: 239 235 255;
+  --c-border: 226 224 232;
+  --c-border-muted: 207 204 217;
+  --c-primary: 115 86 232;
+  --c-primary-dark: 236 231 255;
+  --c-nav-background: 255 255 255;
+  --c-text-body: 43 41 51;
+  --c-muted: 110 107 123;
+  --c-muted-light: 140 145 161;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-background: 11 9 20;
+    --c-foreground: 247 245 255;
+    --c-card: 25 24 36;
+    --c-sheet: 11 9 20;
+    --c-feed-line: 26 26 31;
+    --c-feed-card: 23 23 28;
+    --c-feed-text: 237 237 240;
+    --c-feed-label: 196 196 203;
+    --c-feed-muted: 107 107 115;
+    --c-feed-dim: 94 94 101;
+    --c-feed-accent: 167 139 250;
+    --c-gold-bg: 31 26 58;
+    --c-gold-line: 74 67 120;
+    --c-purple-soft: 167 139 250;
+    --c-purple-line: 74 63 122;
+    --c-purple-tint: 42 33 64;
+    --c-border: 54 51 66;
+    --c-border-muted: 74 70 89;
+    --c-primary: 167 139 250;
+    --c-primary-dark: 33 27 67;
+    --c-nav-background: 16 14 27;
+    --c-text-body: 231 228 239;
+    --c-muted: 154 151 169;
+    --c-muted-light: 104 112 135;
+  }
+}

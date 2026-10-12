@@ -1,11 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Keyboard, Modal, Pressable, ScrollView, StatusBar, Text, TextInput, type TextInputInstance, View} from 'react-native';
+import {Keyboard, Pressable, ScrollView, Text, TextInput, type TextInputInstance, View} from 'react-native';
+import SlideInScreen from '../../components/SlideInScreen';
+import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import IconClock from '@tabler/icons-react-native/IconClock';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconX from '@tabler/icons-react-native/IconX';
 import {Colors} from '../../Constants/Colors';
+import {DiscoveryFilterBar, usePlus, type DiscoveryFilters} from '../plus';
 import {UserProfileModal} from '../users';
 import {useRecentSearches} from './recentSearches';
 import {SEARCH_MAX_LENGTH} from './searchService';
@@ -31,13 +34,17 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
   const [tab, setTab] = useState<SearchTab>('top');
   const [profile, setProfile] = useState<PersonResult | null>(null);
   const inputRef = useRef<TextInputInstance>(null);
-  const search = useSearch(input, {enabled: visible});
+  const {isPlus} = usePlus();
+  const [filters, setFilters] = useState<DiscoveryFilters>({});
+  // Free users never send filters (the server would answer 403 PLUS_REQUIRED).
+  const search = useSearch(input, {enabled: visible, filters: isPlus ? filters : undefined});
   const {recent, remember, remove, clear} = useRecentSearches();
 
   useEffect(() => {
     if (visible) return;
     setInput('');
     setTab('top');
+    setFilters({});
     setProfile(null);
   }, [visible]);
 
@@ -60,9 +67,9 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
     : <TopResults people={search.people} rooms={search.rooms} query={search.query} onRetry={search.retry}
       onSeeAll={setTab} onPerson={openPerson} onRoom={openRoom} />;
 
-  return <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={close} onShow={() => inputRef.current?.focus()}>
+  return <SlideInScreen visible={visible} onRequestClose={close} onShow={() => inputRef.current?.focus()}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
-      <StatusBar barStyle="light-content" />
+      <ThemedStatusBar />
       <View className="flex-row items-center gap-3 px-5 pb-3 pt-2">
         <View className="h-12 flex-1 flex-row items-center gap-2 rounded-full border border-border bg-card px-4">
           <IconSearch size={18} color={Colors.muted} />
@@ -80,6 +87,8 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
           <Text className="text-[15px] font-semibold text-primary">Cancel</Text>
         </Pressable>
       </View>
+
+      <View className="px-5 pb-2"><DiscoveryFilterBar filters={filters} onChange={setFilters} subtitle="Applies to people results" /></View>
 
       {search.typedQuery ? <View accessibilityRole="tablist" className="mx-5 mb-1 flex-row rounded-full border border-border bg-card p-1">
         {TABS.map(item => {
@@ -99,7 +108,7 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
     {profile ? <UserProfileModal userId={profile.id} visible onClose={() => setProfile(null)}
       initial={{name: profile.name, avatarUrl: profile.avatarUrl, handle: profile.handle}}
       onBlocked={userId => {search.removePerson(userId); setProfile(null);}} /> : null}
-  </Modal>;
+  </SlideInScreen>;
 }
 
 type Kind = 'people' | 'rooms';

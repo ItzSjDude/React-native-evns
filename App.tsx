@@ -6,14 +6,17 @@ import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import {persistor, store} from './src/core/store';
 import SplashScreen from './src/components/SplashScreen';
+import {DialogHost} from './src/components/Dialog';
 import {useAppSelector} from './src/core/store/hooks';
 import {NotificationsProvider, registerNotificationBackgroundHandler} from './src/features/notifications';
 import {loadSession} from './src/features/auth';
 import {setCrashUser, startCrashReporting} from './src/core/monitoring';
 import {PlusProvider} from './src/features/plus';
+import {registerFollowUpBackgroundHandler} from './src/features/messages';
 
 // FCM needs its background handler registered at bundle load, before any component mounts.
 registerNotificationBackgroundHandler();
+registerFollowUpBackgroundHandler();
 startCrashReporting();
 
 const AppContent = () => {
@@ -34,6 +37,7 @@ const AppContent = () => {
         </PersistGate>
       </NotificationsProvider>
       <PlusProvider />
+      <DialogHost />
       {showSplash && <SplashScreen ready={rehydrated && status !== 'loading'} onFinish={finishSplash} />}
     </View>
   );

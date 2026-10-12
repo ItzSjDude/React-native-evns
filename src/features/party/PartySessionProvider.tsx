@@ -1,5 +1,6 @@
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
+import {showDialog} from '../../components/Dialog';
 import {AudioSession} from '@livekit/react-native';
 import PartyAudioRoom from './PartyAudioRoom';
 import {loadSession} from '../auth';
@@ -92,7 +93,7 @@ export function PartySessionProvider({children}: {children: React.ReactNode}) {
   const promptActiveParty = useCallback((beforeAction?: () => void) => {
     const active = current.current;
     if (!active) return;
-    Alert.alert('Already in a party', `You're still in "${roomTitle(active.party)}". Leave it before joining another party.`, [
+    showDialog('Already in a party', `You're still in "${roomTitle(active.party)}". Leave it before joining another party.`, [
       {text: 'Stay', style: 'cancel'},
       {text: 'Return to party', onPress: () => {beforeAction?.(); expand();}},
       {text: 'Leave current party', style: 'destructive', onPress: () => {beforeAction?.(); leaveCurrent();}},
