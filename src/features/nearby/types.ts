@@ -28,6 +28,11 @@ export type LocationFix = {
 
 export type LocationVisibility = {visible: boolean};
 
+export type ExploreGender = 'male' | 'female' | 'nonbinary';
+
+/** Static Explore card until the nearby API is wired back in. */
+export type ExploreCard = {id: string; name: string; gender: ExploreGender; bio: string};
+
 /** A Social Passport result: someone in another city. Never carries a distance. */
 export type PassportPerson = {id: string; name: string; avatarUrl: string | null; city: string | null; isFollowing: boolean; isPassportResult: true};
 
