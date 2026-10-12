@@ -1,0 +1,4 @@
+<resources>
+    <!-- Tint for the status-bar notification icon (tailwind `primary`). -->
+    <color name="notification_accent">#A58AFF</color>
+</resources>

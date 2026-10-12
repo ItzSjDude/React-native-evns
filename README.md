@@ -20,6 +20,15 @@ yarn start
 
 ## Step 2: Build and run your app
 
+### Deep-link build configuration
+
+Party links use build-time configuration so staging and production can claim different domains:
+
+- `HIVA_LINK_ORIGIN=https://links.example.com` is inlined into the JavaScript bundle.
+- `HIVA_LINK_HOST=links.example.com` configures Android App Links and the iOS Associated Domains entitlement. It must be a bare DNS hostname and must match `HIVA_LINK_ORIGIN`.
+
+Set both values before starting Metro or producing a release bundle. For iOS command-line archives, also pass `HIVA_LINK_HOST=links.example.com` as an `xcodebuild` build setting. An unset native host safely falls back to the non-routable `links.invalid` placeholder instead of claiming a real domain.
+
 With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
 
 ### Android
