@@ -24,7 +24,9 @@ import IconGift from '@tabler/icons-react-native/IconGift';
 import IconMoon from '@tabler/icons-react-native/IconMoon';
 import IconMailbox from '@tabler/icons-react-native/IconMailbox';
 import IconClock from '@tabler/icons-react-native/IconClock';
+import IconTicket from '@tabler/icons-react-native/IconTicket';
 import {PlusSettingsScreen, openPaywall, usePlus} from '../plus';
+import {OrganizerCreditsScreen, useOrganizerCreditsAvailable} from '../organizer';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
 import {WEEKDAYS, dateToHHmm, deviceTimeZone, timeToDate, toHHmm, toggleDay} from './quietHours';
@@ -98,6 +100,9 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   // Servers without the quiet-hours settings return none of these fields; hide those rows rather than show dead controls.
   const quietSupported = plus.enabled && typeof settings?.quietHoursEnabled === 'boolean';
   const [plusOpen, setPlusOpen] = useState(false);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
+  // Hidden until a workspace probe confirms the caller owns/admins one; see useOrganizerCreditsAvailable.
+  const organizerAvailable = useOrganizerCreditsAvailable(visible);
   useEffect(() => {
     if (!visible) return;
     let mounted = true;
@@ -229,6 +234,10 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
             value={SEAT_INVITE_OPTIONS.find(option => option.value === settings.seatInvitesFrom)?.label} onPress={() => setPanel('invites')} />
         </Group>}
 
+        {organizerAvailable && <Group title="Organizer">
+          <Row first icon={IconTicket} label="Ticket credits" hint="Balance, ledger and purchase history" onPress={() => setOrganizerOpen(true)} />
+        </Group>}
+
         <Group title="Privacy">
           <Row first icon={IconMapPin} label="Show me in Nearby"
             hint={nearby === null ? 'Loading…' : nearby ? 'People around you can find you' : 'You’re hidden from Nearby'}
@@ -253,6 +262,8 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
       </ScrollView>
 
       {plus.enabled && <PlusSettingsScreen visible={plusOpen} onClose={() => setPlusOpen(false)} preferences={settings} onChange={savePatch} />}
+
+      <OrganizerCreditsScreen visible={organizerOpen} onClose={() => setOrganizerOpen(false)} />
 
       <BottomSheet visible={panel === 'quiet'} onClose={closeQuiet} title="Quiet hours"
         subtitle="Push notifications are paused in this window. Everything still shows up in the app.">
