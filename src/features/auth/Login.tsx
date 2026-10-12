@@ -17,6 +17,7 @@ import {setSession, signInWithGoogle} from '../../features/auth';
 import type {AuthStackParamList} from '../../Navigation/StackNavigation';
 import {Colors} from '../../Constants/Colors';
 import Typography from '../../Constants/Typography';
+import HivaIcon from '../../components/HivaIcon';
 import LegalLinks from './LegalLinks';
 
 type LoginProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
@@ -143,7 +144,7 @@ const Login = (_props: LoginProps) => {
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
       <View className="flex-1 px-5">
         <View className="flex-1 items-center pt-[50%]">
-          <Image source={Images.logo} className="mb-[6px] h-[95px] w-[95px]" resizeMode="contain" />
+          <View className="mb-[6px]"><HivaIcon size={95} variant="dark" /></View>
           <Typography size={44} color={Colors.textNavy} fontWeight="500" className="mt-[15px] tracking-[-1px]">HivaChat</Typography>
         </View>
 
