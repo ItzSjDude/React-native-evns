@@ -20,18 +20,25 @@ export type OnboardingProfileUpdate = {
   name: string;
   handle: string;
   interests: string[];
-  city?: string;
   avatarUrl?: string;
+  gender?: string;
+  country?: string;
+  profession?: string;
+  intent?: string;
 };
 
 export type OnboardingDraft = {
   name: string;
   handle: string;
   interests: string[];
-  city: string;
+  gender: string;
+  country: string;
+  /** A preset, or the typed text when "Other" is chosen. */
+  profession: string;
+  intent: string;
   avatarUrl: string | null;
 };
 
-export type OnboardingField = 'name' | 'handle' | 'interests' | 'city' | 'avatarUrl';
+export type OnboardingField = 'name' | 'handle' | 'gender' | 'country' | 'profession' | 'intent' | 'interests' | 'avatarUrl';
 export type OnboardingFieldErrors = Partial<Record<OnboardingField, string>>;
 export type OnboardingStep = 0 | 1 | 2;

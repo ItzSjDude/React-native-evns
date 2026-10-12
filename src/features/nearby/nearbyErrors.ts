@@ -21,7 +21,7 @@ export function nearbyErrorMessage(error: unknown, feature?: 'passport'): string
   if (feature === 'passport' && apiError.status === 409) return /name/i.test(apiError.message ?? '') ? PRESET_NAME_TAKEN_MESSAGE : PRESET_LIMIT_MESSAGE;
   if (apiError.status === 429) return RATE_LIMIT_MESSAGE;
   if (apiError.code === 'LOCATION_IMPLAUSIBLE') return IMPLAUSIBLE_LOCATION_MESSAGE;
-  if (apiError.code === 'AGE_REQUIRED') return 'Confirm your age to use Nearby.';
-  if (apiError.code === 'UNDERAGE') return 'Nearby is only for people 18+.';
+  if (apiError.code === 'AGE_REQUIRED') return 'Confirm your age to use Explore.';
+  if (apiError.code === 'UNDERAGE') return 'Explore is only for people 18+.';
   return apiError.message || 'Please try again.';
 }

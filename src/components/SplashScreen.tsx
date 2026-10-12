@@ -1,10 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Easing, Image, Text, View} from 'react-native';
+import {AccessibilityInfo, Animated, Easing, Text, useColorScheme, View} from 'react-native';
+import HivaIcon from './HivaIcon';
 import ThemedStatusBar from './ThemedStatusBar';
 
 type Props = {ready: boolean; onFinish: () => void};
 
 export default function SplashScreen({ready, onFinish}: Props) {
+  const isLight = useColorScheme() === 'light';
   const reveal = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
@@ -37,7 +39,8 @@ export default function SplashScreen({ready, onFinish}: Props) {
       <View className="h-64 w-64 items-center justify-center">
         <Animated.View className="absolute h-52 w-52 rounded-full border border-primary/20 bg-primary-dark/30" style={{opacity: pulse.interpolate({inputRange: [0, 1], outputRange: [0.25, 0.7]}), transform: [{scale: pulse.interpolate({inputRange: [0, 1], outputRange: [0.88, 1.1]})}]}} />
         <Animated.View style={{opacity: reveal, transform: [{scale: reveal.interpolate({inputRange: [0, 1], outputRange: [0.75, 1]})}, {translateY: reveal.interpolate({inputRange: [0, 1], outputRange: [16, 0]})}]}}>
-          <Image source={require('../../assets/images/logo.png')} className="h-28 w-28 rounded-[28px]" resizeMode="contain" />
+          {/* Contrasting tile: dark tile on the light theme, light tile on the dark theme. */}
+          <HivaIcon size={112} variant={isLight ? 'dark' : 'light'} />
         </Animated.View>
       </View>
       <Animated.View className="-mt-7 items-center" style={{opacity: reveal, transform: [{translateY: reveal.interpolate({inputRange: [0, 1], outputRange: [14, 0]})}]}}>

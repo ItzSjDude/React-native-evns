@@ -41,26 +41,39 @@ beforeEach(() => {
   (Iap.fetchProducts as jest.Mock).mockResolvedValue([playProduct]);
 });
 
-test('shows Play prices, the intro offer, yearly savings and the reason headline', async () => {
+test('shows Play prices and the intro offer', async () => {
   const renderer = await render({reason: 'dmStarts', details: {limit: 'dmStarts', used: 10, max: 10, plusMax: 40}});
   const text = allText(renderer);
   expect(Iap.fetchProducts).toHaveBeenCalledWith({skus: ['hiva_plus'], type: 'subs'});
-  expect(text).toContain('You’ve used today’s 10 new chats — Plus gives you 40');
-  expect(text).toContain('₹99');
-  expect(text).toContain('₹799');
-  expect(text).toContain('Save 32%');
+  expect(text).toContain('Unlock your full potential');
+  expect(text).toContain('₹99/mo');
+  expect(text).toContain('₹799/yr');
+  expect(text).toContain('Best Value');
+  expect(text).toContain('Popular');
   expect(text).toContain('₹49 for the first month, then ₹99/month');
   expect(text).toContain('Renews automatically. Cancel anytime in Google Play.');
   expect(text).not.toContain('Coming soon');
   expect(text).not.toContain('visibility');
-  // Yearly is preselected.
-  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && node.props.accessibilityState?.checked)[0].props.accessibilityLabel).toMatch(/^Yearly/);
+  // Monthly is preselected.
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && node.props.accessibilityState?.checked)[0].props.accessibilityLabel).toMatch(/^Monthly/);
 });
 
-test('the filters reason has its own headline and the filter benefit is listed', async () => {
+test('the filter benefit is listed', async () => {
   const text = allText(await render({reason: 'filters'}));
-  expect(text).toContain('Filter by city, interest and language with Plus');
-  expect(text).toContain('City, interest, language and active-now filters');
+  expect(text).toContain('Advanced Filters');
+  expect(text).toContain('Filter by City, languages, age range, active now, similar interests, and more');
+});
+
+test('without a reason it shows the default copy and every benefit', async () => {
+  const text = allText(await render());
+  for (const line of [
+    'Get Hiva Plus', 'Unlock your full potential',
+    '40 new chats a day', 'Up from 5 on free',
+    '10 vibe notes valid for 24h', 'Up from 2 valid for 4h',
+    'Pin & folder organization', 'Pin up to 5 chats and sort into folders',
+    'Optional plus badge', 'Stand out on your profile',
+    'Select a Plan', 'Upgrade to Hiva Plus', 'Restore purchases',
+  ]) expect(text).toContain(line);
 });
 
 test('the Play management link carries the sku and package', async () => {
@@ -74,7 +87,7 @@ test('buying posts the Play token and leaves acknowledgement to the server', asy
   verify.mockResolvedValue(subscription({plan: 'plus', status: 'ACTIVE'}));
   const renderer = await render();
   await pressRadio(renderer, 'Monthly');
-  await press(renderer, 'Start for ₹49');
+  await press(renderer, 'Upgrade to Hiva Plus');
   expect(Iap.requestPurchase).toHaveBeenCalledWith(expect.objectContaining({request: {google: {skus: ['hiva_plus'], subscriptionOffers: [{sku: 'hiva_plus', offerToken: 'tok-monthly-intro'}]}}}));
   await ReactTestRenderer.act(async () => {iap.__emitPurchase(purchase());});
   expect(verify).toHaveBeenCalledWith('hiva_plus', 'play-token-1');
@@ -85,7 +98,8 @@ test('buying posts the Play token and leaves acknowledgement to the server', asy
 test('TOKEN_IN_USE tells the user another account owns the subscription', async () => {
   verify.mockRejectedValue({status: 409, code: 'TOKEN_IN_USE', message: 'in use'});
   const renderer = await render();
-  await press(renderer, 'Get Plus for ₹799');
+  await pressRadio(renderer, 'Yearly');
+  await press(renderer, 'Upgrade to Hiva Plus');
   await ReactTestRenderer.act(async () => {iap.__emitPurchase(purchase());});
   expect(allText(renderer)).toContain('This Google Play subscription is already linked to another Hiva account.');
 });
@@ -99,9 +113,13 @@ test('restore links an existing subscription', async () => {
   expect(allText(renderer)).toContain('Hiva Plus restored.');
 });
 
-test('a device without Play Billing says purchases are unavailable', async () => {
+test('a device without Play Billing shows static plans and Upgrade buys nothing', async () => {
   (Iap.initConnection as jest.Mock).mockRejectedValueOnce({code: 'billing-unavailable', message: 'nope'});
   const renderer = await render();
-  expect(allText(renderer)).toContain('Purchases aren’t available on this device');
-  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'radio')).toHaveLength(0);
+  const text = allText(renderer);
+  expect(text).toContain('$12.99/mo');
+  expect(text).not.toContain('available');
+  expect(['Weekly', 'Monthly', 'Yearly'].every(plan => renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && String(node.props.accessibilityLabel).startsWith(plan)).length > 0)).toBe(true);
+  await press(renderer, 'Upgrade to Hiva Plus');
+  expect(Iap.requestPurchase).not.toHaveBeenCalled();
 });

@@ -114,7 +114,7 @@ export default function PresetsBar({current, onApply}: Props) {
     {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry saved searches" onPress={load}><Text className="mt-2 text-xs text-coral">{error} Tap to retry.</Text></Pressable>}
 
     <BottomSheet visible={saving} onClose={() => setSaving(false)} dismissible={!busy} title="Save current search"
-      subtitle={current.mode === 'PASSPORT' ? `Passport${current.city.trim() ? ` · ${current.city.trim()}` : ''}` : 'Nearby'}
+      subtitle={current.mode === 'PASSPORT' ? `Passport${current.city.trim() ? ` · ${current.city.trim()}` : ''}` : 'Explore'}
       footer={<SheetButton label="Save" busy={busy} onPress={save} />}>
       <TextInput accessibilityLabel="Search name" value={name} onChangeText={setName} maxLength={NAME_MAX_LENGTH} placeholder="Name, e.g. Mumbai foodies"
         placeholderTextColor={Colors.muted} autoCorrect={false} editable={!busy} onSubmitEditing={save}

@@ -1,335 +1,143 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
+import React, {useCallback, useEffect, useState} from 'react';
+import {ActivityIndicator, Linking, Pressable, ScrollView, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useIsFocused} from '@react-navigation/native';
-import IconEyeOff from '@tabler/icons-react-native/IconEyeOff';
-import IconMapPin from '@tabler/icons-react-native/IconMapPin';
-import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
-import IconRadar from '@tabler/icons-react-native/IconRadar';
+import IconAdjustmentsHorizontal from '@tabler/icons-react-native/IconAdjustmentsHorizontal';
+import IconEye from '@tabler/icons-react-native/IconEye';
+import IconGenderFemale from '@tabler/icons-react-native/IconGenderFemale';
+import IconGenderMale from '@tabler/icons-react-native/IconGenderMale';
+import IconGenderTransgender from '@tabler/icons-react-native/IconGenderTransgender';
 import IconLock from '@tabler/icons-react-native/IconLock';
-import IconRefresh from '@tabler/icons-react-native/IconRefresh';
+import IconMapPin from '@tabler/icons-react-native/IconMapPin';
+import IconPencil from '@tabler/icons-react-native/IconPencil';
 import {Colors} from '../../Constants/Colors';
-import {DirectConversation, startDirectConversation} from '../messages';
-import {DiscoveryFilterBar, openPaywall, usePlus, type DiscoveryFilters} from '../plus';
-import {UserProfileModal, type UserPreview} from '../users';
-import {getDeviceLocation} from './deviceLocation';
-import {distanceLabel, MIN_RADIUS_METERS} from './distance';
-import {isRateLimited, nearbyErrorMessage} from './nearbyErrors';
-import PassportResults from './PassportResults';
-import PresetsBar from './PresetsBar';
-import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
-import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
-import VibeNotesList from './VibeNotesList';
+import {openPaywall, usePlus} from '../plus';
+import {requestLocationPermission} from './deviceLocation';
+import type {ExploreCard, ExploreGender} from './types';
+import VibeNoteComposer from './VibeNoteComposer';
 
-// Nothing below the server's 500 m minimum.
-const radii = ([
-  {label: '2 km', meters: 2000},
-  {label: '5 km', meters: 5000},
-  {label: '10 km', meters: 10000},
-] as const).filter(option => option.meters >= MIN_RADIUS_METERS);
+// ponytail: static cards, swap for the nearby query once Say hi has real user ids.
+const cards: ExploreCard[] = [
+  {id: 'aarav', name: 'aarav', gender: 'male', bio: 'Coffee, trekking and bad puns.'},
+  {id: 'meera', name: 'meera', gender: 'female', bio: 'Designer by day, gamer by night.'},
+  {id: 'sam', name: 'sam', gender: 'nonbinary', bio: 'Looking for gig buddies.'},
+  {id: 'riya', name: 'riya', gender: 'female', bio: 'Weekend cyclist. Ask me for chai spots.'},
+];
 
-const messageOf = nearbyErrorMessage;
+const genderGlyph: Record<ExploreGender, {Icon: typeof IconGenderMale; color: string}> = {
+  male: {Icon: IconGenderMale, color: '#4DA3FF'},
+  female: {Icon: IconGenderFemale, color: '#FF5C9A'},
+  nonbinary: {Icon: IconGenderTransgender, color: Colors.primary},
+};
 
-type Chatter = Pick<NearbyPerson, 'id' | 'name' | 'avatarUrl'>;
-type OpenChat = {id: string; person: Chatter};
+const radii = [
+  {label: '10 km', plus: false},
+  {label: '20 km', plus: false},
+  {label: '40 km', plus: false},
+  {label: '60+ km', plus: true},
+] as const;
 
-const PersonRow = ({person, opening, onPress, onOpenProfile}: {person: NearbyPerson; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
-  <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={onOpenProfile} className="mb-3 flex-row items-center rounded-[20px] bg-card px-4 py-4 active:opacity-70">
-    {person.avatarUrl ? <Image source={{uri: person.avatarUrl}} className="h-12 w-12 rounded-full" /> : (
-      <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
-        <Text className="text-base font-bold text-foreground">{person.name.slice(0, 1).toUpperCase()}</Text>
-      </View>
-    )}
-    <View className="ml-3 min-w-0 flex-1">
-      <Text className="text-[16px] font-semibold text-foreground" numberOfLines={1}>{person.name}</Text>
-      <View className="mt-1 flex-row items-center gap-1">
-        <IconMapPin size={14} color={Colors.muted} />
-        <Text className="text-[13px] text-muted">{distanceLabel(person)}</Text>
-      </View>
-      {!!person.sharedEvents?.length && <Text className="mt-1 text-xs text-primary" numberOfLines={1}>Both at {person.sharedEvents[0].title}</Text>}
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} onPress={onPress} disabled={opening} hitSlop={6}
-      className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-primary-dark active:opacity-70">
-      {opening ? <ActivityIndicator size="small" color={Colors.gold} /> : <IconMessageCircle size={21} color={Colors.primary} />}
-    </Pressable>
-  </Pressable>
-);
+type Permission = 'checking' | 'granted' | 'denied';
 
-const Nearby = () => {
+const Explore = () => {
   const isFocused = useIsFocused();
-  const [visible, setVisible] = useState<boolean | null>(null);
-  const [radius, setRadius] = useState(2000);
-  const [people, setPeople] = useState<NearbyPerson[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [openingId, setOpeningId] = useState<string | null>(null);
-  const [chat, setChat] = useState<OpenChat | null>(null);
-  const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [locationNotice, setLocationNotice] = useState<string | null>(null);
-  const {enabled: plusEnabled, isPlus} = usePlus();
-  const [mode, setMode] = useState<DiscoveryPresetMode>('NEARBY');
-  const [passportCity, setPassportCity] = useState('');
-  const [filters, setFilters] = useState<DiscoveryFilters>({});
-  const request = useRef(0);
-  const positionInFlight = useRef<Promise<boolean> | null>(null);
-  const radiusRef = useRef(radius);
-  const visibleRef = useRef(visible);
-  // Free users never send filters (the server would answer 403 PLUS_REQUIRED).
-  const filtersRef = useRef<DiscoveryFilters | undefined>(undefined);
-  filtersRef.current = isPlus ? filters : undefined;
-  radiusRef.current = radius;
-  visibleRef.current = visible;
+  const {isPlus} = usePlus();
+  const [permission, setPermission] = useState<Permission>('checking');
+  const [radius, setRadius] = useState<string>(radii[0].label);
+  const [composing, setComposing] = useState(false);
 
-  const loadPeople = useCallback(async (meters: number, pull = false) => {
-    const id = ++request.current;
-    if (pull) setRefreshing(true); else setLoading(true);
-    setError(null);
-    try {
-      const results = await getNearbyPeople(meters, filtersRef.current);
-      if (id === request.current) setPeople(results);
-    } catch (cause) {
-      if (id === request.current) setError(messageOf(cause));
-    } finally {
-      if (id === request.current) { setLoading(false); setRefreshing(false); }
-    }
+  const askLocation = useCallback(async () => {
+    const granted = await requestLocationPermission().catch(() => false);
+    setPermission(granted ? 'granted' : 'denied');
+    return granted;
   }, []);
 
-  const updatePosition = useCallback((askPermission: boolean) => {
-    if (positionInFlight.current) return positionInFlight.current;
-    const pending = (async () => {
-      const coordinates = await getDeviceLocation(askPermission);
-      if (!coordinates) {
-        setLocationNotice('Allow location access to update your position.');
-        return false;
-      }
-      await updateMyLocation(coordinates.lat, coordinates.lng);
-      setLocationNotice(null);
-      return true;
-    })();
-    positionInFlight.current = pending;
-    pending.finally(() => { if (positionInFlight.current === pending) positionInFlight.current = null; }).catch(() => {});
-    return pending;
-  }, []);
-
-  /** A rate limit isn't a location problem, so it shows as a retryable error, not the location card. */
-  const reportPositionError = useCallback((cause: unknown) => {
-    if (isRateLimited(cause)) setError(messageOf(cause));
-    else setLocationNotice(messageOf(cause));
-  }, []);
-
-  // Social Passport never reads or sends the device location, so none of this runs while it is on.
+  // Ask every time the tab is opened, so a grant made in Settings is picked up.
   useEffect(() => {
-    if (!isFocused || mode === 'PASSPORT') return;
-    let active = true;
-    const requestRef = request;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const state = await getLocationVisibility();
-        if (!active) return;
-        let positionReady = false;
-        if (state.visible) {
-          try { positionReady = await updatePosition(false); } catch (cause) { if (active) reportPositionError(cause); }
-        }
-        if (!active) return;
-        setVisible(state.visible);
-        visibleRef.current = state.visible;
-        if (state.visible && positionReady) await loadPeople(radiusRef.current);
-        else { setPeople([]); setLoading(false); }
-      } catch (cause) {
-        if (active) { setError(messageOf(cause)); setLoading(false); }
-      }
-    })();
-    const timer = setInterval(async () => {
-      if (!active || !visibleRef.current) return;
-      try { if (await updatePosition(false)) await loadPeople(radiusRef.current, true); }
-      catch (cause) { if (active) reportPositionError(cause); }
-    }, 5 * 60 * 1000);
-    return () => { active = false; clearInterval(timer); requestRef.current++; };
-  }, [isFocused, loadPeople, mode, reportPositionError, updatePosition]);
+    if (isFocused) askLocation();
+  }, [isFocused, askLocation]);
 
-  // Passport is Plus-only: fall back if the plan lapses while it is open.
-  useEffect(() => { if (mode === 'PASSPORT' && !isPlus) setMode('NEARBY'); }, [isPlus, mode]);
-
-  const chooseMode = (next: DiscoveryPresetMode) => {
-    if (next === 'PASSPORT' && !isPlus) { openPaywall('passport'); return; }
-    setMode(next);
-  };
-
-  const applyPreset = (preset: DiscoveryPreset) => {
-    const next: DiscoveryFilters = {interest: preset.interest ?? undefined, language: preset.language ?? undefined, activeNow: preset.activeNow || undefined};
-    filtersRef.current = next;
-    setFilters(next);
-    setRadius(preset.radiusMeters);
-    radiusRef.current = preset.radiusMeters;
-    if (preset.mode === 'PASSPORT') setPassportCity(preset.city ?? '');
-    // Switching from Passport reruns the location effect, which loads the list itself.
-    else if (mode === 'NEARBY' && visibleRef.current) loadPeople(preset.radiusMeters);
-    setMode(preset.mode);
-  };
-
-  const toggleVisibility = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      if (visible) {
-        visibleRef.current = false;
-        await positionInFlight.current?.catch(() => {});
-        await setLocationVisibility(false);
-        request.current++;
-        setVisible(false);
-        visibleRef.current = false;
-        setPeople([]);
-        setLoading(false);
-        setRefreshing(false);
-        setLocationNotice(null);
-      } else if (await updatePosition(true)) {
-        setVisible(true);
-        visibleRef.current = true;
-        await loadPeople(radiusRef.current);
-      }
-    } catch (cause) {
-      visibleRef.current = visible;
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const refresh = async () => {
-    if (!visible || refreshing) return;
-    setRefreshing(true);
-    try { if (await updatePosition(false)) await loadPeople(radiusRef.current, true); }
-    catch (cause) { reportPositionError(cause); }
-    finally { setRefreshing(false); }
+  const choose = (option: (typeof radii)[number]) => {
+    if (option.plus && !isPlus) { openPaywall('filters'); return; }
+    setRadius(option.label);
   };
 
   const allowLocation = async () => {
-    if (busy) return;
-    setBusy(true);
-    try { if (await updatePosition(true)) await loadPeople(radiusRef.current); }
-    catch (cause) { reportPositionError(cause); }
-    finally { setBusy(false); }
+    // iOS won't prompt again after a denial, so send the person to Settings instead.
+    if (!(await askLocation())) Linking.openSettings();
   };
 
-  const openConversation = async (person: Chatter) => {
-    if (openingId) return;
-    setOpeningId(person.id);
-    setError(null);
-    try {
-      const conversation = await startDirectConversation(person.id);
-      setChat({id: conversation.id, person});
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setOpeningId(null);
-    }
-  };
-
-  const retry = async () => {
-    if (visible) {
-      // Re-send the position first: the failure may have been the location update itself (e.g. 429).
-      setError(null);
-      try { if (await updatePosition(false)) await loadPeople(radiusRef.current); }
-      catch (cause) { reportPositionError(cause); }
-      return;
-    }
-    setLoading(true);
-    try {
-      const state = await getLocationVisibility();
-      setVisible(state.visible);
-      setError(null);
-      if (state.visible && await updatePosition(false)) await loadPeople(radiusRef.current);
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const showList = visible === true;
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <View className="px-5 pt-3">
-        {/* Same size and position as the Home header. */}
-        <View className="h-11 justify-center"><Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-foreground">Nearby</Text></View>
-        <Text className="mt-1 text-sm text-muted">{mode === 'PASSPORT' ? 'Meet people in another city' : 'Find people around you'}</Text>
-        {plusEnabled && <View className="mt-4 gap-3">
-          <View className="flex-row gap-2">
-            {(['NEARBY', 'PASSPORT'] as const).map(option => {
-              const locked = option === 'PASSPORT' && !isPlus;
-              const label = option === 'NEARBY' ? 'Nearby' : 'Passport';
-              return <Pressable key={option} accessibilityRole="button" accessibilityLabel={locked ? 'Passport, requires Hiva Plus' : label} accessibilityState={{selected: mode === option}} onPress={() => chooseMode(option)}
-                className={`h-9 flex-row items-center justify-center gap-1.5 rounded-full px-5 ${mode === option ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
-                <Text className={`text-[13px] font-semibold ${mode === option ? 'text-text-dark' : 'text-muted'}`}>{label}</Text>
+        <View className="flex-row items-center justify-between">
+          <Text accessibilityRole="header" className="font-display-semibold text-[34px] tracking-[-0.8px] text-foreground">Explore</Text>
+          <View className="flex-row items-center gap-3">
+            {/* ponytail: visibility toggle not wired yet. */}
+            <Pressable accessibilityRole="button" accessibilityLabel="Visibility" className="h-11 w-11 items-center justify-center rounded-full border-2 border-border active:opacity-70">
+              <IconEye size={20} color={Colors.text} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Drop a vibe" onPress={() => setComposing(true)} className="h-11 flex-row items-center gap-1.5 rounded-full bg-gold px-4 active:opacity-70">
+              <IconPencil size={16} color={Colors.white} />
+              <Text className="text-[14px] font-bold text-white">Drop a vibe</Text>
+            </Pressable>
+          </View>
+        </View>
+        <Text className="mt-1 text-[16px] text-muted">Find people around you</Text>
+
+        {permission === 'granted' && <View className="mt-5 flex-row items-center">
+          <View className="flex-1 flex-row flex-wrap gap-1.5">
+            {radii.map(option => {
+              const selected = radius === option.label;
+              const locked = option.plus && !isPlus;
+              return <Pressable key={option.label} accessibilityRole="button" accessibilityLabel={locked ? `${option.label}, requires Hiva Plus` : option.label} accessibilityState={{selected}} onPress={() => choose(option)}
+                className={`h-9 flex-row items-center gap-1.5 rounded-full px-3.5 ${selected ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
+                <Text className={`text-[14px] font-semibold ${selected ? 'text-white' : 'text-foreground'}`}>{option.label}</Text>
                 {locked && <IconLock size={13} color={Colors.muted} />}
               </Pressable>;
             })}
           </View>
-          <PresetsBar current={{mode, city: passportCity, radiusMeters: radius, filters}} onApply={applyPreset} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Filters" onPress={() => { if (!isPlus) openPaywall('filters'); }} className="ml-2 h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70">
+            <IconAdjustmentsHorizontal size={20} color={Colors.text} />
+          </Pressable>
         </View>}
       </View>
 
-      {mode === 'PASSPORT' ? <PassportResults city={passportCity} onCityChange={setPassportCity} filters={filters} onFiltersChange={setFilters} openingId={openingId}
-        onOpenProfile={person => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} onMessage={openConversation} /> : <FlatList
-        data={showList && !locationNotice ? people : []}
-        keyExtractor={item => item.id}
-        renderItem={({item}) => <PersonRow person={item} opening={openingId === item.id} onPress={() => openConversation(item)}
-          onOpenProfile={() => setViewing({id: item.id, initial: {name: item.name, avatarUrl: item.avatarUrl}})} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName="flex-grow px-5 pb-[110px]"
-        refreshControl={showList ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} /> : undefined}
-        ListHeaderComponent={<>
-          <View className="mb-7 mt-6 flex-row items-center rounded-[20px] bg-card p-4">
-            <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-dark"><IconRadar size={24} color={Colors.primary} /></View>
-            <View className="ml-3 flex-1">
-              <Text className="text-[15px] font-semibold text-foreground">{visible === null ? 'Checking visibility' : visible ? "You're visible" : 'Discovery is off'}</Text>
-              <Text className="mt-1 text-xs leading-[17px] text-muted">{visible ? 'People nearby can find you while your location is fresh.' : 'Go visible to find people and let them find you.'}</Text>
+      {permission === 'granted' && <ScrollView contentContainerClassName="px-5 pb-[110px] pt-5" showsVerticalScrollIndicator={false}>
+        {cards.map(card => {
+          const {Icon, color} = genderGlyph[card.gender];
+          return <View key={card.id} className="mb-4 flex-row items-center rounded-[20px] bg-card px-4 py-4">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-[#262631]">
+              <Text className="text-[20px] font-bold text-foreground">{card.name.slice(0, 1).toUpperCase()}</Text>
             </View>
-            {visible !== null && <Pressable accessibilityRole="button" accessibilityLabel={visible ? 'Go invisible' : 'Go visible'} disabled={busy} onPress={toggleVisibility} className={`ml-3 min-h-10 items-center justify-center rounded-full px-3 ${visible ? 'border border-border' : 'bg-gold'} ${busy ? 'opacity-50' : 'active:opacity-70'}`}>
-              {busy ? <ActivityIndicator size="small" color={visible ? Colors.gold : Colors.textDark} /> : visible ? <IconEyeOff size={19} color={Colors.text} /> : <Text className="text-[13px] font-bold text-text-dark">Go visible</Text>}
-            </Pressable>}
-          </View>
-
-          {showList && !locationNotice && <>
-            <View className="mb-3 flex-row gap-2">
-              {radii.map(option => <Pressable key={option.meters} accessibilityRole="button" accessibilityState={{selected: radius === option.meters}} onPress={() => { setRadius(option.meters); radiusRef.current = option.meters; loadPeople(option.meters); }} className={`h-9 min-w-[70px] items-center justify-center rounded-full px-4 ${radius === option.meters ? 'bg-gold' : 'bg-card'} active:opacity-70`}>
-                <Text className={`text-[13px] font-semibold ${radius === option.meters ? 'text-text-dark' : 'text-muted'}`}>{option.label}</Text>
-              </Pressable>)}
+            <View className="ml-4 flex-1 pr-3">
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-[17px] font-semibold text-foreground">{card.name}</Text>
+                <Icon size={18} color={color} />
+              </View>
+              <Text className="mt-1 text-[15px] leading-[21px] text-muted">{card.bio}</Text>
             </View>
-            <View className="mb-6"><DiscoveryFilterBar filters={filters} onChange={next => {filtersRef.current = next; setFilters(next); loadPeople(radiusRef.current);}} /></View>
-            <VibeNotesList radiusMeters={radius} reloadKey={people} />
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-foreground">People around you</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Refresh nearby people" onPress={refresh} className="h-10 w-10 items-center justify-center rounded-full active:bg-card"><IconRefresh size={20} color={Colors.muted} /></Pressable>
-            </View>
-          </>}
-          {showList && locationNotice && <View className="rounded-[20px] bg-card px-5 py-5">
-            <Text className="text-[16px] font-semibold text-foreground">Update your location</Text>
-            <Text className="mt-2 text-sm leading-5 text-muted">{locationNotice} Your old position may no longer be nearby.</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Allow location access" onPress={allowLocation} disabled={busy} className="mt-5 h-11 items-center justify-center rounded-full bg-gold active:opacity-70">
-              {busy ? <ActivityIndicator size="small" color={Colors.textDark} /> : <Text className="text-sm font-bold text-text-dark">Allow location</Text>}
+            <Pressable accessibilityRole="button" accessibilityLabel={`Say hi to ${card.name}`} className="h-11 justify-center rounded-full bg-primary-dark px-5 active:opacity-70">
+              <Text className="text-[15px] font-bold text-primary">Say hi!</Text>
             </Pressable>
-          </View>}
-          {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry nearby" onPress={retry} className="mb-4 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
-        </>}
-        ListEmptyComponent={loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.gold} /></View> : showList && !error && !locationNotice ? (
-          <View className="items-center px-6 pt-16">
-            <IconRadar size={44} color={Colors.muted} strokeWidth={1.5} />
-            <Text className="mt-4 text-center text-base font-semibold text-foreground">No one nearby yet</Text>
-            <Text className="mt-2 text-center text-sm leading-5 text-muted">Try a wider range or check back soon.</Text>
-          </View>
-        ) : undefined}
-      />}
-      {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)}
-        onBlocked={id => {setViewing(null); setPeople(current => current.filter(person => person.id !== id));}} />}
-      {chat && <DirectConversation conversationId={chat.id} contactId={chat.person.id} contactName={chat.person.name} contactAvatarUrl={chat.person.avatarUrl} onClose={() => setChat(null)} />}
+          </View>;
+        })}
+      </ScrollView>}
+
+      {permission === 'checking' && <View className="flex-1 items-center justify-center"><ActivityIndicator color={Colors.gold} /></View>}
+
+      {permission === 'denied' && <View className="flex-1 items-center justify-center px-8 pb-[110px]">
+        <View className="h-16 w-16 items-center justify-center rounded-full bg-primary-dark"><IconMapPin size={30} color={Colors.primary} /></View>
+        <Text className="mt-5 text-center text-[18px] font-semibold text-foreground">Allow location to explore people</Text>
+        <Text className="mt-2 text-center text-sm leading-5 text-muted">Hiva uses your location to find people within your range.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Allow location" onPress={allowLocation} className="mt-6 h-12 items-center justify-center rounded-full bg-gold px-8 active:opacity-70">
+          <Text className="text-[15px] font-bold text-white">Allow location</Text>
+        </Pressable>
+      </View>}
+
+      <VibeNoteComposer visible={composing} onClose={() => setComposing(false)} onPosted={() => setComposing(false)} />
     </SafeAreaView>
   );
 };
 
-export default Nearby;
+export default Explore;

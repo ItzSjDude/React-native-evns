@@ -19,6 +19,7 @@ import {clearSession, logoutFromApi} from '../auth';
 import {usePartySession} from '../party';
 import {PlusBadge, usePlus, useOwnProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
+import {publishMyAvatarUrl} from './myAvatar';
 import {getGiftSummary, getMyProfile, getMySettings, getProfilePage, updateMyProfile} from './profileService';
 import {EventDetailSheet} from '../events';
 import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
@@ -83,6 +84,7 @@ const Profile = () => {
       const value = await getMyProfile();
       if (request !== profileRequest.current) return;
       setProfile(value);
+      publishMyAvatarUrl(value.avatar_url);
     } catch (error) {
       if (request === profileRequest.current) setProfileError(messageOf(error));
     } finally {
@@ -152,6 +154,7 @@ const Profile = () => {
     const updated = await updateMyProfile(update);
     profileRequest.current++;
     setProfile(updated);
+    publishMyAvatarUrl(updated.avatar_url);
   };
 
   const logout = async () => {
