@@ -16,15 +16,22 @@ export function suggestHandle(name: string | null | undefined): string {
   return HANDLE_PATTERN.test(candidate) ? candidate : '';
 }
 
-export function validateIdentity(draft: Pick<OnboardingDraft, 'name' | 'handle'>): OnboardingFieldErrors {
+export function validateProfile(draft: Pick<OnboardingDraft, 'name' | 'handle' | 'gender' | 'country' | 'profession'>, photoMissing: boolean): OnboardingFieldErrors {
   const errors: OnboardingFieldErrors = {};
   const name = draft.name.trim();
   if (name.length < 2 || name.length > 80) errors.name = 'Name must be 2–80 characters.';
   if (!HANDLE_PATTERN.test(normalizeHandle(draft.handle))) {
     errors.handle = 'Handle must be 3–30 lowercase letters, numbers, or underscores.';
   }
+  if (!draft.gender) errors.gender = 'Select your gender.';
+  if (!draft.country) errors.country = 'Select your country.';
+  if (!draft.profession.trim()) errors.profession = 'Select or enter your profession.';
+  else if (draft.profession.trim().length > 60) errors.profession = 'Profession must be 60 characters or less.';
+  if (photoMissing) errors.avatarUrl = 'Add a profile photo.';
   return errors;
 }
+
+export const validateIntent = (intent: string): OnboardingFieldErrors => (intent ? {} : {intent: 'Pick one to continue.'});
 
 export function validateInterests(interests: string[]): OnboardingFieldErrors {
   if (interests.length < 1) return {interests: 'Pick at least one interest.'};
@@ -32,12 +39,8 @@ export function validateInterests(interests: string[]): OnboardingFieldErrors {
   return {};
 }
 
-export function validateDetails(draft: Pick<OnboardingDraft, 'city'>): OnboardingFieldErrors {
-  return draft.city.trim().length > 80 ? {city: 'City must be 80 characters or less.'} : {};
-}
-
 export const stepForField: Record<OnboardingField, OnboardingStep> = {
-  name: 0, handle: 0, interests: 1, city: 2, avatarUrl: 2,
+  name: 0, handle: 0, gender: 0, country: 0, profession: 0, avatarUrl: 0, intent: 1, interests: 2,
 };
 
 /**

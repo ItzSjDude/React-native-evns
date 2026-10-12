@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import Onboarding from '../Onboarding';
 import {completeOnboarding} from '../authSlice';
 import {getOnboardingProfile, saveOnboardingProfile} from '../onboarding/onboardingService';
+import {fillProfile as fillProfileWith} from '../__testHelpers__/onboardingTestUtils';
 
 const mockDispatch = jest.fn();
 jest.mock('../../../core/store/hooks', () => ({
@@ -45,6 +46,7 @@ const press = async (renderer: ReactTestRenderer.ReactTestRenderer, label: strin
 const type = async (renderer: ReactTestRenderer.ReactTestRenderer, label: string, value: string) => {
   await ReactTestRenderer.act(async () => { input(renderer, label).props.onChangeText(value); });
 };
+const fillProfile = (renderer: ReactTestRenderer.ReactTestRenderer) => fillProfileWith(renderer, press);
 const texts = (renderer: ReactTestRenderer.ReactTestRenderer) =>
   renderer.root.findAllByType(Text).map(node => [node.props.children].flat().join('')).join('\n');
 
@@ -54,22 +56,39 @@ test('prefills name and suggests a handle from the Google profile', async () => 
   expect(input(renderer, 'Handle').props.value).toBe('asha_rao');
 });
 
-test('validation blocks Next on the identity step', async () => {
+test('validation blocks Next on the profile step', async () => {
   const renderer = await render();
   await type(renderer, 'Name', 'A');
   await type(renderer, 'Handle', 'no spaces!');
   await press(renderer, 'Next');
   expect(texts(renderer)).toContain('Name must be 2–80 characters.');
   expect(texts(renderer)).toContain('Handle must be 3–30 lowercase letters, numbers, or underscores.');
+  expect(texts(renderer)).toContain('Select your gender.');
+  expect(texts(renderer)).toContain('Select your country.');
+  expect(texts(renderer)).toContain('Select or enter your profession.');
   expect(texts(renderer)).toContain('Step 1 of 3');
+});
+
+test('there is no Skip and the intent step needs a choice', async () => {
+  const renderer = await render();
+  expect(() => byLabel(renderer, 'Skip')).toThrow();
+  await fillProfile(renderer);
+  await press(renderer, 'Next');
+  expect(texts(renderer)).toContain('Step 2 of 3');
+  await press(renderer, 'Next');
+  expect(texts(renderer)).toContain('Pick one to continue.');
+  expect(texts(renderer)).toContain('Step 2 of 3');
 });
 
 test('requires at least one interest and caps the selection at 8', async () => {
   const renderer = await render();
+  await fillProfile(renderer);
   await press(renderer, 'Next');
-  expect(texts(renderer)).toContain('Step 2 of 3');
+  await press(renderer, 'Join live audio parties');
+  await press(renderer, 'Next');
+  expect(texts(renderer)).toContain('Step 3 of 3');
 
-  await press(renderer, 'Next');
+  await press(renderer, 'Finish');
   expect(texts(renderer)).toContain('Pick at least one interest.');
 
   const all = ['music', 'gaming', 'chill', 'talk', 'study', 'travel', 'sports', 'tech', 'startups'];
@@ -83,36 +102,27 @@ test('requires at least one interest and caps the selection at 8', async () => {
 
 test('saves the profile with one PATCH and completes onboarding', async () => {
   const renderer = await render();
+  await fillProfile(renderer);
+  await press(renderer, 'Next');
+  await press(renderer, 'Join live audio parties');
   await press(renderer, 'Next');
   await press(renderer, 'Interest music');
   await press(renderer, 'Interest tech');
-  await press(renderer, 'Next');
-  expect(byLabel(renderer, 'Add photo').props.disabled).toBe(true);
-  await type(renderer, 'City', ' Pune ');
   await press(renderer, 'Finish');
 
   expect(saveProfile).toHaveBeenCalledTimes(1);
-  expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['music', 'tech'], city: 'Pune'});
-  expect(mockDispatch).toHaveBeenCalledWith(completeOnboarding());
-});
-
-test('skip for now saves without optional fields', async () => {
-  const renderer = await render();
-  await press(renderer, 'Next');
-  await press(renderer, 'Interest chill');
-  await press(renderer, 'Next');
-  await type(renderer, 'City', 'Pune');
-  await press(renderer, 'Skip for now');
-  expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['chill']});
+  expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['music', 'tech']});
   expect(mockDispatch).toHaveBeenCalledWith(completeOnboarding());
 });
 
 test('a taken handle returns to step 1 with a field error', async () => {
   saveProfile.mockRejectedValue({status: 409, code: 'CONFLICT', message: 'That handle is already taken'});
   const renderer = await render();
+  await fillProfile(renderer);
+  await press(renderer, 'Next');
+  await press(renderer, 'Chat & make friends');
   await press(renderer, 'Next');
   await press(renderer, 'Interest music');
-  await press(renderer, 'Next');
   await press(renderer, 'Finish');
 
   expect(mockDispatch).not.toHaveBeenCalled();
@@ -124,14 +134,15 @@ test('shows field-level validation details and generic API errors', async () => 
   saveProfile.mockRejectedValueOnce({status: 400, message: 'Invalid request body', details: [{field: 'interests.0', message: 'Too long'}]});
   saveProfile.mockRejectedValueOnce({status: 500, message: 'Server is having a moment'});
   const renderer = await render();
+  await fillProfile(renderer);
+  await press(renderer, 'Next');
+  await press(renderer, 'Just exploring');
   await press(renderer, 'Next');
   await press(renderer, 'Interest music');
-  await press(renderer, 'Next');
   await press(renderer, 'Finish');
-  expect(texts(renderer)).toContain('Step 2 of 3');
+  expect(texts(renderer)).toContain('Step 3 of 3');
   expect(texts(renderer)).toContain('Too long');
 
-  await press(renderer, 'Next');
   await press(renderer, 'Finish');
   expect(texts(renderer)).toContain('Server is having a moment');
   expect(mockDispatch).not.toHaveBeenCalled();

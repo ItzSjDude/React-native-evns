@@ -10,8 +10,9 @@ import {DateOfBirthPicker, DobConfirmSheet} from './age/DateOfBirthPicker';
 import {DOB_NOTICE, EMPTY_DOB, validateDob, type DobDraft} from './age/ageValidation';
 import {useSaveDateOfBirth, type ValidDob} from './age/useSaveDateOfBirth';
 import {getOnboardingProfile, saveOnboardingProfile} from './onboarding/onboardingService';
-import {IdentityStep, InterestsStep, PhotoStep, ProgressDots} from './onboarding/OnboardingSteps';
-import {mapSaveError, MAX_INTERESTS, normalizeHandle, stepForField, suggestHandle, validateDetails, validateIdentity, validateInterests} from './onboarding/validation';
+import {IntentStep, InterestsStep, OnboardingHeader, ProfileStep} from './onboarding/OnboardingSteps';
+import {SEND_PROFILE_EXTRAS} from './onboarding/options';
+import {mapSaveError, MAX_INTERESTS, normalizeHandle, stepForField, suggestHandle, validateInterests, validateIntent, validateProfile} from './onboarding/validation';
 import type {OnboardingDraft, OnboardingField, OnboardingFieldErrors, OnboardingProfileUpdate, OnboardingStep} from './onboarding/types';
 
 const TOTAL_STEPS = 3;
@@ -23,7 +24,7 @@ const initialsOf = (name: string) =>
 const Onboarding = () => {
   const dispatch = useAppDispatch();
   const [step, setStep] = useState<OnboardingStep>(0);
-  const [draft, setDraft] = useState<OnboardingDraft>({name: '', handle: '', interests: [], city: '', avatarUrl: null});
+  const [draft, setDraft] = useState<OnboardingDraft>({name: '', handle: '', interests: [], gender: '', country: '', profession: '', intent: '', avatarUrl: null});
   const [existingAvatar, setExistingAvatar] = useState<string | null>(null);
   const [errors, setErrors] = useState<OnboardingFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -56,7 +57,6 @@ const Onboarding = () => {
           name,
           handle: has('handle') ? current.handle : profile.handle || suggestHandle(name) || current.handle,
           interests: has('interests') || !profile.interests?.length ? current.interests : profile.interests.slice(0, MAX_INTERESTS),
-          city: has('city') ? current.city : profile.city || current.city,
         };
       });
     }).catch(() => { /* Prefill is best-effort; the user can type everything. */ });
@@ -121,25 +121,25 @@ const Onboarding = () => {
     }
   };
 
-  const save = async (includeOptional: boolean) => {
+  const avatar = draft.avatarUrl ?? existingAvatar;
+  // Without the native picker a photo can't be added, so don't block on one.
+  const photoMissing = imagePicker.available && !avatar;
+
+  const save = async () => {
     if (saving || uploading) return;
-    const identityErrors = validateIdentity(draft);
-    const interestErrors = validateInterests(draft.interests);
-    const detailErrors = includeOptional ? validateDetails(draft) : {};
-    const all = {...identityErrors, ...interestErrors, ...detailErrors};
+    const all = {...validateProfile(draft, photoMissing), ...validateIntent(draft.intent), ...validateInterests(draft.interests)};
     const firstInvalid = (Object.keys(all) as OnboardingField[])[0];
     if (firstInvalid) {
       setErrors(all);
       setStep(stepForField[firstInvalid]);
       return;
     }
-    const city = draft.city.trim();
     const payload: OnboardingProfileUpdate = {
       name: draft.name.trim(),
       handle: normalizeHandle(draft.handle),
       interests: draft.interests,
-      ...(includeOptional && city ? {city} : {}),
-      ...(includeOptional && draft.avatarUrl ? {avatarUrl: draft.avatarUrl} : {}),
+      ...(draft.avatarUrl ? {avatarUrl: draft.avatarUrl} : {}),
+      ...(SEND_PROFILE_EXTRAS ? {gender: draft.gender, country: draft.country, profession: draft.profession.trim(), intent: draft.intent} : {}),
     };
     setSaving(true);
     setFormError(null);
@@ -161,7 +161,7 @@ const Onboarding = () => {
   const next = () => {
     if (saving) return;
     if (savingDob) return;
-    const stepErrors = step === 0 ? validateIdentity(draft) : step === 1 ? validateInterests(draft.interests) : validateDetails(draft);
+    const stepErrors = step === 0 ? validateProfile(draft, photoMissing) : step === 1 ? validateIntent(draft.intent) : validateInterests(draft.interests);
     const dobResult = step === 0 && needsDob ? validateDob(dob) : null;
     if (dobResult && !dobResult.ok) setDobError(dobResult.error);
     if (Object.keys(stepErrors).length > 0) {
@@ -172,7 +172,7 @@ const Onboarding = () => {
       if (dobResult.ok) setPendingDob(dobResult);
       return;
     }
-    if (step === 2) { save(true); return; }
+    if (step === 2) { save(); return; }
     setFormError(null);
     setStep(current => (current + 1) as OnboardingStep);
   };
@@ -184,37 +184,26 @@ const Onboarding = () => {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ThemedStatusBar />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
-          <ProgressDots step={step} total={TOTAL_STEPS} />
-          <Text className="text-xs font-semibold text-muted">Step {step + 1} of {TOTAL_STEPS}</Text>
-        </View>
+        <OnboardingHeader step={step} total={TOTAL_STEPS} canGoBack={step > 0} disabled={saving} onBack={goBack} />
         <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled" contentContainerClassName="px-5 pb-6 pt-6">
-          {step === 0 ? <IdentityStep name={draft.name} handle={draft.handle} errors={errors} disabled={saving}
-            onChangeName={value => update('name', value)} onChangeHandle={value => update('handle', value.replace(/^@/, '').toLowerCase())} onSubmit={next} /> : null}
+          {step === 0 ? <ProfileStep name={draft.name} handle={draft.handle} gender={draft.gender} country={draft.country} profession={draft.profession}
+            avatarUrl={avatar} initials={initialsOf(draft.name)} errors={errors} pickerAvailable={imagePicker.available} uploading={uploading} disabled={saving}
+            onPickPhoto={pickPhoto} onChangeName={value => update('name', value)} onChangeHandle={value => update('handle', value.replace(/^@/, '').toLowerCase())}
+            onChangeGender={value => update('gender', value)} onChangeCountry={value => update('country', value)} onChangeProfession={value => update('profession', value)} /> : null}
           {step === 0 && needsDob ? <View className="mt-2">
             <DateOfBirthPicker value={dob} onChange={changeDob} error={dobError} disabled={saving || savingDob} />
             <Text className="mt-2 text-xs leading-[18px] text-muted">{DOB_NOTICE}</Text>
           </View> : null}
-          {step === 1 ? <InterestsStep selected={draft.interests} error={errors.interests} disabled={saving} onToggle={toggleInterest} /> : null}
-          {step === 2 ? <PhotoStep avatarUrl={draft.avatarUrl ?? existingAvatar} initials={initialsOf(draft.name)} city={draft.city} errors={errors}
-            pickerAvailable={imagePicker.available} uploading={uploading} disabled={saving} onPickPhoto={pickPhoto} onChangeCity={value => update('city', value)} /> : null}
+          {step === 1 ? <IntentStep selected={draft.intent} error={errors.intent} disabled={saving} onSelect={value => update('intent', value)} /> : null}
+          {step === 2 ? <InterestsStep selected={draft.interests} error={errors.interests} disabled={saving} onToggle={toggleInterest} /> : null}
           {step === 0 && dobSaveError ? <View className="mt-5 rounded-[14px] border border-coral bg-card p-4"><Text accessibilityRole="alert" className="text-sm text-coral">{dobSaveError}</Text></View> : null}
           {formError ? <View className="mt-5 rounded-[14px] border border-coral bg-card p-4"><Text accessibilityRole="alert" className="text-sm text-coral">{formError}</Text></View> : null}
         </ScrollView>
-        <View className="gap-3 border-t border-border px-5 pb-3 pt-3">
-          <View className="flex-row gap-3">
-            {step > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Back" disabled={saving} onPress={goBack}
-              className={`h-12 flex-1 items-center justify-center rounded-full border border-border bg-card ${saving ? 'opacity-40' : 'active:opacity-70'}`}>
-              <Text className="text-[15px] font-semibold text-foreground">Back</Text>
-            </Pressable> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish' : 'Next'} accessibilityState={{disabled: busy, busy: saving || savingDob}} disabled={busy} onPress={next}
-              className={`h-12 flex-[2] items-center justify-center rounded-full bg-gold ${busy ? 'opacity-40' : 'active:opacity-70'}`}>
-              {saving || savingDob ? <ActivityIndicator color={Colors.textDark} /> : <Text className="text-[15px] font-bold text-text-dark">{isLast ? 'Finish' : 'Next'}</Text>}
-            </Pressable>
-          </View>
-          {isLast ? <Pressable accessibilityRole="button" accessibilityLabel="Skip for now" disabled={busy} onPress={() => save(false)} className="min-h-11 items-center justify-center">
-            <Text className={`text-sm font-semibold ${busy ? 'text-muted-light' : 'text-muted'}`}>Skip for now</Text>
-          </Pressable> : null}
+        <View className="border-t border-border px-5 pb-3 pt-3">
+          <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish' : 'Next'} accessibilityState={{disabled: busy, busy: saving || savingDob}} disabled={busy} onPress={next}
+            className={`h-12 items-center justify-center rounded-full bg-gold ${busy ? 'opacity-40' : 'active:opacity-70'}`}>
+            {saving || savingDob ? <ActivityIndicator color={Colors.textDark} /> : <Text className="text-[15px] font-bold text-text-dark">{isLast ? 'Finish' : 'Next'}</Text>}
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
       <DobConfirmSheet label={pendingDob?.label ?? null} busy={savingDob} onConfirm={confirmDob} onCancel={() => setPendingDob(null)} />
