@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -27,7 +28,7 @@ import {PartyScreen} from '../features/party';
 import {MessagesScreen, useFollowUpOpened} from '../features/messages';
 import {resolveNotificationTarget, useNotifications} from '../features/notifications';
 import {navigateWhenReady} from './navigationRef';
-import {ProfileScreen} from '../features/profile';
+import {ProfileScreen, useMyAvatarUrl} from '../features/profile';
 
 import {Colors} from '../Constants/Colors';
 import AppIcon, {type IconName} from '../Constants/Icons';
@@ -61,11 +62,14 @@ type TabButtonProps = {
   position: SharedValue<number>;
   onPress: () => void;
   onLongPress: () => void;
+  label: string;
   accessibilityLabel: string;
+  avatarUrl?: string | null;
 };
 
 const TabButton = ({
   name,
+  label,
   index,
   focused,
   activeWidth,
@@ -74,6 +78,7 @@ const TabButton = ({
   onPress,
   onLongPress,
   accessibilityLabel,
+  avatarUrl,
 }: TabButtonProps) => {
   const widths = positions.map(value =>
     value === index ? activeWidth : inactiveWidth,
@@ -116,16 +121,23 @@ const TabButton = ({
         onPress={onPress}
         onLongPress={onLongPress}
         className="h-[46px] w-full flex-row items-center justify-center gap-1 px-[5px] active:opacity-70">
-        <AppIcon
-          name={tabIcons[name]}
-          size={24}
-          color={focused ? Colors.goldInk : Colors.muted}
-          filled={focused}
-        />
+        {name === 'Me' && avatarUrl ? (
+          <Image
+            source={{uri: avatarUrl}}
+            className={`h-6 w-6 rounded-full border-[1.5px] ${focused ? 'border-gold-ink' : 'border-transparent'}`}
+          />
+        ) : (
+          <AppIcon
+            name={tabIcons[name]}
+            size={24}
+            color={focused ? Colors.goldInk : Colors.muted}
+            filled={focused}
+          />
+        )}
 
         {focused && (
           <Text className="text-sm font-semibold text-gold-ink">
-            {name}
+            {label}
           </Text>
         )}
       </Pressable>
@@ -140,6 +152,7 @@ const CustomTabBar = ({
 }: BottomTabBarProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [pillWidth, setPillWidth] = useState(0);
+  const avatarUrl = useMyAvatarUrl();
 
   const position = useSharedValue(state.index);
 
@@ -194,11 +207,13 @@ const CustomTabBar = ({
             <TabButton
               key={route.key}
               name={route.name as keyof TabParamList}
+              label={typeof options.tabBarLabel === 'string' ? options.tabBarLabel : route.name}
               index={index}
               focused={focused}
               activeWidth={activeWidth}
               inactiveWidth={inactiveWidth}
               position={position}
+              avatarUrl={avatarUrl}
               onPress={onPress}
               onLongPress={() =>
                 navigation.emit({
@@ -254,6 +269,7 @@ const TabNavigation = () => {
     <Tab.Screen
       name="Nearby"
       component={NearbyScreen}
+      options={{tabBarLabel: 'Explore'}}
     />
 
     <Tab.Screen
