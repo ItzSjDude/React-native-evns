@@ -107,6 +107,11 @@ const hours = (minutes: number) => {
 
 export const plusAllowance = (reason: LimitReason, details?: LimitReachedDetails) => details?.plusMax ?? PLUS_DEFAULTS[reason];
 
+/** Free-tier allowances quoted on the paywall when a limit error doesn't carry `max`. Keep in sync with the backend's free tier. */
+export const FREE_DEFAULTS: Record<LimitReason, number> = {dmStarts: 5, vibeNotes: 2, vibeNoteLifetime: 4 * 60, randomMatches: 0};
+
+export const freeAllowance = (reason: LimitReason, details?: LimitReachedDetails) => details?.max ?? FREE_DEFAULTS[reason];
+
 /** Footer under the plan list; a prepaid plan must never say it renews. */
 export const paywallRenewalNote = (autoRenews: boolean) => autoRenews
   ? 'Renews automatically. Cancel anytime in Google Play.'
