@@ -30,7 +30,6 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HivaChat/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = HivaChat/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = HivaChat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		A81D8E642F8A12E700D33A10 /* HivaChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = HivaChat.entitlements; path = HivaChat/HivaChat.entitlements; sourceTree = "<group>"; };
 		151C9A1205A348979F627CD0 /* BricolageGrotesque-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-SemiBold.ttf"; path = "../assets/fonts/BricolageGrotesque-SemiBold.ttf"; sourceTree = "<group>"; };
 		1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-OFL.txt"; path = "../assets/fonts/Manrope-OFL.txt"; sourceTree = "<group>"; };
 		35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-Bold.ttf"; path = "../assets/fonts/Manrope-Bold.ttf"; sourceTree = "<group>"; };
@@ -42,6 +41,7 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = HivaChat/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = HivaChat/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1EBE2A6B1F14B299FE2DABE /* BricolageGrotesque-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-Bold.ttf"; path = "../assets/fonts/BricolageGrotesque-Bold.ttf"; sourceTree = "<group>"; };
+		A81D8E642F8A12E700D33A10 /* HivaChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = HivaChat.entitlements; path = HivaChat/HivaChat.entitlements; sourceTree = "<group>"; };
 		AAB0B731C2174155A2060F9C /* BricolageGrotesque-OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "BricolageGrotesque-OFL.txt"; path = "../assets/fonts/BricolageGrotesque-OFL.txt"; sourceTree = "<group>"; };
 		BD93C293EF0A7FA206DF7736 /* Pods_HivaChat.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_HivaChat.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -342,9 +342,9 @@
 				CODE_SIGN_ENTITLEMENTS = HivaChat/HivaChat.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
+				HIVA_LINK_HOST = links.invalid;
 				INFOPLIST_FILE = HivaChat/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-				HIVA_LINK_HOST = links.invalid;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -373,9 +373,9 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = HivaChat/HivaChat.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				HIVA_LINK_HOST = links.invalid;
 				INFOPLIST_FILE = HivaChat/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
-				HIVA_LINK_HOST = links.invalid;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

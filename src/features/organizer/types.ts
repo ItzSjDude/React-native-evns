@@ -79,3 +79,16 @@ export type CreditOverview = {
   ledger: CreditLedgerEntry[];
   recentPurchases: CreditPurchase[];
 };
+
+/** Fixed, server-owned ticket-credit product. The app must never submit its own price or quantity. */
+export type CreditPack = {key: string; quantity: number; amountMinor: number; currency: string};
+
+export type CreditCheckout = {
+  provider: 'razorpay' | 'manual';
+  orderId: string;
+  amountMinor: number;
+  currency: string;
+  keyId: string | null;
+};
+
+export type CreditPurchaseStart = {purchase: ApiCreditPurchase; checkout: CreditCheckout};

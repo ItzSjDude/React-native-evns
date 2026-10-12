@@ -36,7 +36,7 @@ export type TabParamList = {
   Home: undefined;
   Nearby: undefined;
   Party: undefined;
-  Chat: undefined;
+  Chat: {initialView?: 'all' | 'unread' | 'requests' | 'events' | 'parties' | 'direct' | 'archived'; initialConversationId?: string} | undefined;
   Me: undefined;
 };
 
@@ -232,7 +232,9 @@ const TabNavigation = () => {
   const navigateRef = useRef(navigateTo);
   navigateRef.current = navigateTo;
   const renderMessages = useCallback(
-    () => <MessagesScreen onOpenParty={partyId => navigateRef.current(resolveNotificationTarget(undefined, {partyId}))} />,
+    ({route}: {route: {params?: TabParamList['Chat']}}) => <MessagesScreen initialView={route.params?.initialView}
+      initialConversationId={route.params?.initialConversationId}
+      onOpenParty={partyId => navigateRef.current(resolveNotificationTarget(undefined, {partyId}))} />,
     [],
   );
   return (

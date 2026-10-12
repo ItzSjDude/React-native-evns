@@ -1,7 +1,7 @@
 import {apiRequest} from '../../../core/api/apiClient';
 import {
   advancePartyGame, createPartyPoll, endPartyGame, getActivePartyGame, getPartyMonetization, isUnavailable, listPartyGifts, listPartyPolls,
-  pollTotal, spinPartyGame, startPartyGame, votePartyPoll,
+  cancelPartyGiftReservation, listPartyGiftCatalog, pollTotal, purchasePartyGift, reservePartyGift, spinPartyGame, startPartyGame, votePartyPoll,
 } from '../extras/extrasService';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
@@ -37,6 +37,14 @@ test('monetization and gift list paths', async () => {
   expect(request).toHaveBeenLastCalledWith('/parties/p1/monetization', {auth: 'required', signal: undefined});
   await listPartyGifts('p1');
   expect(request).toHaveBeenLastCalledWith('/parties/p1/gifts?limit=20', {auth: 'required', signal: undefined});
+  await listPartyGiftCatalog('p1', 'creator/one');
+  expect(request).toHaveBeenLastCalledWith('/parties/p1/gifts/catalog?creatorId=creator%2Fone', {auth: 'required', signal: undefined});
+  await reservePartyGift('p1', {creatorId: 'creator', productId: 'rose', idempotencyKey: 'gift:123:abc'});
+  expect(request).toHaveBeenLastCalledWith('/parties/p1/gifts/play-reservations', {auth: 'required', method: 'POST', body: JSON.stringify({creatorId: 'creator', productId: 'rose', idempotencyKey: 'gift:123:abc'})});
+  await cancelPartyGiftReservation('p1', 'reservation/id');
+  expect(request).toHaveBeenLastCalledWith('/parties/p1/gifts/play-reservations/reservation%2Fid', {auth: 'required', method: 'DELETE'});
+  await purchasePartyGift('p1', {creatorId: 'creator', productId: 'rose', purchaseToken: 'play-token', reservationId: 'reservation'});
+  expect(request).toHaveBeenLastCalledWith('/parties/p1/gifts/play-purchase', {auth: 'required', method: 'POST', body: JSON.stringify({creatorId: 'creator', productId: 'rose', purchaseToken: 'play-token', reservationId: 'reservation'})});
 });
 
 test('helpers', () => {

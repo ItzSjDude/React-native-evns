@@ -1,12 +1,13 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Modal, Pressable, ScrollView, Text, View} from 'react-native';
+import {ActivityIndicator, AppState, Modal, Pressable, ScrollView, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
+import RazorpayCheckout from 'react-native-razorpay';
 import {Colors} from '../../Constants/Colors';
 import {formatDelta, formatWhen, LEDGER_REASON_LABELS, messageOf, money, PURCHASE_STATUS_LABELS} from './organizerPresentation';
-import {getCreditOverview, listMyWorkspaces} from './organizerService';
-import type {CreditOverview, Workspace} from './types';
+import {getCreditOverview, listCreditPacks, listMyWorkspaces, startCreditPackPurchase} from './organizerService';
+import type {CreditOverview, CreditPack, Workspace} from './types';
 
 const Group = ({title, children}: {title: string; children: React.ReactNode}) =>
   <View className="mt-5">
@@ -66,12 +67,7 @@ const PurchaseRow = ({purchase, first}: {purchase: CreditOverview['recentPurchas
     </View>
   </View>;
 
-/**
- * Read-only ticket-credit overview for a workspace OWNER/ADMIN: balance, ledger movements and
- * recent purchase attempts. No purchase controls live here — buying credits is a separate,
- * not-yet-enabled surface, and every amount shown is the server's historical record, never a
- * client-editable value.
- */
+/** Workspace-scoped balance, ledger, purchase history and fixed server-priced pack checkout. */
 export default function OrganizerCreditsScreen({visible, onClose}: {visible: boolean; onClose: () => void}) {
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [workspacesError, setWorkspacesError] = useState<string | null>(null);
@@ -79,6 +75,13 @@ export default function OrganizerCreditsScreen({visible, onClose}: {visible: boo
   const [overview, setOverview] = useState<CreditOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [packs, setPacks] = useState<CreditPack[]>([]);
+  const [packsLoading, setPacksLoading] = useState(false);
+  const [packsError, setPacksError] = useState<string | null>(null);
+  const [selectedPackKey, setSelectedPackKey] = useState<string | null>(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [statusRefreshing, setStatusRefreshing] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState<{error: boolean; text: string} | null>(null);
 
   const loadWorkspaces = useCallback(() => {
     setWorkspaces(null); setWorkspacesError(null); setSelectedId(null); setOverview(null);
@@ -101,9 +104,89 @@ export default function OrganizerCreditsScreen({visible, onClose}: {visible: boo
       .finally(() => setOverviewLoading(false));
   }, []);
 
-  useEffect(() => {if (selectedId) loadOverview(selectedId);}, [selectedId, loadOverview]);
+  const loadPacks = useCallback(async (workspaceId: string) => {
+    setPacks([]); setPacksError(null); setSelectedPackKey(null); setPacksLoading(true);
+    try {
+      const result = await listCreditPacks(workspaceId);
+      const safe = result.filter(pack => !!pack.key && Number.isInteger(pack.quantity) && pack.quantity > 0
+        && Number.isInteger(pack.amountMinor) && pack.amountMinor > 0 && !!pack.currency);
+      setPacks(safe);
+      setSelectedPackKey(safe[0]?.key ?? null);
+    } catch (error) {
+      setPacksError(messageOf(error));
+    } finally {setPacksLoading(false);}
+  }, []);
 
   const selected = workspaces?.find(w => w.id === selectedId) ?? null;
+
+  useEffect(() => {if (selectedId) loadOverview(selectedId);}, [selectedId, loadOverview]);
+  useEffect(() => {
+    if (visible && selected?.role === 'OWNER' && selectedId) loadPacks(selectedId);
+    else {setPacks([]); setSelectedPackKey(null);}
+  }, [visible, selected?.role, selectedId, loadPacks]);
+
+  const refreshStatus = useCallback(async (workspaceId: string, purchaseId?: string) => {
+    setStatusRefreshing(true);
+    try {
+      const next = await getCreditOverview(workspaceId);
+      setOverview(next); setOverviewError(null);
+      const tracked = purchaseId ? next.recentPurchases.find(purchase => purchase.id === purchaseId) : null;
+      if (tracked?.status === 'PAID') {
+        setCheckoutNotice({error: false, text: 'Payment confirmed. Ticket credits are ready.'});
+      } else if (tracked?.status === 'PENDING') {
+        setCheckoutNotice({error: false, text: 'Payment is still being confirmed. Credits appear after server verification.'});
+      } else if (tracked?.status === 'FAILED' || tracked?.status === 'REFUNDED') {
+        setCheckoutNotice({error: true, text: `Payment ${tracked.status.toLowerCase()}. No ticket credits were added.`});
+      }
+    } catch (error) {
+      setOverviewError(messageOf(error));
+    } finally {setStatusRefreshing(false);}
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !selectedId) return;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshStatus(selectedId);
+    });
+    return () => subscription.remove();
+  }, [visible, selectedId, refreshStatus]);
+
+  const buySelectedPack = async () => {
+    if (!selected || selected.role !== 'OWNER' || !selectedPackKey || checkoutBusy) return;
+    const pack = packs.find(item => item.key === selectedPackKey);
+    if (!pack) return;
+    setCheckoutBusy(true); setCheckoutNotice(null);
+    let purchaseId: string | undefined;
+    try {
+      const started = await startCreditPackPurchase(selected.id, pack.key, `credit-pack:${Date.now()}:${Math.random().toString(36).slice(2, 14)}`);
+      purchaseId = started.purchase.id;
+      const {checkout} = started;
+      if (checkout.provider !== 'razorpay' || !checkout.keyId || !checkout.orderId
+        || checkout.amountMinor <= 0 || checkout.amountMinor !== pack.amountMinor
+        || checkout.currency.toUpperCase() !== pack.currency.toUpperCase()) {
+        throw new Error('Secure checkout is not configured for this ticket pack.');
+      }
+      await RazorpayCheckout.open({
+        key: checkout.keyId,
+        order_id: checkout.orderId,
+        amount: String(checkout.amountMinor),
+        currency: checkout.currency,
+        name: 'Hiva',
+        description: `${pack.quantity} ticket credits`,
+        theme: {color: Colors.primary},
+      });
+      setCheckoutNotice({error: false, text: 'Payment submitted. Credits unlock only after server confirmation.'});
+      await refreshStatus(selected.id, purchaseId);
+    } catch (error) {
+      const message = (error as {description?: string; message?: string} | null)?.description
+        || (error as {message?: string} | null)?.message;
+      const canceled = !!message?.toLowerCase().includes('cancel');
+      setCheckoutNotice({error: !canceled, text: canceled
+        ? 'Checkout closed. If payment went through, refresh status to see the server confirmation.'
+        : 'Checkout didn’t finish. If your bank charged you, refresh status; credits require server confirmation.'});
+      if (selectedId) refreshStatus(selectedId, purchaseId);
+    } finally {setCheckoutBusy(false);}
+  };
 
   return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
@@ -133,6 +216,36 @@ export default function OrganizerCreditsScreen({visible, onClose}: {visible: boo
 
         {!!selected && <View className="pt-3"><BalanceCard workspace={selected} balance={overview?.balance ?? selected.ticketBalance} /></View>}
 
+        {selected?.role === 'OWNER' && <Group title="Buy ticket credits">
+          {packsLoading && <Centered><ActivityIndicator accessibilityLabel="Loading ticket packs" color={Colors.gold} /></Centered>}
+          {!!packsError && <View className="px-4 py-3">
+            <Text accessibilityRole="alert" className="text-[13px] text-coral">{packsError}</Text>
+            {!!selectedId && <RetryButton onPress={() => loadPacks(selectedId)} />}
+          </View>}
+          {!packsLoading && !packsError && packs.length === 0 && <Text className="px-4 py-3 text-[13px] text-muted">Ticket packs aren’t available right now.</Text>}
+          {!!packs.length && <View className="gap-2 px-4">
+            {packs.map(pack => {
+              const active = selectedPackKey === pack.key;
+              return <Pressable key={pack.key} accessibilityRole="radio" accessibilityLabel={`${pack.quantity} ticket credits, ${money(pack.amountMinor, pack.currency)}`}
+                accessibilityState={{checked: active}} onPress={() => setSelectedPackKey(pack.key)}
+                className={`min-h-[60px] flex-row items-center justify-between rounded-xl border px-4 py-3 ${active ? 'border-primary bg-primary-dark/40' : 'border-border bg-card'}`}>
+                <View><Text className="text-[15px] font-semibold text-foreground">{pack.quantity} credits</Text>
+                  <Text className="mt-0.5 text-[13px] text-muted">Fixed pack · server-priced</Text></View>
+                <Text className="text-[15px] font-bold text-foreground">{money(pack.amountMinor, pack.currency)}</Text>
+              </Pressable>;
+            })}
+            {!!checkoutNotice && <Text accessibilityRole={checkoutNotice.error ? 'alert' : undefined} accessibilityLiveRegion="polite"
+              className={`text-[13px] leading-5 ${checkoutNotice.error ? 'text-coral' : 'text-muted'}`}>{checkoutNotice.text}</Text>}
+            <Pressable accessibilityRole="button" accessibilityLabel="Buy selected ticket credit pack"
+              accessibilityState={{disabled: checkoutBusy || !selectedPackKey, busy: checkoutBusy}}
+              disabled={checkoutBusy || !selectedPackKey} onPress={buySelectedPack}
+              className={`h-11 items-center justify-center rounded-full px-5 ${checkoutBusy ? 'bg-card' : 'bg-gold'}`}>
+              {checkoutBusy ? <ActivityIndicator size="small" color={Colors.goldInk} />
+                : <Text className="text-[14px] font-bold text-gold-ink">Buy selected pack</Text>}
+            </Pressable>
+          </View>}
+        </Group>}
+
         {overviewLoading && <Centered><ActivityIndicator accessibilityLabel="Loading ticket credits" color={Colors.gold} /></Centered>}
 
         {!!overviewError && <Centered>
@@ -155,6 +268,11 @@ export default function OrganizerCreditsScreen({visible, onClose}: {visible: boo
                 ? <Text className="px-4 py-6 text-center text-[13px] text-muted">No purchases yet.</Text>
                 : overview.recentPurchases.map((purchase, index) => <PurchaseRow key={purchase.id} purchase={purchase} first={index === 0} />)}
             </View>
+            {overview.recentPurchases.some(purchase => purchase.status === 'PENDING') && !!selectedId && <Pressable accessibilityRole="button"
+              accessibilityLabel="Check ticket credit payment status" accessibilityState={{disabled: statusRefreshing, busy: statusRefreshing}}
+              disabled={statusRefreshing} onPress={() => refreshStatus(selectedId)} className="mt-2 min-h-11 items-center justify-center rounded-full active:opacity-70">
+              {statusRefreshing ? <ActivityIndicator size="small" color={Colors.primary} /> : <Text className="text-[14px] font-semibold text-primary">Check payment status</Text>}
+            </Pressable>}
           </Group>
         </>}
       </ScrollView>}

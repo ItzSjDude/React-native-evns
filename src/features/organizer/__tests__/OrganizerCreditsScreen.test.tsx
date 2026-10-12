@@ -1,11 +1,13 @@
 import React from 'react';
 import {TextInput} from 'react-native';
 import {act, create, type ReactTestRenderer} from 'react-test-renderer';
+import RazorpayCheckout from 'react-native-razorpay';
 import OrganizerCreditsScreen from '../OrganizerCreditsScreen';
 import * as svc from '../organizerService';
 import type {CreditOverview, Workspace} from '../types';
 
-jest.mock('../organizerService', () => ({listMyWorkspaces: jest.fn(), getCreditOverview: jest.fn()}));
+jest.mock('react-native-razorpay', () => ({__esModule: true, default: {open: jest.fn()}}));
+jest.mock('../organizerService', () => ({listMyWorkspaces: jest.fn(), getCreditOverview: jest.fn(), listCreditPacks: jest.fn(), startCreditPackPurchase: jest.fn()}));
 const m = svc as unknown as Record<string, jest.Mock>;
 
 const workspace = (id: string, role: Workspace['role'], name = id): Workspace =>
@@ -26,7 +28,11 @@ const mount = async (visible = true) => {
   await flush();
 };
 
-beforeEach(() => {m.listMyWorkspaces.mockReset(); m.getCreditOverview.mockReset();});
+beforeEach(() => {
+  m.listMyWorkspaces.mockReset(); m.getCreditOverview.mockReset(); m.listCreditPacks.mockReset(); m.startCreditPackPurchase.mockReset();
+  m.listCreditPacks.mockResolvedValue([]);
+  (RazorpayCheckout.open as jest.Mock).mockReset();
+});
 afterEach(() => act(() => tree?.unmount()));
 
 test('only OWNER/ADMIN workspaces are listed and credits load for the first one', async () => {
@@ -69,7 +75,7 @@ test('switching workspaces refetches credits for the newly selected one', async 
   expect(text()).toContain('99 ticket credits');
 });
 
-test('ledger and purchase rows render read-only history with no purchase controls', async () => {
+test('ledger and purchase history remain visible when the server has no packs configured', async () => {
   m.listMyWorkspaces.mockResolvedValue([workspace('w1', 'OWNER', 'Acme')]);
   m.getCreditOverview.mockResolvedValue({
     balance: 40,
@@ -81,8 +87,30 @@ test('ledger and purchase rows render read-only history with no purchase control
   expect(text()).toContain('-5');
   expect(text()).toContain('100 credits');
   expect(text()).toContain('Paid');
-  expect(text()).not.toMatch(/buy/i);
+  expect(text()).toContain('Ticket packs aren’t available right now.');
   expect(tree.root.findAllByType(TextInput)).toHaveLength(0);
+});
+
+test('owner buys only a server-priced pack and credits wait for the server to confirm payment', async () => {
+  m.listMyWorkspaces.mockResolvedValue([workspace('w1', 'OWNER', 'Acme')]);
+  m.getCreditOverview.mockResolvedValue(overview({recentPurchases: [{id: 'purchase-1', quantity: 100, amountMinor: 14900, currency: 'INR', status: 'PENDING', packKey: 'tickets_100', createdAt: 'now', paidAt: null}]}));
+  m.listCreditPacks.mockResolvedValue([{key: 'tickets_100', quantity: 100, amountMinor: 14900, currency: 'INR'}]);
+  m.startCreditPackPurchase.mockResolvedValue({
+    purchase: {id: 'purchase-1'},
+    checkout: {provider: 'razorpay', orderId: 'order-1', amountMinor: 14900, currency: 'INR', keyId: 'rzp_test_key'},
+  });
+  (RazorpayCheckout.open as jest.Mock).mockResolvedValue({razorpay_payment_id: 'payment-id'});
+
+  await mount();
+  expect(has('100 ticket credits, ₹149.00')).toBe(true);
+  await press('Buy selected ticket credit pack');
+
+  expect(m.startCreditPackPurchase).toHaveBeenCalledWith('w1', 'tickets_100', expect.stringMatching(/^credit-pack:/));
+  expect(RazorpayCheckout.open).toHaveBeenCalledWith(expect.objectContaining({
+    key: 'rzp_test_key', order_id: 'order-1', amount: '14900', currency: 'INR',
+  }));
+  expect(text()).toContain('Payment is still being confirmed. Credits appear after server verification.');
+  expect(has('Check ticket credit payment status')).toBe(true);
 });
 
 test('an overview failure for the selected workspace shows an error with retry', async () => {

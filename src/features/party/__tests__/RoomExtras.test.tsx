@@ -51,6 +51,12 @@ test('tool entries shown when endpoints respond and gifts enabled', async () => 
   expect(labels()).toEqual(expect.arrayContaining(['Polls', 'Mic games', 'Gifts']));
 });
 
+test('Play gift catalog keeps the Gifts entry visible when legacy checkout is off', async () => {
+  m.getPartyMonetization.mockResolvedValue({giftsEnabled: false, playGiftCatalogAvailable: true, playGiftRiskControlsEnabled: true, paidRoomsEnabled: false});
+  await mount('friend', 'info');
+  expect(labels()).toContain('Gifts');
+});
+
 test('voting updates results from the server response', async () => {
   m.listPartyPolls.mockResolvedValue([poll([1, 1])]);
   m.votePartyPoll.mockResolvedValue(poll([2, 1], 'a'));

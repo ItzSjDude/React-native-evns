@@ -147,7 +147,7 @@ const Home = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
-  const navigation = useNavigation<{navigate: (route: string) => void}>();
+  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string}) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
     if (target.kind === 'user' && 'id' in target) {
@@ -314,7 +314,7 @@ const Home = () => {
   const viewerId = viewer?.id ?? null;
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     {topBar}
-    {tab === 'events' && <EventsList />}
+    {tab === 'events' && <EventsList onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} />}
     {/* Hidden rather than unmounted under Events, so the feed keeps its posts and scroll and can't refresh or paginate. */}
     <View className={tab === 'events' ? 'hidden' : 'flex-1'}>
     <FlatList
@@ -350,7 +350,8 @@ const Home = () => {
       focusCommentId={focusCommentId} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost}
       viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl} />
-    <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} />
+    <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)}
+      onOpenEventChat={() => navigation.navigate('Chat', {initialView: 'events'})} />
     <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
     {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}
       onClose={() => setPreviewRoom(null)} onResume={() => {setPreviewRoom(null); expandParty();}}

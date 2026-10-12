@@ -159,7 +159,7 @@ const Profile = () => {
     finally {dispatch(clearSession());}
   };
 
-  const navigation = useNavigation<{navigate: (route: string) => void}>();
+  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'}) => void}>();
   const {session: liveParty, expand: openLiveParty} = usePartySession();
   const {width} = useWindowDimensions();
 
@@ -331,7 +331,8 @@ const Profile = () => {
         </> : null}
       </ScrollView>
 
-      <EventDetailSheet eventId={openEvent?.id ?? null} initial={openEvent} visible={!!openEvent} onClose={() => setOpenEvent(null)} />
+      <EventDetailSheet eventId={openEvent?.id ?? null} initial={openEvent} visible={!!openEvent} onClose={() => setOpenEvent(null)}
+        onOpenEventChat={() => navigation.navigate('Chat', {initialView: 'events'})} />
       <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
       <SettingsScreen onSettingsChange={setSettings} profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
     </View>

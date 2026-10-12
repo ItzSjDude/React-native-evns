@@ -2,9 +2,11 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
+import IconTicket from '@tabler/icons-react-native/IconTicket';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import {Colors} from '../../Constants/Colors';
 import EventDetailSheet from './EventDetailSheet';
+import MyTicketsSheet from './MyTicketsSheet';
 import {formatEventPrice, formatEventWhen, goingLabel, messageOf} from './eventsPresentation';
 import {getEvents} from './eventsService';
 import type {ApiEvent} from './types';
@@ -34,7 +36,7 @@ const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
 };
 
 /** The events list, embedded under Home's tab row. Loads its first page when mounted. */
-const EventsList = () => {
+const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: string) => void}) => {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,9 @@ const EventsList = () => {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApiEvent | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [ticketsOpen, setTicketsOpen] = useState(false);
+  const [ticketEventId, setTicketEventId] = useState<string | null>(null);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const request = useRef(0);
   const busy = useRef(false);
 
@@ -86,10 +91,17 @@ const EventsList = () => {
         <Text className="mt-1 text-center text-[13px] text-muted">Pull down to check again.</Text>
       </View>;
 
+  const listHeader = <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}}
+    className="mb-3 min-h-11 flex-row items-center justify-between rounded-2xl border border-border bg-card px-4 active:opacity-75">
+    <View><Text className="text-[14px] font-bold text-foreground">My tickets</Text><Text className="text-[12px] text-muted">Your event passes and QR codes</Text></View>
+    <IconTicket size={20} color={Colors.gold} />
+  </Pressable>;
+
   return <>
     <FlatList
       data={events}
       keyExtractor={item => item.id}
+      ListHeaderComponent={listHeader}
       renderItem={({item}) => <EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={LIST_CONTENT}
@@ -100,7 +112,11 @@ const EventsList = () => {
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
     />
-    <EventDetailSheet eventId={selected?.id ?? null} initial={selected} visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+    <EventDetailSheet eventId={selected?.id ?? null} initial={selected} visible={sheetOpen} onClose={() => setSheetOpen(false)}
+      onOpenEventChat={onOpenEventChat}
+      onOpenTickets={(eventId, nextTicketId) => {setTicketEventId(eventId); setTicketId(nextTicketId ?? null); setTicketsOpen(true);}} />
+    <MyTicketsSheet visible={ticketsOpen} eventId={ticketEventId} ticketId={ticketId} onExitTicket={() => setTicketId(null)}
+      onClose={() => {setTicketsOpen(false); setTicketEventId(null); setTicketId(null);}} />
   </>;
 };
 
