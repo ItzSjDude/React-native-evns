@@ -157,26 +157,13 @@ test('reports someone else\'s post with the chosen reason', async () => {
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
 
-test('the Following tab loads the following scope and explains an unsupported or empty feed', async () => {
+test('the Following tab is absent from Home', async () => {
   feed.mockResolvedValue({posts: [post()], hasMore: false, nextCursor: null});
   const renderer = await render();
-  const tab = (index: number) => renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function')[index];
-
-  // A server without the filter rejects the unknown query param.
-  feed.mockRejectedValueOnce({status: 400, message: 'Invalid request query'});
-  await ReactTestRenderer.act(async () => { tab(1).props.onPress(); });
-  expect(feed).toHaveBeenLastCalledWith(null, undefined, 'following');
-  expect(texts(renderer)).toContain('The Following feed isn’t available on this server yet.');
-
-  // Once supported, an empty list explains itself.
-  feed.mockResolvedValueOnce({posts: [], hasMore: false, nextCursor: null});
-  await ReactTestRenderer.act(async () => { renderer.root.findByProps({accessibilityLabel: 'Retry loading feed'}).props.onPress(); });
-  expect(texts(renderer)).toContain('Follow people and their posts will show up here.');
-
-  feed.mockResolvedValueOnce({posts: [post({id: 'p9', content: 'Back on For you'})], hasMore: false, nextCursor: null});
-  await ReactTestRenderer.act(async () => { tab(0).props.onPress(); });
-  expect(feed).toHaveBeenLastCalledWith(null, undefined, 'all');
-  expect(texts(renderer)).toContain('Back on For you');
+  expect(texts(renderer)).not.toContain('Following');
+  expect(renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function'))
+    .toHaveLength(2);
+  expect(feed).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
 
@@ -186,15 +173,15 @@ test('the Events tab shows the events list inline and switching back keeps the f
   const tabs = () => renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function');
   expect(texts(renderer)).not.toContain('Events list');
 
-  await ReactTestRenderer.act(async () => { tabs()[2].props.onPress(); });
-  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([false, false, true]);
+  await ReactTestRenderer.act(async () => { tabs()[1].props.onPress(); });
+  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([false, true]);
   expect(texts(renderer)).toContain('Events list');
   // The feed sits hidden underneath: no Next-post button, and it isn't reloaded.
   expect(renderer.root.findAllByProps({accessibilityLabel: 'Next post'})).toHaveLength(0);
   expect(feed).toHaveBeenCalledTimes(1);
 
   await ReactTestRenderer.act(async () => { tabs()[0].props.onPress(); });
-  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([true, false, false]);
+  expect(tabs().map(node => node.props.accessibilityState.selected)).toEqual([true, false]);
   expect(texts(renderer)).not.toContain('Events list');
   expect(texts(renderer)).toContain('From the API');
   expect(feed).toHaveBeenCalledTimes(1);

@@ -4,7 +4,7 @@ export type RootNavigationParamList = {
   Login: undefined;
   Onboarding: undefined;
   Home: undefined;
-  Nearby: undefined;
+  Nearby: {vibeNoteId?: string} | undefined;
   Messages: undefined;
   Profile: undefined;
 };

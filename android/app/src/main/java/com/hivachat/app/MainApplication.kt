@@ -2,6 +2,7 @@ package com.hivachat.app
 
 import android.app.Application
 import com.hivachat.app.audio.PartyAudioPackage
+import com.hivachat.app.geofence.VibeNoteGeofencePackage
 import com.hivachat.app.notifications.NotificationChannels
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -19,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(PartyAudioPackage())
+          add(VibeNoteGeofencePackage())
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },

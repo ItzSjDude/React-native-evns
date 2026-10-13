@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {
   ActivityIndicator, FlatList, Image, Keyboard, KeyboardAvoidingView,
   Modal, Platform, Pressable, Text, TextInput, View,
@@ -6,13 +7,22 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
 import IconSend2 from '@tabler/icons-react-native/IconSend2';
+import IconPhone from '@tabler/icons-react-native/IconPhone';
+import IconVideo from '@tabler/icons-react-native/IconVideo';
+import IconDots from '@tabler/icons-react-native/IconDots';
 import {Colors} from '../../Constants/Colors';
+import BottomSheet, {SheetRow, SheetSection} from '../../components/BottomSheet';
+import {showDialog} from '../../components/Dialog';
+import {reportUser} from '../users/usersService';
+import {UserProfileModal, useViewerId} from '../users';
 import {isOwnMessage, messageText} from './conversationPresentation';
 import {getDirectMessages, sendDirectMessage, type DirectMessage} from './directService';
+import {loadCachedMessages, saveCachedMessages} from './messageCache';
 import {markConversationRead} from './messagesService';
 import {applyRealtimeToMessages, createTypingThrottle, isMessageEvent, mergeMessages, TYPING_VISIBLE_MS} from './realtimeEvents';
 import type {ConversationKind, MessagesRealtimeEvent} from './types';
 import {useMessagesRealtime} from './useMessagesRealtime';
+import {usePresence} from './presence';
 
 type Props = {
   conversationId: string;
@@ -47,11 +57,18 @@ const DirectConversation = ({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const viewerId = useViewerId();
+  const presence = usePresence(kind === 'DIRECT' && contactId ? [contactId] : []);
   const listRef = useRef<FlatList<DirectMessage>>(null);
   const latestRef = useRef(onLatestMessage);
   latestRef.current = onLatestMessage;
   const conversationRef = useRef(conversationId);
   conversationRef.current = conversationId;
+  const viewerRef = useRef(viewerId);
+  viewerRef.current = viewerId;
+  const messageOwner = useRef<string | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const readTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -60,30 +77,39 @@ const DirectConversation = ({
     if (latest) latestRef.current?.(latest);
   }, [messages]);
 
+  useEffect(() => {
+    if (viewerId && messageOwner.current === `${viewerId}:${conversationId}` && messages.length) saveCachedMessages(viewerId, conversationId, messages);
+  }, [conversationId, messages, viewerId]);
+
   useEffect(() => () => { clearTimeout(typingTimer.current); clearTimeout(readTimer.current); }, []);
 
   const loadMessages = useCallback(async () => {
-    setLoading(true);
     setError(null);
+    const cached = viewerId ? await loadCachedMessages(viewerId, conversationId) : [];
+    if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
+    if (cached.length) { messageOwner.current = `${viewerId}:${conversationId}`; setMessages(cached); setLoading(false); }
+    else setLoading(true);
     try {
       const page = await getDirectMessages(conversationId);
-      if (conversationRef.current !== conversationId) return;
+      if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
+      messageOwner.current = viewerId ? `${viewerId}:${conversationId}` : null;
       setMessages(page.data.slice().reverse());
     } catch (cause) {
       setError((cause as {message?: string})?.message ?? 'Could not load messages.');
     } finally {
       setLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, viewerId]);
 
   /** Quiet REST catch-up: fallback polling, socket (re)connects and seq gaps. */
   const refresh = useCallback(async () => {
     try {
       const page = await getDirectMessages(conversationId);
-      if (conversationRef.current !== conversationId) return;
+      if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
+      messageOwner.current = viewerId ? `${viewerId}:${conversationId}` : null;
       setMessages(current => mergeMessages(current, page.data));
     } catch { /* The next poll, reconnect or a manual retry can catch up. */ }
-  }, [conversationId]);
+  }, [conversationId, viewerId]);
 
   const showTyping = () => {
     clearTimeout(typingTimer.current);
@@ -143,9 +169,15 @@ const DirectConversation = ({
   };
 
   const close = () => { Keyboard.dismiss(); onClose(); };
+  const reportSpam = () => showDialog('Report spam?', `Report ${contactName} for spam or scam?`, [
+    {text: 'Cancel', style: 'cancel'},
+    {text: 'Report', style: 'destructive', onPress: () => reportUser(contactId, 'Spam or scam')
+      .then(() => showDialog('Report sent', 'Thanks for helping keep Hiva safe.'))
+      .catch(() => showDialog('Could not send report', 'Please try again.'))},
+  ]);
 
   return (
-    <Modal visible animationType="slide" onRequestClose={close}>
+    <Modal visible animationType={SLIDE_MODAL_ANIMATION} onRequestClose={close}>
       <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
           <View className="h-[68px] flex-row items-center gap-3 border-b border-border px-4">
@@ -159,8 +191,13 @@ const DirectConversation = ({
             )}
             <View className="min-w-0 flex-1">
               <Text className="text-[17px] font-semibold text-foreground" numberOfLines={1}>{contactName}</Text>
-              {typing && <Text testID="typing-indicator" className="text-xs text-primary">typing…</Text>}
+              {kind === 'DIRECT' && presence[contactId] && <Text className="text-xs text-muted">{presence[contactId].online ? 'Active now' : presence[contactId].lastSeenAt ? 'Offline' : ''}</Text>}
             </View>
+            {kind === 'DIRECT' && <>
+              <Pressable accessibilityRole="button" accessibilityLabel="Audio call" onPress={() => showDialog('Calls unavailable', 'Audio calling is not available yet.')} className="h-10 w-10 items-center justify-center"><IconPhone size={20} color={Colors.iconStrong} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Video call" onPress={() => showDialog('Calls unavailable', 'Video calling is not available yet.')} className="h-10 w-10 items-center justify-center"><IconVideo size={20} color={Colors.iconStrong} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Chat options" onPress={() => setMenuOpen(true)} className="h-10 w-8 items-center justify-center"><IconDots size={21} color={Colors.iconStrong} /></Pressable>
+            </>}
           </View>
 
           {loading ? <View className="flex-1 items-center justify-center"><ActivityIndicator color={Colors.gold} /></View> : (
@@ -180,6 +217,7 @@ const DirectConversation = ({
                   </View>
                 );
               }}
+              ListFooterComponent={typing ? <View testID="typing-indicator" className="mb-4 max-w-[82%] self-start rounded-[18px] rounded-bl-[5px] bg-card px-4 py-3"><Text className="text-sm text-muted">{contactName} is typing…</Text></View> : undefined}
               contentContainerClassName="flex-grow justify-end px-5 pb-3 pt-5"
               onContentSizeChange={() => listRef.current?.scrollToEnd({animated: false})}
               keyboardDismissMode="interactive"
@@ -206,6 +244,18 @@ const DirectConversation = ({
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+      <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="Chat options">
+        <SheetSection>
+          <SheetRow label="User info" onPress={() => {setMenuOpen(false); setInfoOpen(true);}} />
+          <SheetRow label="Report spam or scam" onPress={() => {setMenuOpen(false); reportSpam();}} />
+        </SheetSection>
+      </BottomSheet>
+      {infoOpen && kind === 'DIRECT' && <UserProfileModal
+        userId={contactId}
+        initial={{name: contactName, avatarUrl: contactAvatarUrl}}
+        visible
+        onClose={() => setInfoOpen(false)}
+      />}
     </Modal>
   );
 };

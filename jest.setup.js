@@ -64,6 +64,26 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
 }));
 
+jest.mock('react-native-google-mobile-ads', () => {
+  const {View} = require('react-native');
+  return {
+    __esModule: true,
+    default: jest.fn(() => ({initialize: jest.fn().mockResolvedValue([])})),
+    MobileAds: jest.fn(() => ({initialize: jest.fn().mockResolvedValue([])})),
+    AdsConsent: {
+      gatherConsent: jest.fn().mockResolvedValue({canRequestAds: false}),
+      getConsentInfo: jest.fn().mockResolvedValue({canRequestAds: false}),
+      showPrivacyOptionsForm: jest.fn().mockResolvedValue({canRequestAds: false}),
+    },
+    NativeAd: {createForAdRequest: jest.fn().mockRejectedValue(new Error('No test ad'))},
+    NativeAdView: View,
+    NativeMediaView: View,
+    NativeAsset: ({children}) => children,
+    NativeAssetType: {ADVERTISER: 'advertiser', BODY: 'body', CALL_TO_ACTION: 'callToAction', HEADLINE: 'headline', ICON: 'icon'},
+    TestIds: {NATIVE: 'ca-app-pub-3940256099942544/2247696110'},
+  };
+});
+
 jest.mock('@react-native-firebase/app', () => ({
   getApp: jest.fn(),
 }));

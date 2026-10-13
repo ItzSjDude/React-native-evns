@@ -35,7 +35,7 @@ import AppIcon, {type IconName} from '../Constants/Icons';
 
 export type TabParamList = {
   Home: undefined;
-  Nearby: undefined;
+  Nearby: {vibeNoteId?: string} | undefined;
   Party: undefined;
   Chat: {initialView?: 'all' | 'unread' | 'requests' | 'events' | 'parties' | 'direct' | 'archived'; initialConversationId?: string} | undefined;
   Me: undefined;
@@ -173,7 +173,7 @@ const CustomTabBar = ({
 
   useEffect(() => {
     position.value = withTiming(state.index, {
-      duration: 190,
+      duration: 220,
       easing: Easing.out(Easing.cubic),
     });
   }, [position, state.index]);

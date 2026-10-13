@@ -1,11 +1,11 @@
 import Geolocation from '@react-native-community/geolocation';
 import {AppState, PermissionsAndroid, Platform} from 'react-native';
 
-type Coordinates = {lat: number; lng: number};
+export type DeviceLocationFix = {lat: number; lng: number; accuracyMeters?: number; observedAt?: string};
 
 Geolocation.setRNConfiguration({skipPermissionRequests: false, authorizationLevel: 'whenInUse'});
 
-export async function getDeviceLocation(requestPermission: boolean): Promise<Coordinates | null> {
+export async function getDeviceLocation(requestPermission: boolean): Promise<DeviceLocationFix | null> {
   let highAccuracy = true;
   if (Platform.OS === 'android') {
     const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
@@ -22,7 +22,12 @@ export async function getDeviceLocation(requestPermission: boolean): Promise<Coo
 
   return new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
-      position => resolve({lat: position.coords.latitude, lng: position.coords.longitude}),
+      position => resolve({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        ...(Number.isFinite(position.coords.accuracy) ? {accuracyMeters: position.coords.accuracy} : {}),
+        ...(Number.isFinite(position.timestamp) ? {observedAt: new Date(position.timestamp).toISOString()} : {}),
+      }),
       error => reject(new Error(error.code === 1
         ? 'Location permission is off. Allow location access in device settings.'
         : error.code === 3

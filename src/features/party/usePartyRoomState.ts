@@ -4,14 +4,20 @@ import {getRealtimeAccessToken} from '../../core/api/apiClient';
 import {subscribeRealtime} from '../../core/realtime/subscribeRealtime';
 import {getPartyRoom, type JoinedParty, type PartyChatMessage, type PartySnapshot} from './partyService';
 
+const partyWithHost = (party: JoinedParty['party'], participants: PartySnapshot['participants']): JoinedParty['party'] => {
+  if (party.host) return party;
+  const host = participants.find(person => person.role === 'HOST');
+  return {...party, host: {id: party.hostId || host?.userId || '', name: host?.name || null, avatarUrl: host?.avatarUrl || null}};
+};
+
 export function mergeRoomMessages(current: PartyChatMessage[], incoming: PartyChatMessage[]) {
   const byId = new Map(current.map(message => [message.id, message]));
   incoming.forEach(message => byId.set(message.id, message));
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).slice(-50);
 }
 
-export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string) => void, identity?: string) {
-  const [snapshot, setSnapshot] = useState<PartySnapshot>({party: session.party, participants: session.participants, seatRequests: [], lockedSeats: [], chatMessages: [], realtimeUrl: null});
+export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string) => void, identity?: string, onGiftReceived?: (giftId: string) => void) {
+  const [snapshot, setSnapshot] = useState<PartySnapshot>({party: partyWithHost(session.party, session.participants), participants: session.participants, seatRequests: [], lockedSeats: [], chatMessages: [], realtimeUrl: null});
   const [messages, setMessages] = useState<PartyChatMessage[]>([]);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -20,6 +26,8 @@ export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string
   const ended = useRef(false);
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
+  const onGiftReceivedRef = useRef(onGiftReceived);
+  onGiftReceivedRef.current = onGiftReceived;
   const inFlight = useRef<Promise<PartySnapshot | undefined> | null>(null);
   const addMessages = useCallback((incoming: PartyChatMessage[]) => setMessages(current => mergeRoomMessages(current, incoming)), []);
   const finish = useCallback((reason: string) => {if (!ended.current) {ended.current = true; onEndedRef.current(reason);}}, []);
@@ -34,7 +42,7 @@ export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string
         if (!mounted.current || ended.current) return;
         if (next.party.status !== 'ACTIVE') {finish('The host ended this party.'); return;}
         if (identity && !next.participants.find(person => person.userId === identity)?.active) {finish('You are no longer in this party.');return;}
-        setSnapshot(next);
+        setSnapshot({...next, party: partyWithHost(next.party, next.participants)});
         setMessages(mergeRoomMessages([], next.chatMessages || []));
         setSyncError(null);
         return next;
@@ -67,6 +75,7 @@ export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string
         if (event.partyId !== session.party.id || typeof event.type !== 'string' || !event.type.startsWith('party:')) return;
         if (typeof event.eventId === 'string') {if (seen.has(event.eventId)) return; seen.add(event.eventId); if (seen.size > 500) seen.delete(seen.values().next().value!);}
         if (event.type === 'party:ended') {finish('The host ended this party.'); return;}
+        if (event.type === 'party:gift-received' && event.status === 'PAID' && event.creatorId === identity && typeof event.giftId === 'string') onGiftReceivedRef.current?.(event.giftId);
         if (event.type === 'party:chat-deleted' && typeof event.messageId === 'string') setMessages(current => current.filter(message => message.id !== event.messageId));
         if (event.type === 'party:chat' && event.message) addMessages([event.message as PartyChatMessage]);
         clearTimeout(debounce);
@@ -74,6 +83,6 @@ export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string
       },
     });
     return () => {clearTimeout(debounce); unsubscribe();};
-  }, [addMessages, finish, refresh, session.party.id, snapshot.realtimeUrl]);
+  }, [addMessages, finish, identity, refresh, session.party.id, snapshot.realtimeUrl]);
   return {snapshot, messages, addMessages, refresh, syncError, live};
 }

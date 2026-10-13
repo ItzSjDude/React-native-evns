@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, Image, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconPhoto from '@tabler/icons-react-native/IconPhoto';
@@ -126,7 +127,7 @@ const ComposePostSheet = ({visible, draft, error, onChangeDraft, onClose, onSubm
   const name = viewerName?.trim() || 'You';
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={SLIDE_MODAL_ANIMATION} statusBarTranslucent onRequestClose={onClose}>
       <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
         <ThemedStatusBar />
         <KeyboardAvoidingView behavior="padding" className="flex-1">

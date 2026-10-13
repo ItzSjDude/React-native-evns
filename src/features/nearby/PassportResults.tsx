@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, FlatList, Image, Pressable, Text, TextInput, View} from 'react-native';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
@@ -8,6 +8,7 @@ import {CITY_MAX_LENGTH, DiscoveryFilterBar, type DiscoveryFilters} from '../plu
 import {nearbyErrorMessage} from './nearbyErrors';
 import {getPassportPeople} from './nearbyService';
 import type {PassportPerson} from './types';
+import {NativeAdCard} from '../ads';
 
 type Props = {
   /** The committed city the list is for. */
@@ -112,7 +113,7 @@ export default function PassportResults({city, onCityChange, filters, onFiltersC
   return <FlatList
     data={people}
     keyExtractor={item => item.id}
-    renderItem={({item}) => <PassportRow person={item} city={item.city ?? target} opening={openingId === item.id} onPress={() => onMessage(item)} onOpenProfile={() => onOpenProfile(item)} />}
+    renderItem={({item, index}) => <Fragment><PassportRow person={item} city={item.city ?? target} opening={openingId === item.id} onPress={() => onMessage(item)} onOpenProfile={() => onOpenProfile(item)} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
     keyboardShouldPersistTaps="handled"
     showsVerticalScrollIndicator={false}
     contentContainerClassName="flex-grow px-5 pb-[110px]"

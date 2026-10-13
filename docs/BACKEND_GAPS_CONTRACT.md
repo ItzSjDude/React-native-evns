@@ -25,6 +25,7 @@ Note: the plan names `/search/users`; the backend serves `/users/search` and the
 
 | Missing | Proposed contract |
 | --- | --- |
+| Organiser onboarding | Workspace creation, private verification document submission/review, payout account setup, and first-event draft creation. See [`ORGANIZER_ONBOARDING_API_CONTRACT.md`](ORGANIZER_ONBOARDING_API_CONTRACT.md). |
 | First-event / first-50-ticket promotional credit grant | Configurable grant applied once per workspace, written to the credit ledger with `reason: PROMO_GRANT`. Surface it in `GET /workspaces/:id/credits`. |
 | Reusable event templates | `GET/POST/DELETE /workspaces/:id/event-templates` with a `config_json` allowlist. |
 | Discount codes | `POST/GET/DELETE /workspaces/:id/events/:eventId/discount-codes`; applied server-side at `POST /events/:eventId/purchase`; redemption count and expiry. |

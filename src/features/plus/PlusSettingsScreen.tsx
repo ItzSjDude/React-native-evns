@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {Linking, Modal, Pressable, ScrollView, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
@@ -69,7 +70,7 @@ export default function PlusSettingsScreen({visible, onClose, preferences, onCha
     } finally {setBusy(false);}
   };
 
-  return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+  return <Modal visible={visible} animationType={SLIDE_MODAL_ANIMATION} presentationStyle="fullScreen" onRequestClose={onClose}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
       <View className="flex-row items-center gap-3 border-b border-border/60 dark:border-[#1A1724] px-4 pb-3 pt-2">
         <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onClose}

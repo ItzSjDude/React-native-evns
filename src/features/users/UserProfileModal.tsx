@@ -1,8 +1,11 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
+import ProfileContentTabs from '../../components/ProfileContentTabs';
+import ProfileIdentity from '../../components/ProfileIdentity';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Svg, {Circle, Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
+import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
 import IconDots from '@tabler/icons-react-native/IconDots';
 import IconLock from '@tabler/icons-react-native/IconLock';
@@ -12,7 +15,6 @@ import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconFlag from '@tabler/icons-react-native/IconFlag';
 import IconBan from '@tabler/icons-react-native/IconBan';
-import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
@@ -20,7 +22,7 @@ import {PlusBadge, useProfileTheme} from '../plus';
 import FollowButton from './FollowButton';
 import FollowListSheet from './FollowListSheet';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
-import {Avatar, EventCard, GiftPanel, PostGrid, RoomGrid, compact} from './UserProfileItems';
+import {EventCard, GiftPanel, PostGrid, RoomGrid, compact} from './UserProfileItems';
 import {
   PUBLIC_PROFILE_ENDPOINT_ENABLED, accessOf, blockUser, getUserContentPage, getUserGiftSummary, getUserProfile,
   messageOf, reportUser, unblockUser,
@@ -50,19 +52,6 @@ export const REPORT_REASONS = ['Inappropriate behavior', 'Spam or scam', 'Harass
 
 const emptyList = (): ListState => ({items: [], loading: false, loaded: false, error: null, hasMore: false, offset: 0});
 const emptyLists = (): Record<UserContentTab, ListState> => ({posts: emptyList(), parties: emptyList(), events: emptyList()});
-
-const StatPill = ({label, value, dot, count, text, onPress}: {
-  label: string; value: number | null; dot: string; count: string; text: string; onPress?: () => void;
-}) =>
-  <Pressable accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={value === null ? label : `${compact(value)} ${label}`}
-    disabled={!onPress} onPress={onPress} className="flex-row items-center gap-2.5 active:opacity-70">
-    <View className="h-[30px] w-[92px] flex-row items-center gap-1.5 rounded-full border border-border dark:border-[#3A3168] bg-card dark:bg-[#15102C]/80 px-2.5">
-      <View className={`h-1.5 w-1.5 rounded-full ${dot}`} /><Text className="text-[11px] font-bold text-muted dark:text-[#B3ACC4]">{label}</Text>
-    </View>
-    <View className={`h-[30px] min-w-[48px] items-center justify-center rounded-full border px-2.5 ${count}`}>
-      {value === null ? <IconChevronRight size={14} color={Colors.textSoft} /> : <Text className={`text-[13px] font-extrabold ${text}`}>{compact(value)}</Text>}
-    </View>
-  </Pressable>;
 
 const StateCard = ({icon: Icon, title, body, children}: {icon: typeof IconLock; title: string; body: string; children?: React.ReactNode}) =>
   <View className="mx-5 mt-[18px] items-center rounded-[22px] border border-border bg-card px-5 py-8">
@@ -243,6 +232,11 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
 
   const followers = follow.followers ?? profile?.stats.followers ?? null;
   const giftsReceived = gifts?.totalReceived ?? profile?.stats.giftsReceived ?? null;
+  const stats = showContent || locked ? [
+    {label: 'Fans', value: followers, displayValue: followers === null ? '—' : compact(followers), dotClassName: 'bg-[#6CB4FF]', onPress: () => setFollowList('followers')},
+    {label: 'Following', value: profile?.stats.following ?? null, displayValue: profile ? compact(profile.stats.following) : '—', dotClassName: 'bg-[#3DDC97]', onPress: () => setFollowList('following')},
+    ...(giftsReceived === null ? [] : [{label: 'Gifts', value: giftsReceived, displayValue: compact(giftsReceived), dotClassName: 'bg-[#8B7CF6]'}]),
+  ] : [];
   const visibleTabs: VisibleTab[] = gifts ? [...CONTENT_TABS, 'gifts'] : CONTENT_TABS;
   const contentTab = activeTab === 'gifts' ? null : activeTab;
   const list = contentTab ? lists[contentTab] : null;
@@ -257,7 +251,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
     : sheet === 'report' ? 'Why are you reporting this account? Reports are private.'
     : sheet === 'reported' ? 'Our team will review this account. Reporting doesn’t block them.' : handle ? `@${handle}` : null;
 
-  return <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+  return <Modal visible={visible} animationType={SLIDE_MODAL_ANIMATION} statusBarTranslucent onRequestClose={onClose}>
     <View className="flex-1 bg-background">
       <ThemedStatusBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
@@ -265,51 +259,33 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
               <RadialGradient id="userHero" cx="20%" cy="0%" rx="120%" ry="90%" fx="20%" fy="0%">
-                <Stop offset="0" stopColor={theme?.glow ?? Colors.heroGlow} /><Stop offset="0.45" stopColor={theme?.glowMid ?? Colors.heroGlowMid} /><Stop offset="0.8" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
+                <Stop offset="0" stopColor={theme?.glow ?? Colors.profileGlow} /><Stop offset="0.6" stopColor={Colors.background} /><Stop offset="1" stopColor={Colors.background} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#userHero)" />
           </Svg>
           <SafeAreaView edges={['top']}>
-            <View className="px-5 pb-5 pt-3">
-              <View className="flex-row items-center gap-2">
+            <View className="pb-5">
+              <View className="h-14 flex-row items-center gap-3 px-5 pt-3">
                 <Pressable accessibilityRole="button" accessibilityLabel="Close profile" onPress={onClose}
-                  className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
+                  className="h-11 w-11 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] active:opacity-70">
                   <IconArrowLeft size={20} color={Colors.iconStrong} />
                 </Pressable>
-                <Text numberOfLines={1} className="flex-1 text-center text-[14px] font-bold text-muted dark:text-[#C9C2DA]">{handle ? `@${handle}` : ''}</Text>
+                <Text numberOfLines={1} className="flex-1 font-display-semibold text-[22px] tracking-[-0.4px] text-foreground">{handle ? `@${handle}` : 'Profile'}</Text>
                 {!unavailable ? <Pressable accessibilityRole="button" accessibilityLabel="More options" onPress={() => openSheet('menu')}
-                  className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-70">
+                  className="h-11 w-11 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] active:opacity-70">
                   <IconDots size={20} color={Colors.iconStrong} />
                 </Pressable> : <View className="h-11 w-11" />}
               </View>
 
-              <View className="mt-[26px] flex-row items-center gap-[22px] pl-2.5">
-                <View className="h-[112px] w-[112px] items-center justify-center">
-                  <View className="absolute -inset-2.5 rounded-full border-[1.5px] border-dashed border-purple-line dark:border-[#5A4F8C]" />
-                  <Svg width={112} height={112} style={StyleSheet.absoluteFill}>
-                    <Circle cx={56} cy={56} r={52} stroke={unavailable ? Colors.borderMuted : theme?.accent ?? Colors.gold} strokeWidth={5} fill="none" />
-                  </Svg>
-                  <Avatar name={name || '?'} url={unavailable ? null : avatarUrl} size={90} />
-                </View>
-                {showContent || locked ? <View className="min-w-0 flex-1 gap-2.5">
-                  <StatPill label="Fans" value={followers} dot="bg-[#8B7CF6]" count="border-purple-line dark:border-[#4A3F8C] bg-purple-tint dark:bg-[#2A2160]" text="text-foreground" onPress={() => setFollowList('followers')} />
-                  <StatPill label="Following" value={profile?.stats.following ?? null} dot="bg-[#3DDC97]" count="border-border dark:border-[#1F5A40] bg-card dark:bg-[#123224]" text="text-foreground" onPress={() => setFollowList('following')} />
-                  {giftsReceived !== null && <StatPill label="Gifts mile" value={giftsReceived} dot="bg-gold" count="border-gold bg-gold" text="text-gold-ink" />}
-                </View> : <View className="flex-1" />}
-              </View>
-
-              <View className="mt-5 gap-1.5">
-                {name ? <View className="flex-row items-center">
-                  <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[24px] tracking-[-0.3px] text-foreground">{name}</Text>
-                  {profile?.showPlusBadge === true && !unavailable && <PlusBadge size="md" />}
-                </View> : <View accessibilityLabel="Loading profile" className="h-6 w-40 rounded-lg bg-white/10" />}
+              <ProfileIdentity name={name || 'Hiva user'} avatarUrl={unavailable ? null : avatarUrl} accentColor={unavailable ? Colors.borderMuted : theme?.accent ?? Colors.gold} stats={stats}
+                nameAccessory={profile?.showPlusBadge === true && !unavailable ? <PlusBadge size="md" /> : null}>
                 {!!profile?.bio && showContent && <Text className="text-[13px] leading-5 text-text-body dark:text-[#D9D4E4]">{profile.bio}</Text>}
-                {!!profile?.city && showContent && <Text className="text-[11px] text-muted dark:text-[#9C95AE]">{profile.city}</Text>}
+                {!!profile?.city && showContent && <Text className="text-[12px] text-muted dark:text-[#9C97B8]">{profile.city}</Text>}
                 {!!profile?.interests?.length && showContent && <View className="mt-1 flex-row flex-wrap gap-1.5">
                   {profile.interests.slice(0, 3).map((interest, i) => <Text key={interest} className={`overflow-hidden rounded-full px-2.5 py-1.5 text-[11px] font-extrabold capitalize ${i === 0 ? 'bg-gold-bg dark:bg-[#2E2410] text-gold' : 'bg-purple-tint dark:bg-[#241D4A] text-purple-soft'}`}>{interest}</Text>)}
                 </View>}
-              </View>
+              </ProfileIdentity>
 
               {!!profileError && <View className="mt-4 flex-row items-center gap-3 rounded-[16px] bg-white/5 p-3">
                 <Text className="flex-1 text-[13px] text-text-body">{profileError}</Text>
@@ -318,10 +294,10 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
                 </Pressable>
               </View>}
 
-              {!unavailable && !blocked && !isSelf && viewerId !== undefined && <View className="mt-4 flex-row gap-2.5">
+              {!unavailable && !blocked && !isSelf && viewerId !== undefined && <View className="mx-5 mt-4 flex-row gap-3">
                 <FollowButton name={name} following={follow.following} pending={follow.pending} onPress={toggleFollow} />
                 <Pressable accessibilityRole="button" accessibilityLabel={`Message ${name}`} accessibilityState={{busy: messaging}} disabled={messaging} onPress={openMessage}
-                  className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-full border-[1.5px] border-purple-line active:opacity-70">
+                  className="h-10 flex-1 flex-row items-center justify-center gap-2 rounded-full border-[1.5px] border-purple-line active:opacity-70">
                   {messaging ? <ActivityIndicator size="small" color={Colors.gold} /> : <IconMessageCircle size={16} color={Colors.textSoft} />}
                   <Text className="text-[13px] font-extrabold text-foreground dark:text-[#E6E0FF]">Message</Text>
                 </Pressable>
@@ -344,15 +320,7 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
         {locked && !blocked && <StateCard icon={IconLock} title="This account is private" body={`Follow ${name} to see their posts, rooms and events.`} />}
 
         {showContent && <>
-          <View accessibilityRole="tablist" className="mx-5 mt-[18px] flex-row gap-0.5 rounded-full border border-border bg-card dark:bg-[#15121E] p-1">
-            {visibleTabs.map(tab => {
-              const selected = activeTab === tab;
-              return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                style={selected && theme ? {backgroundColor: theme.accent} : undefined} className={`h-10 flex-1 items-center justify-center rounded-full ${selected ? (theme ? '' : 'bg-gold') : 'active:opacity-70'}`}>
-                <Text style={selected && theme ? {color: theme.onAccent} : undefined} className={`text-[13px] font-extrabold ${selected ? (theme ? '' : 'text-gold-ink') : 'text-muted dark:text-[#A9A3B8]'}`}>{TAB_LABELS[tab]}</Text>
-              </Pressable>;
-            })}
-          </View>
+          <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: TAB_LABELS[tab]}))} selected={activeTab} onSelect={tab => selectTab(tab)} accentColor={theme?.accent ?? Colors.gold} onAccentColor={theme?.onAccent ?? Colors.goldInk} />
 
           <View className="px-5 pb-5 pt-3.5">
             {activeTab === 'gifts' && gifts && <GiftPanel summary={gifts} name={name} />}

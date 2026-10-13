@@ -1,4 +1,5 @@
 import React, {useMemo, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../../Constants/NavigationTransitions';
 import {ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {Colors} from '../../../Constants/Colors';
@@ -83,7 +84,7 @@ const CountryPicker = ({value, error, disabled, onChange}: CountryPickerProps) =
         <View style={{transform: [{rotate: '90deg'}]}}><AppIcon name="chevron" size={18} color={Colors.muted} filled={false} /></View>
       </Pressable>
       <FieldError message={error} />
-      <Modal visible={open} animationType="slide" onRequestClose={close}>
+      <Modal visible={open} animationType={SLIDE_MODAL_ANIMATION} onRequestClose={close}>
         <SafeAreaView style={modalStyles.safe}>
           <View className="flex-row items-center gap-3 px-5 pb-3 pt-3">
             <View className="h-12 flex-1 flex-row items-center rounded-[14px] border border-border bg-card px-4">

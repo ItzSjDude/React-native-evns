@@ -43,7 +43,7 @@ export default function VibeNoteComposer({visible, onClose, onPosted}: Props) {
     try {
       const coordinates = await getDeviceLocation(true);
       if (!coordinates) { setError('Allow location access to post a vibe note.'); return; }
-      await createVibeNote({body, ...coordinates, expiresInMinutes: minutes});
+      await createVibeNote({body, lat: coordinates.lat, lng: coordinates.lng, expiresInMinutes: minutes});
       setText('');
       onPosted();
       refreshSubscription().catch(() => {});

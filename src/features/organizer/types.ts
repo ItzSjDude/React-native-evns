@@ -1,4 +1,5 @@
 export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'SCANNER' | 'MEMBER';
+export type WorkspaceVerificationStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 /** Raw row of `GET /workspaces` / `GET /workspaces/:id` (`workspaces.*` plus the caller's membership). */
 export type ApiWorkspace = {
@@ -10,6 +11,7 @@ export type ApiWorkspace = {
   ticket_balance: number;
   status: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   role: WorkspaceRole;
+  verification_status?: WorkspaceVerificationStatus;
   member_count?: string | number;
 };
 
@@ -22,7 +24,54 @@ export type Workspace = {
   ticketBalance: number;
   status: ApiWorkspace['status'];
   role: WorkspaceRole;
+  verificationStatus?: WorkspaceVerificationStatus;
   memberCount: number | null;
+};
+
+export type OrganizerDashboardSummary = {
+  ticketsSold: number;
+  grossRevenueMinor: number;
+  currency: string;
+  checkedIn: number;
+  nextPayoutMinor: number | null;
+  nextPayoutAt: string | null;
+  verificationStatus: WorkspaceVerificationStatus;
+  events: Array<{id: string; title: string; startsAt: string; venue: string; status: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'CANCELLED' | 'ENDED' | 'SOLD_OUT'; coverUrl: string | null; ticketsSold: number; capacity: number}>;
+  actionItems: Array<{type: 'REFUND_REQUEST' | 'CHECKIN_STAFF' | 'VERIFICATION'; eventId?: string; eventTitle?: string; count?: number}>;
+};
+
+export type OrganizerEvent = OrganizerDashboardSummary['events'][number];
+export type OrganizerEventSummary = Omit<OrganizerDashboardSummary, 'events' | 'actionItems' | 'verificationStatus' | 'nextPayoutMinor' | 'nextPayoutAt'> & {
+  event: OrganizerEvent;
+  ticketTypes: Array<{label: string; priceMinor: number; currency: string; sold: number; capacity: number}>;
+};
+
+export type OrganizerAttendee = {id: string; displayName: string; ticketLabel: string; orderReference: string; ticketStatus: 'PAID' | 'FREE' | 'REFUNDED' | 'CANCELLED'; checkedInAt: string | null; amountMinor: number; currency: string};
+export type OrganizerAttendeePage = {items: OrganizerAttendee[]; hasMore: boolean; offset: number};
+export type OrganizerPayouts = {next: {amountMinor: number; currency: string; releaseAt: string; maskedAccount: string} | null; history: Array<{id: string; eventTitle: string; amountMinor: number; currency: string; status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED'; releaseAt: string; paidAt: string | null}>};
+
+/** Draft captured by the organiser onboarding wizard before the backend accepts each step. */
+export type OrganizerOnboardingDraft = {
+  workspaceId?: string;
+  organizationName: string;
+  organizationType: 'INDEPENDENT_ORGANISER' | 'REGISTERED_BUSINESS' | 'NON_PROFIT';
+  city: string;
+  eventKinds: string[];
+  logoUrl?: string;
+  verificationType: 'GST_CERTIFICATE' | 'BUSINESS_PAN' | 'PERSONAL_PAN_AADHAAR';
+  verificationFileUrl?: string;
+  accountHolder: string;
+  accountNumber: string;
+  ifsc: string;
+  payoutSchedule: 'AFTER_EACH_EVENT' | 'EVERY_MONDAY';
+  eventName: string;
+  eventDescription: string;
+  eventCoverUrl?: string;
+  eventDate: string;
+  eventTime: string;
+  venue: string;
+  ticketType: 'FREE' | 'PAID';
+  capacity: string;
 };
 
 /** Row of `ticket_credit_ledger`, returned newest-first by `GET /workspaces/:id/credits`. */
