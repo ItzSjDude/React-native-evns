@@ -8,7 +8,7 @@ const asApiError = (error: unknown) => (error ?? {}) as Partial<ApiError>;
 
 export const isRateLimited = (error: unknown) => asApiError(error).status === 429;
 
-export const PASSPORT_PLUS_REQUIRED_MESSAGE = 'Social Passport and saved searches are Hiva Plus features.';
+export const PASSPORT_PLUS_REQUIRED_MESSAGE = 'Exploring other cities and saving searches require Hiva Plus.';
 export const PRESET_NAME_TAKEN_MESSAGE = 'You already have a saved search with that name.';
 export const PRESET_LIMIT_MESSAGE = 'You can save up to 10 searches. Delete one to save another.';
 

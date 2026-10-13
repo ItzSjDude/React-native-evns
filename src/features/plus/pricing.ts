@@ -131,7 +131,7 @@ export function paywallHeadline(reason?: PaywallReason, details?: LimitReachedDe
   const plusMax = details?.plusMax ?? (reason && reason !== 'filters' && reason !== 'passport' && reason !== 'inbox' ? PLUS_DEFAULTS[reason] : undefined);
   switch (reason) {
     case 'passport':
-      return 'Explore other cities with Social Passport — Plus';
+      return 'Meet people in other cities with Hiva Plus';
     case 'filters':
       return 'Filter by city, interest and language with Plus';
     case 'inbox':

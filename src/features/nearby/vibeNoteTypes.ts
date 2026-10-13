@@ -25,3 +25,6 @@ export type NewVibeNote = {
 
 /** `POST /vibe-notes` response (201). */
 export type CreatedVibeNote = {id: string; body: string; radiusMeters: number; expiresAt: string; createdAt: string};
+
+/** `GET /vibe-notes/mine`: own active notes, newest first; no device location needed. */
+export type MyVibeNote = CreatedVibeNote;
