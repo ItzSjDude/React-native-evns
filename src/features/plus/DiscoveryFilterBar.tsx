@@ -10,7 +10,7 @@ import {openPaywall} from './plusStore';
 import type {DiscoveryFilters} from './types';
 import {usePlus} from './usePlus';
 
-export type DiscoveryFilterBarProps = {filters: DiscoveryFilters; onChange: (filters: DiscoveryFilters) => void; subtitle?: string; /** Passport has its own city input. */ hideCity?: boolean};
+export type DiscoveryFilterBarProps = {filters: DiscoveryFilters; onChange: (filters: DiscoveryFilters) => void; subtitle?: string; /** Passport has its own city input. */ hideCity?: boolean; /** Useful in tight toolbars; clearing remains available in the sheet. */ showClearAction?: boolean};
 
 const inputClass = 'h-11 rounded-xl border border-border bg-card px-3 text-[15px] text-foreground';
 const fieldLabel = 'mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-muted';
@@ -19,7 +19,7 @@ const fieldLabel = 'mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-[0.
  * Compact filter control for Nearby and people search. Free users see a lock and tapping it opens the
  * 'filters' paywall; Plus users edit a draft in a sheet and apply it. Hidden while the server doesn't offer Plus.
  */
-export default function DiscoveryFilterBar({filters, onChange, subtitle, hideCity}: DiscoveryFilterBarProps) {
+export default function DiscoveryFilterBar({filters, onChange, subtitle, hideCity, showClearAction = true}: DiscoveryFilterBarProps) {
   const {enabled, isPlus} = usePlus();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DiscoveryFilters>(filters);
@@ -35,12 +35,12 @@ export default function DiscoveryFilterBar({filters, onChange, subtitle, hideCit
 
   return <View className="flex-row items-center gap-2">
     <Pressable accessibilityRole="button" accessibilityLabel={isPlus ? (count ? `Filters, ${count} active` : 'Filters') : 'Filters, requires Hiva Plus'}
-      onPress={press} className={`h-9 flex-row items-center gap-1.5 rounded-full px-4 active:opacity-70 ${count ? 'bg-gold' : 'bg-card'}`}>
+      onPress={press} hitSlop={{top: 6, bottom: 6}} className={`h-9 flex-row items-center gap-1.5 rounded-full px-4 active:opacity-70 ${count ? 'bg-gold' : 'bg-card'}`}>
       <IconFilter size={15} color={count ? Colors.textDark : Colors.muted} />
       <Text className={`text-[13px] font-semibold ${count ? 'text-text-dark' : 'text-muted'}`}>{count ? `Filters · ${count}` : 'Filters'}</Text>
       {!isPlus && <IconLock size={13} color={Colors.muted} />}
     </Pressable>
-    {count > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Clear all filters" onPress={() => onChange({})} hitSlop={6}
+    {count > 0 && showClearAction && <Pressable accessibilityRole="button" accessibilityLabel="Clear all filters" onPress={() => onChange({})} hitSlop={6}
       className="h-9 flex-row items-center gap-1 px-2 active:opacity-70">
       <IconX size={14} color={Colors.muted} /><Text className="text-[13px] font-semibold text-muted">Clear all</Text>
     </Pressable>}
@@ -63,7 +63,7 @@ export default function DiscoveryFilterBar({filters, onChange, subtitle, hideCit
         {LANGUAGES.map(({value, label}) => {
           const selected = draft.language === value;
           return <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected}}
-            onPress={() => setDraft(prev => ({...prev, language: selected ? undefined : value}))}
+            onPress={() => setDraft(prev => ({...prev, language: selected ? undefined : value}))} hitSlop={{top: 6, bottom: 6}}
             className={`h-9 items-center justify-center rounded-full px-4 active:opacity-70 ${selected ? 'bg-gold' : 'bg-card'}`}>
             <Text className={`text-[13px] font-semibold ${selected ? 'text-text-dark' : 'text-muted'}`}>{label}</Text>
           </Pressable>;

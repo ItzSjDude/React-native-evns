@@ -209,7 +209,8 @@ const Party = () => {
               accessibilityRole="button"
               accessibilityLabel="Open create party"
               onPress={() => setCreateOpen(true)}
-              className="h-10 flex-row items-center justify-center gap-1.5 rounded-[18px] bg-gold px-4 active:opacity-70"
+              hitSlop={{top: 8, bottom: 8}}
+              className="-mr-6 h-8 w-[120px] flex-row items-center justify-center gap-1.5 rounded-l-full bg-gold pl-4 pr-5 active:opacity-70"
             >
               <IconPlus size={21} color={PartyColors.ink} />
               <Text className="text-[13px] font-bold text-text-dark">

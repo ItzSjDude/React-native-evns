@@ -258,15 +258,15 @@ const Home = () => {
       <View className="flex-row items-center justify-between px-[19px] pb-1 pt-3">
         <Text accessibilityRole="header" className="font-display-semibold text-[27px] tracking-[-0.8px] text-feed-text">hiva<Text className="text-feed-accent">chat.</Text></Text>
         <View className="flex-row items-center">
-          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={4}
-            className="mr-1 h-9 flex-row items-center gap-1 rounded-full bg-gold pl-2.5 pr-3.5 active:opacity-80">
-            <IconPlus size={18} color={Colors.goldInk} />
-            <Text className="font-body-semibold text-[14px] text-gold-ink">Post</Text>
-          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => setSearchOpen(true)} hitSlop={4} className="h-11 w-11 items-center justify-center active:opacity-60">
             <IconSearch size={23} color={FeedColors.label} />
           </Pressable>
           <NotificationsBell dot size={23} color={FeedColors.label} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={{top: 8, bottom: 8}}
+            className="-mr-[23px] h-8 w-[120px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-[19px] active:opacity-80">
+            <IconPlus size={18} color={Colors.goldInk} />
+            <Text className="font-body-semibold text-[14px] text-gold-ink">Post</Text>
+          </Pressable>
         </View>
       </View>
       <View accessibilityRole="tablist" className="flex-row gap-[26px] border-b border-feed-line px-[19px]">

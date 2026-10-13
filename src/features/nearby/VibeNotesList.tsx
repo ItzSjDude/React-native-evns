@@ -51,20 +51,25 @@ const NoteRow = ({note, own, expanded, deleting, onPress, onDelete}: NoteRowProp
 };
 
 type Props = {
-  /** Same range the people list uses. */
+  /** Discovery range selected on Explore. */
   radiusMeters: number;
-  /** Changing this reloads the notes (Nearby passes its freshly loaded people list). */
+  /** Changing this reloads the notes after location refresh. */
   reloadKey?: unknown;
+  /** Hide the local composer entry when a parent screen supplies a persistent one. */
+  showComposeAction?: boolean;
+  /** Keep nearby notes compact when embedded above the People list. */
+  previewLimit?: number;
 };
 
-/** Nearby's "Vibe notes" section: post button, composer and the notes around you. */
-export default function VibeNotesList({radiusMeters, reloadKey}: Props) {
+/** Nearby notes: optionally show a short preview above the People list. */
+export default function VibeNotesList({radiusMeters, reloadKey, showComposeAction = true, previewLimit}: Props) {
   const [notes, setNotes] = useState<VibeNote[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const request = useRef(0);
   const opened = useRef(new Set<string>());
 
@@ -109,18 +114,31 @@ export default function VibeNotesList({radiusMeters, reloadKey}: Props) {
     }
   };
 
-  return <View className="mb-6">
-    <View className="mb-3 flex-row items-center justify-between">
-      <Text className="text-xl font-bold text-foreground">Vibe notes</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Post a vibe" onPress={() => setComposing(true)} className="h-10 flex-row items-center gap-1.5 rounded-full bg-gold px-4 active:opacity-70">
-        <IconNote size={17} color={Colors.textDark} />
-        <Text className="text-[13px] font-bold text-text-dark">Post a vibe</Text>
-      </Pressable>
+  const visibleNotes = previewLimit && !showAll ? notes?.slice(0, previewLimit) : notes;
+  const hasMoreNotes = !!previewLimit && (notes?.length ?? 0) > previewLimit;
+
+  return <View className="mb-2">
+    <View className="mb-2 flex-row items-center justify-between">
+      <View>
+        <Text className="text-[20px] font-bold text-foreground">Vibe notes</Text>
+        <Text className="mt-0.5 text-[12px] text-muted">Short notes people leave nearby</Text>
+      </View>
+      {hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel={showAll ? 'Show fewer vibe notes' : 'See all vibe notes'} onPress={() => setShowAll(current => !current)} hitSlop={5} className="min-h-10 justify-center px-1 active:opacity-70">
+        <Text className="text-[13px] font-semibold text-primary">{showAll ? 'Show less' : 'See all'}</Text>
+      </Pressable>}
+      {showComposeAction && !hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel="Write a vibe note" onPress={() => setComposing(true)} hitSlop={5} className="min-h-9 flex-row items-center gap-1.5 px-1 active:opacity-70">
+        <IconNote size={17} color={Colors.primary} />
+        <Text className="text-[13px] font-semibold text-primary">Write one</Text>
+      </Pressable>}
     </View>
     {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Retry vibe notes" onPress={load} className="mb-3 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
-    {notes?.map(note => <NoteRow key={note.id} note={note} own={!!meId && note.creator.id === meId} expanded={expandedId === note.id} deleting={deletingId === note.id}
+    {visibleNotes?.map(note => <NoteRow key={note.id} note={note} own={!!meId && note.creator.id === meId} expanded={expandedId === note.id} deleting={deletingId === note.id}
       onPress={() => press(note)} onDelete={() => remove(note)} />)}
-    {notes?.length === 0 && !error && <Text className="rounded-[20px] bg-card px-4 py-4 text-sm text-muted">No vibe notes around you yet. Be the first to post one.</Text>}
-    <VibeNoteComposer visible={composing} onClose={() => setComposing(false)} onPosted={load} />
+    {notes?.length === 0 && !error && <View className={previewLimit ? 'rounded-2xl bg-card px-4 py-3' : 'min-h-[190px] items-center justify-center px-4 py-7'}>
+      {!previewLimit && <IconNote size={34} color={Colors.muted} strokeWidth={1.5} />}
+      <Text className={previewLimit ? 'text-[13px] font-semibold text-foreground' : 'mt-3 text-center text-[16px] font-semibold text-foreground'}>No notes within {Math.round(radiusMeters / 1000)} km yet</Text>
+      <Text className={previewLimit ? 'mt-0.5 text-[12px] text-muted' : 'mt-1 text-center text-[13px] leading-5 text-muted'}>Be the first to leave one.</Text>
+    </View>}
+    {showComposeAction && <VibeNoteComposer visible={composing} onClose={() => setComposing(false)} onPosted={load} />}
   </View>;
 }

@@ -51,6 +51,17 @@ test('lists notes with creator, distance and time, locking the ones out of range
   expect(text).not.toContain('body c');
 });
 
+test('the People preview stays short and can reveal all nearby notes', async () => {
+  await ReactTestRenderer.act(async () => {tree = ReactTestRenderer.create(<VibeNotesList radiusMeters={2000} previewLimit={2} showComposeAction={false} />);});
+  expect(allText(tree)).toContain('body a');
+  expect(allText(tree)).toContain('body b');
+  expect(allText(tree)).not.toContain('secret start');
+  await ReactTestRenderer.act(async () => {all(tree, 'See all vibe notes')[0].props.onPress();});
+  expect(allText(tree)).toContain('secret start');
+  await ReactTestRenderer.act(async () => {all(tree, 'Show fewer vibe notes')[0].props.onPress();});
+  expect(allText(tree)).not.toContain('secret start');
+});
+
 test('tapping an unlocked note opens it once; a failing open does not break the UI', async () => {
   open.mockRejectedValue(new Error('offline'));
   await render();
@@ -82,7 +93,8 @@ test('a failed delete keeps the note and shows the error', async () => {
 test('shows an empty state and a retryable error', async () => {
   list.mockResolvedValueOnce([]);
   await render();
-  expect(allText(tree)).toContain('No vibe notes around you yet');
+  expect(allText(tree)).toContain('No notes within 2 km yet');
+  expect(allText(tree)).toContain('Be the first to leave one.');
   list.mockRejectedValueOnce({status: 400, message: 'Post your location before searching vibe notes'});
   await ReactTestRenderer.act(async () => { tree.update(<VibeNotesList radiusMeters={5000} />); });
   expect(allText(tree)).toContain('Post your location before searching vibe notes');
