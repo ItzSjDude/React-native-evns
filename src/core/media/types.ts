@@ -2,7 +2,7 @@
  * Mirrors gathr-api `POST /media/upload-url` (validators/notification.schema.js `uploadUrl`).
  * `post` is only accepted once the backend fix on feat/platform-fixes is deployed.
  */
-export type MediaPurpose = 'avatar' | 'workspace' | 'event' | 'chat' | 'payment' | 'post' | 'misc';
+export type MediaPurpose = 'avatar' | 'workspace' | 'organizer_verification' | 'event' | 'chat' | 'payment' | 'post' | 'misc';
 
 /** MIME types the backend accepts (services/media.service.js ALLOWED_TYPES). */
 export const ALLOWED_MEDIA_TYPES = [

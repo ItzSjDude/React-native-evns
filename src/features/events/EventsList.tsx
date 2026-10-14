@@ -1,15 +1,18 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
+import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, AppState, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
+import IconBuildingStore from '@tabler/icons-react-native/IconBuildingStore';
 import {Colors} from '../../Constants/Colors';
 import EventDetailSheet from './EventDetailSheet';
 import MyTicketsSheet from './MyTicketsSheet';
 import {formatEventPrice, formatEventWhen, goingLabel, messageOf} from './eventsPresentation';
 import {getEvents} from './eventsService';
 import type {ApiEvent} from './types';
+import {listMyWorkspaces, OrganizerOnboardingScreen, type Workspace} from '../organizer';
+import {NativeAdCard} from '../ads';
 
 // Bottom padding clears the floating tab bar, matching the Home feed it replaces.
 const LIST_CONTENT = {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 130, flexGrow: 1};
@@ -36,7 +39,9 @@ const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
 };
 
 /** The events list, embedded under Home's tab row. Loads its first page when mounted. */
-const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: string) => void}) => {
+type EventsListProps = {onOpenEventChat?: (conversationId?: string) => void};
+
+const EventsList = ({onOpenEventChat}: EventsListProps) => {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,6 +53,11 @@ const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: stri
   const [ticketsOpen, setTicketsOpen] = useState(false);
   const [ticketEventId, setTicketEventId] = useState<string | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [organizerOnboardingOpen, setOrganizerOnboardingOpen] = useState(false);
+  const [hostEventMode, setHostEventMode] = useState(false);
+  const [organizerWorkspaces, setOrganizerWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const request = useRef(0);
   const busy = useRef(false);
 
@@ -74,6 +84,39 @@ const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: stri
     return () => { counter.current++; };
   }, [load]);
 
+  const refreshWorkspaces = useCallback(() => {
+    listMyWorkspaces().then(workspaces => {
+      const organizers = workspaces.filter(workspace => workspace.status === 'ACTIVE' && (workspace.role === 'OWNER' || workspace.role === 'ADMIN'));
+      setOrganizerWorkspaces(organizers);
+    }).catch(() => {
+      // Keep the last known review state during a transient network failure.
+    }).finally(() => setWorkspacesLoaded(true));
+  }, []);
+
+  useEffect(() => { refreshWorkspaces(); }, [refreshWorkspaces]);
+
+  const reviewPending = organizerWorkspaces.some(workspace => workspace.verificationStatus === 'PENDING');
+  useEffect(() => {
+    if (!reviewPending || !appActive) return;
+    const interval = setInterval(refreshWorkspaces, 60_000);
+    return () => clearInterval(interval);
+  }, [appActive, refreshWorkspaces, reviewPending]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      setAppActive(state === 'active');
+      if (state === 'active') refreshWorkspaces();
+    });
+    return () => subscription.remove();
+  }, [refreshWorkspaces]);
+
+  const approvedWorkspaces = organizerWorkspaces.filter(workspace => workspace.verificationStatus === 'APPROVED');
+
+  const openOrganizerFlow = useCallback(() => {
+    setHostEventMode(approvedWorkspaces.length > 0);
+    setOrganizerOnboardingOpen(true);
+  }, [approvedWorkspaces.length]);
+
   const loadMore = () => { if (hasMore && !busy.current && !error) load(events.length, 'more'); };
 
   const empty = loading
@@ -91,24 +134,33 @@ const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: stri
         <Text className="mt-1 text-center text-[13px] text-muted">Pull down to check again.</Text>
       </View>;
 
-  const listHeader = <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}}
-    className="mb-3 min-h-11 flex-row items-center justify-between rounded-2xl border border-border bg-card px-4 active:opacity-75">
-    <View><Text className="text-[14px] font-bold text-foreground">My tickets</Text><Text className="text-[12px] text-muted">Your event passes and QR codes</Text></View>
-    <IconTicket size={20} color={Colors.gold} />
-  </Pressable>;
+  const listHeader = <View className="mb-3">
+    <Pressable accessibilityRole="button" accessibilityLabel={approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending, refresh status' : 'Become an organiser'} accessibilityState={{disabled: !workspacesLoaded}} disabled={!workspacesLoaded} onPress={approvedWorkspaces.length ? openOrganizerFlow : reviewPending ? refreshWorkspaces : openOrganizerFlow}
+      className="mb-3 min-h-[92px] flex-row items-center rounded-[20px] border border-gold/40 bg-card px-4 active:opacity-75">
+      <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-gold/15"><IconBuildingStore size={23} color={Colors.gold} /></View>
+      <View className="flex-1"><Text className="text-[15px] font-extrabold text-foreground">{!workspacesLoaded ? 'Checking organiser access…' : approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending' : 'Become an organiser'}</Text><Text className="mt-1 text-[12px] text-muted">{!workspacesLoaded ? 'Loading your organisations' : approvedWorkspaces.length ? 'Create an event for your organisation' : reviewPending ? 'Your document is under review. Tap to refresh.' : 'Set up your organisation and create an event'}</Text></View>
+      <Text className="text-[22px] font-medium text-muted">›</Text>
+    </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}}
+      className="min-h-[76px] flex-row items-center rounded-[20px] border border-gold/40 bg-card px-4 active:opacity-75">
+      <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-gold/15"><IconTicket size={23} color={Colors.gold} /></View>
+      <View className="flex-1"><Text className="text-[15px] font-extrabold text-foreground">My tickets</Text><Text className="mt-0.5 text-[12px] text-muted">Your event passes and QR codes</Text></View>
+      <Text className="text-[22px] font-medium text-muted">›</Text>
+    </Pressable>
+  </View>;
 
   return <>
     <FlatList
       data={events}
       keyExtractor={item => item.id}
       ListHeaderComponent={listHeader}
-      renderItem={({item}) => <EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />}
+      renderItem={({item, index}) => <Fragment><EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={LIST_CONTENT}
       showsVerticalScrollIndicator={false}
       ListEmptyComponent={empty}
       ListFooterComponent={loadingMore ? <ActivityIndicator accessibilityLabel="Loading more events" color={Colors.gold} className="my-4" /> : undefined}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(0, 'refresh')} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {load(0, 'refresh'); refreshWorkspaces();}} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
     />
@@ -117,6 +169,7 @@ const EventsList = ({onOpenEventChat}: {onOpenEventChat?: (conversationId?: stri
       onOpenTickets={(eventId, nextTicketId) => {setTicketEventId(eventId); setTicketId(nextTicketId ?? null); setTicketsOpen(true);}} />
     <MyTicketsSheet visible={ticketsOpen} eventId={ticketEventId} ticketId={ticketId} onExitTicket={() => setTicketId(null)}
       onClose={() => {setTicketsOpen(false); setTicketEventId(null); setTicketId(null);}} />
+    {organizerOnboardingOpen && <OrganizerOnboardingScreen mode={hostEventMode ? 'hostEvent' : 'onboarding'} workspaces={approvedWorkspaces} onEventCreated={() => {load(0, 'refresh');}} onClose={() => {setOrganizerOnboardingOpen(false); setHostEventMode(false); refreshWorkspaces();}} />}
   </>;
 };
 

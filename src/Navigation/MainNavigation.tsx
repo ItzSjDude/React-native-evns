@@ -6,6 +6,8 @@ import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
 import TabNavigation from './TabNavigation';
 import {PartySessionProvider, PartyLinkCapture, PartyLinkHandler} from '../features/party';
+import {clearVibeNoteRegions, installVibeNoteGeofenceEntryHandler} from '../features/nearby';
+import {AdsProvider} from '../features/ads';
 import {useAppDispatch, useAppSelector} from '../core/store/hooks';
 import {configureApiAuth} from '../core/api/apiClient';
 import {clearSession, clearStoredSession, loadSession, refreshOnce, registerAgeGateListener, restoreBackendSession, selectAuthRoute, setSession} from '../features/auth';
@@ -33,13 +35,18 @@ const MainNavigation = () => {
         dispatch(clearSession());
       },
     });
+    const stopVibeNoteEntries = installVibeNoteGeofenceEntryHandler();
     // 403 AGE_REQUIRED / UNDERAGE from any request routes to the matching age screen.
     const stopAgeGate = registerAgeGateListener(dispatch);
     restoreBackendSession()
       .then(session => { if (session) dispatch(setSession(session)); else dispatch(clearSession()); })
       .catch(() => dispatch(clearSession()));
-    return stopAgeGate;
+    return () => {stopAgeGate(); stopVibeNoteEntries();};
   }, [dispatch]);
+
+  useEffect(() => {
+    if (route && route !== 'Main') clearVibeNoteRegions();
+  }, [route]);
 
   if (route === null) return null;
 
@@ -50,7 +57,7 @@ const MainNavigation = () => {
       <NavigationContainer ref={navigationRef}>
         {/* Keyed so moving between auth surfaces starts a fresh stack at the right screen. */}
         {route === 'Main'
-          ? <PartySessionProvider><TabNavigation /><PartyLinkHandler /></PartySessionProvider>
+          ? <AdsProvider><PartySessionProvider><TabNavigation /><PartyLinkHandler /></PartySessionProvider></AdsProvider>
           : <AuthStack key={route} initialRouteName={route} />}
       </NavigationContainer>
     </View>

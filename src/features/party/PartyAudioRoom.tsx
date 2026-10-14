@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import { Modal, Platform, Pressable, Text, View } from 'react-native';
 import {showDialog} from '../../components/Dialog';
 import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
@@ -66,7 +67,7 @@ export default function PartyAudioRoom({ session, onClose, expanded, onMinimize,
       <Text accessibilityRole={error ? 'alert' : undefined} numberOfLines={1} className="mt-0.5 text-xs text-muted">{error ? 'Audio problem · Open to retry' : 'Preparing audio…'}</Text>
     </Pressable>
   </View>;
-  if (!audioReady) return <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={requestClose}>
+  if (!audioReady) return <Modal visible animationType={SLIDE_MODAL_ANIMATION} presentationStyle="fullScreen" onRequestClose={requestClose}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-8">
       <Text accessibilityRole={error ? 'alert' : undefined} className="text-center text-sm text-foreground">{error || 'Preparing audio…'}</Text>
       {!!error && <Pressable accessibilityRole="button" disabled={closing} onPress={() => { setError(null); setAttempt(value => value + 1); }} className="mt-6 h-11 justify-center rounded-full bg-gold px-6"><Text className="font-semibold text-text-dark">Retry audio</Text></Pressable>}

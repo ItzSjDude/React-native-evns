@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, Linking, Modal, Pressable, Text} from 'react-native';
 import {Colors} from '../../Constants/Colors';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -40,7 +41,7 @@ export function PartyLinkHandler() {
   },[token,attempt]);
   const close=()=>{clearPendingPartyLink(token || undefined).catch(()=>{});setToken(null);setRoom(null);setError(null);};
   if (room) return <PartyRoomPreview room={room} activePartyId={session?.party.id} onResume={()=>{close();expand();}} onBlocked={()=>promptActiveParty(close)} onClose={close} onJoined={next=>{close();open(next);}} />;
-  return <Modal visible={!!token && (loading || !!error)} animationType="slide" onRequestClose={close}>
+  return <Modal visible={!!token && (loading || !!error)} animationType={SLIDE_MODAL_ANIMATION} onRequestClose={close}>
     <SafeAreaView className="flex-1 items-center justify-center bg-background px-6">
       {loading ? <ActivityIndicator color={Colors.gold} /> : <Text accessibilityRole="alert" className="text-center text-foreground">{error}</Text>}
       {!!error && <Pressable accessibilityRole="button" onPress={()=>setAttempt(value=>value+1)} className="mt-4 h-11 justify-center rounded-full bg-gold px-6"><Text className="font-semibold text-text-dark">Retry</Text></Pressable>}

@@ -1,15 +1,33 @@
 import {apiRequest, apiRequestPage} from '../../core/api/apiClient';
 import {CITY_MAX_LENGTH, discoveryQuery, type DiscoveryFilters} from '../plus';
 import {MIN_RADIUS_METERS} from './distance';
+import type {DeviceLocationFix} from './deviceLocation';
 import type {LocationFix, LocationVisibility, NearbyPerson, PassportPage, PassportPerson} from './types';
 
 export const getLocationVisibility = () =>
   apiRequest<LocationVisibility>('/me/visibility', {auth: 'required'});
 
-export const updateMyLocation = (lat: number, lng: number) =>
+export type LocationUpdateMetadata = {
+  accuracyMeters?: number;
+  observedAt?: string;
+  source?: 'foreground' | 'vibe_note_geofence';
+  enteredNoteIds?: string[];
+};
+
+export const updateMyLocation = (lat: number, lng: number, metadata?: LocationUpdateMetadata) =>
   apiRequest<LocationFix>('/me/location', {
-    auth: 'required', method: 'POST', body: JSON.stringify({lat, lng}),
+    auth: 'required', method: 'POST', body: JSON.stringify({lat, lng, ...metadata}),
   });
+
+export const updateMyLocationFromFix = (fix: DeviceLocationFix) => {
+  const metadata = {
+    ...(fix.accuracyMeters === undefined ? {} : {accuracyMeters: fix.accuracyMeters}),
+    ...(fix.observedAt === undefined ? {} : {observedAt: fix.observedAt}),
+  };
+  return Object.keys(metadata).length
+    ? updateMyLocation(fix.lat, fix.lng, {...metadata, source: 'foreground'})
+    : updateMyLocation(fix.lat, fix.lng);
+};
 
 export const setLocationVisibility = (visible: boolean) =>
   apiRequest<LocationFix>('/me/visibility', {

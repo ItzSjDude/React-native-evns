@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import DateTimePicker, {DateTimePickerAndroid} from '@react-native-community/datetimepicker';
 import {showDialog} from '../../components/Dialog';
@@ -27,6 +28,7 @@ import IconClock from '@tabler/icons-react-native/IconClock';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
 import {PlusSettingsScreen, openPaywall, usePlus} from '../plus';
 import {OrganizerCreditsScreen, useOrganizerCreditsAvailable} from '../organizer';
+import {useAds} from '../ads';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
 import {WEEKDAYS, dateToHHmm, deviceTimeZone, timeToDate, toHHmm, toggleDay} from './quietHours';
@@ -97,6 +99,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   const [picking, setPicking] = useState<{field: QuietTimeField; value: Date} | null>(null);
   const [deleteText, setDeleteText] = useState('');
   const plus = usePlus();
+  const ads = useAds();
   // Servers without the quiet-hours settings return none of these fields; hide those rows rather than show dead controls.
   const quietSupported = plus.enabled && typeof settings?.quietHoursEnabled === 'boolean';
   const [plusOpen, setPlusOpen] = useState(false);
@@ -182,7 +185,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
   const confirmLogout = () => showDialog('Log out?', 'You’ll need to sign in with Google again.',
     [{text: 'Cancel', style: 'cancel'}, {text: 'Log out', style: 'destructive', onPress: logout}]);
 
-  return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+  return <Modal visible={visible} animationType={SLIDE_MODAL_ANIMATION} presentationStyle="fullScreen" onRequestClose={onClose}>
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
       <View className="flex-row items-center gap-1 px-2 pb-2 pt-1">
         <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" onPress={onClose} hitSlop={4}
@@ -247,6 +250,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
           {settings && <Row icon={IconLock} label="Private profile" hint="Only followers see your posts, rooms and events"
             toggle={settings.privateProfile} disabled={busy} onPress={() => patchSettings({privateProfile: !settings.privateProfile})} />}
           {blocked && <Row icon={IconBan} label="Blocked users" value={String(blocked.length)} onPress={() => setPanel('blocked')} />}
+          <Row icon={IconShieldLock} label="Ad privacy choices" hint="Review or change your advertising consent" onPress={() => ads.showPrivacyOptions().catch(cause => setError(messageOf(cause)))} />
         </Group>
 
         {(privacyUrl || termsUrl) && <Group title="Legal">

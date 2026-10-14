@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
@@ -45,7 +46,7 @@ const PartyRoomPreview = ({room: initialRoom, onClose, onJoined, activePartyId, 
   };
   const label=room.status==='SCHEDULED' ? isHost ? 'Start party now' : reminded ? 'Reminder on · Cancel' : 'Remind me' : activePartyId===room.id ? 'Return to party' : room.status==='ACTIVE' ? 'Join audio party' : 'Party has ended';
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible animationType={SLIDE_MODAL_ANIMATION} presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <View className="flex-row items-center px-5 py-3">
           <Pressable accessibilityRole="button" accessibilityLabel="Close room preview" onPress={onClose} className="h-11 w-11 items-center justify-center rounded-full bg-card"><IconArrowLeft size={23} color={PartyColors.text} /></Pressable>

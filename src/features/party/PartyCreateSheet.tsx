@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
@@ -67,7 +68,7 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
     } finally { setSaving(false); }
   };
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={() => { if (!saving) onClose(); }}>
+    <Modal visible transparent animationType={SLIDE_MODAL_ANIMATION} onRequestClose={() => { if (!saving) onClose(); }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/60">
         <Pressable accessibilityLabel="Dismiss create party" disabled={saving} onPress={onClose} className="flex-1" />
         <SafeAreaView edges={['bottom']} style={styles.sheet} className="rounded-t-[28px] border border-border bg-background px-5 pt-5">

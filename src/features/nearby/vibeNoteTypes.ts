@@ -28,3 +28,14 @@ export type CreatedVibeNote = {id: string; body: string; radiusMeters: number; e
 
 /** `GET /vibe-notes/mine`: own active notes, newest first; no device location needed. */
 export type MyVibeNote = CreatedVibeNote;
+
+/** Minimal active note fields needed to register an OS geofence. */
+export type VibeNoteGeofenceCandidate = {
+  noteId: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  expiresAt: string;
+};
+
+export type VibeNoteAlertPreference = {enabled: boolean};

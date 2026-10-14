@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, FlatList, Pressable, RefreshControl, Share, Text, View} from 'react-native';
 import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconArrowDown from '@tabler/icons-react-native/IconArrowDown';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import type {ApiPostMedia, HomePost} from './types';
+import {NativeAdCard} from '../ads';
 
 cssInterop(SafeAreaView, {className: 'style'});
 
@@ -147,7 +148,7 @@ const Home = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
-  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string}) => void}>();
+  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string; vibeNoteId?: string}) => void}>();
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
     if (target.kind === 'user' && 'id' in target) {
@@ -166,6 +167,7 @@ const Home = () => {
       getPost(target.id).then(post => openComments(post, target.data.commentId || null)).catch(() => showDialog('Post not available', 'This post was removed or you can no longer see it.'));
       return true;
     }
+    if (target.kind === 'vibeNote' && 'id' in target) {navigation.navigate('Nearby', {vibeNoteId: target.id}); return true;}
     return false;
   });
   const [previewRoom, setPreviewRoom] = useState<PartyRoom | null>(null);
@@ -263,14 +265,14 @@ const Home = () => {
           </Pressable>
           <NotificationsBell dot size={23} color={FeedColors.label} />
           <Pressable accessibilityRole="button" accessibilityLabel="Create a post" onPress={openCompose} hitSlop={{top: 8, bottom: 8}}
-            className="-mr-[23px] h-8 w-[120px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-[19px] active:opacity-80">
+            className="-mr-5 h-8 w-[88px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-[19px] active:opacity-80">
             <IconPlus size={18} color={Colors.goldInk} />
             <Text className="font-body-semibold text-[14px] text-gold-ink">Post</Text>
           </Pressable>
         </View>
       </View>
       <View accessibilityRole="tablist" className="flex-row gap-[26px] border-b border-feed-line px-[19px]">
-        {([['all', 'For you'], ['following', 'Following'], ['events', 'Events']] as const).map(([key, label]) => {
+        {([['all', 'For you'], ['events', 'Events']] as const).map(([key, label]) => {
           const selected = tab === key;
           return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => key === 'events' ? setTab(key) : changeScope(key)} className="pb-3 pt-2 active:opacity-70">
             <Text className={`font-body-semibold text-[17px] ${selected ? 'text-feed-text' : 'text-feed-muted'}`}>{label}</Text>
@@ -300,8 +302,8 @@ const Home = () => {
   ) : (
     <View className="items-center px-6 pt-16">
       <AppIcon name="comment" size={44} color={Colors.muted} filled={false} />
-      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">{tab === 'following' ? 'Nothing here yet' : 'No posts yet'}</Typography>
-      <Typography size={14} color={Colors.muted} className="mt-2 text-center">{tab === 'following' ? 'Follow people and their posts will show up here.' : 'Be the first to share something with everyone.'}</Typography>
+      <Typography size={16} color={Colors.text} fontWeight="600" className="mt-4 text-center">No posts yet</Typography>
+      <Typography size={14} color={Colors.muted} className="mt-2 text-center">Be the first to share something with everyone.</Typography>
     </View>
   );
 
@@ -322,11 +324,11 @@ const Home = () => {
       data={posts}
       extraData={viewerId}
       keyExtractor={item => item.id}
-      renderItem={({item}) => <PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
+      renderItem={({item, index}) => <Fragment><PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
         onReport={reason => report(item, reason)} onShare={() => sharePost(item)}
         saved={savedPosts.has(item.id)} onToggleSave={() => toggleSaved(item.id)}
         headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
-        onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />}
+        onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
       showsVerticalScrollIndicator={false}
       contentContainerClassName="pb-[130px]"
       ListHeaderComponent={listHeader ?? undefined}

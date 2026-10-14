@@ -46,6 +46,8 @@
 	<string>Camera access is required for video calls.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Hiva uses your location to show nearby people and let others find you when you choose to be visible.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Hiva uses background location only to alert you when you enter an active Vibe Note area, if you turn on Nearby Vibe alerts.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is required for audio calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

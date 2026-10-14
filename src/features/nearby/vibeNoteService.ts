@@ -1,5 +1,5 @@
 import {apiRequest, apiRequestPage} from '../../core/api/apiClient';
-import type {CreatedVibeNote, MyVibeNote, NewVibeNote, VibeNote} from './vibeNoteTypes';
+import type {CreatedVibeNote, MyVibeNote, NewVibeNote, VibeNote, VibeNoteAlertPreference, VibeNoteGeofenceCandidate} from './vibeNoteTypes';
 
 const json = (method: string, body?: unknown) => ({auth: 'required' as const, method, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
 
@@ -19,3 +19,12 @@ export const getMyVibeNotes = (offset = 0) =>
 export const openVibeNote = (noteId: string) => apiRequest<VibeNote>(`/vibe-notes/${noteId}/open`, json('POST'));
 
 export const deleteVibeNote = (noteId: string) => apiRequest<void>(`/vibe-notes/${noteId}`, json('DELETE'));
+
+export const getVibeNoteAlertPreference = () =>
+  apiRequest<VibeNoteAlertPreference>('/me/vibe-note-alerts', {auth: 'required'});
+
+export const setVibeNoteAlertPreference = (enabled: boolean) =>
+  apiRequest<VibeNoteAlertPreference>('/me/vibe-note-alerts', json('PUT', {enabled}));
+
+export const getVibeNoteGeofenceCandidates = (limit: number) =>
+  apiRequest<VibeNoteGeofenceCandidate[]>(`/vibe-notes/geofence-candidates?limit=${Math.max(1, Math.min(100, Math.round(limit)))}`, {auth: 'required'});

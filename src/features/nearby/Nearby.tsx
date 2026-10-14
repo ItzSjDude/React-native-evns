@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Alert, AppState, Image, Linking, Pressable, RefreshControl, ScrollView, Switch, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useIsFocused, useNavigation} from '@react-navigation/native';
+import {useIsFocused, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import IconChevronDown from '@tabler/icons-react-native/IconChevronDown';
 import IconGenderFemale from '@tabler/icons-react-native/IconGenderFemale';
 import IconGenderMale from '@tabler/icons-react-native/IconGenderMale';
@@ -22,9 +22,13 @@ import {nearbyErrorMessage} from './nearbyErrors';
 import MyVibesSheet from './MyVibesSheet';
 import PassportResults from './PassportResults';
 import PresetsBar from './PresetsBar';
-import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from './nearbyService';
+import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocationFromFix} from './nearbyService';
+import {getVibeNoteAlertPreference, getVibeNoteGeofenceCandidates, setVibeNoteAlertPreference} from './vibeNoteService';
+import {clearVibeNoteRegions, hasVibeNoteBackgroundPermission, replaceVibeNoteRegions, requestVibeNoteBackgroundPermission, vibeNoteGeofenceCapacity} from './vibeNoteGeofencing';
 import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
 import VibeNoteComposer from './VibeNoteComposer';
+import VibeNoteRevealSheet from './VibeNoteRevealSheet';
+import {NativeAdCard} from '../ads';
 
 const RADII = [
   {label: '2 km', meters: 2_000},
@@ -89,7 +93,8 @@ function PeopleLoading() {
 
 export default function Nearby() {
   const isFocused = useIsFocused();
-  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string}) => void}>();
+  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string}) => void; setParams: (params: {vibeNoteId?: string}) => void}>();
+  const route = useRoute<RouteProp<{Nearby: {vibeNoteId?: string} | undefined}, 'Nearby'>>();
   const {width} = useWindowDimensions();
   const {enabled: plusEnabled, isPlus} = usePlus();
   const [visible, setVisible] = useState<boolean | null>(null);
@@ -99,6 +104,7 @@ export default function Nearby() {
   const [mode, setMode] = useState<DiscoveryPresetMode>('NEARBY');
   const [nearbyTab, setNearbyTab] = useState<NearbyTab>('PEOPLE');
   const [myVibesOpen, setMyVibesOpen] = useState(false);
+  const [revealNoteId, setRevealNoteId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const [passportCity, setPassportCity] = useState('');
   const [people, setPeople] = useState<NearbyPerson[]>([]);
@@ -110,12 +116,23 @@ export default function Nearby() {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [vibeAlertsEnabled, setVibeAlertsEnabled] = useState(false);
+  const [vibeAlertsAvailable, setVibeAlertsAvailable] = useState<boolean | null>(null);
+  const [vibeAlertsBusy, setVibeAlertsBusy] = useState(false);
+  const [vibeAlertsPermission, setVibeAlertsPermission] = useState(false);
   const request = useRef(0);
   const positionInFlight = useRef<Promise<boolean> | null>(null);
   const filtersRef = useRef<DiscoveryFilters | undefined>(undefined);
   const radiusRef = useRef(radius);
   filtersRef.current = isPlus ? filters : undefined;
   radiusRef.current = radius;
+
+  useEffect(() => {
+    const noteId = route.params?.vibeNoteId;
+    if (!noteId) return;
+    setRevealNoteId(noteId);
+    navigation.setParams({vibeNoteId: undefined});
+  }, [navigation, route.params?.vibeNoteId]);
 
   const loadPeople = useCallback(async (meters: number, pull = false) => {
     const id = ++request.current;
@@ -139,7 +156,7 @@ export default function Nearby() {
     const pending = (async () => {
       const coordinates = await getDeviceLocation(askPermission);
       if (!coordinates) throw new Error('Location permission is off. Allow location access in device settings.');
-      await updateMyLocation(coordinates.lat, coordinates.lng);
+      await updateMyLocationFromFix(coordinates);
       setLocationDenied(false);
       return true;
     })();
@@ -147,6 +164,79 @@ export default function Nearby() {
     pending.finally(() => {if (positionInFlight.current === pending) positionInFlight.current = null;}).catch(() => {});
     return pending;
   }, []);
+
+  const syncVibeNoteRegions = useCallback(async () => {
+    const fix = await getDeviceLocation(false);
+    if (!fix) throw new Error('Allow location access to receive Nearby Vibe alerts.');
+    await updateMyLocationFromFix(fix);
+    const regions = await getVibeNoteGeofenceCandidates(vibeNoteGeofenceCapacity);
+    await replaceVibeNoteRegions(regions);
+  }, []);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    let active = true;
+    getVibeNoteAlertPreference().then(async preference => {
+      if (!active) return;
+      setVibeAlertsAvailable(true);
+      setVibeAlertsEnabled(preference.enabled);
+      const permitted = await hasVibeNoteBackgroundPermission();
+      if (!active) return;
+      setVibeAlertsPermission(permitted);
+      if (preference.enabled && permitted) await syncVibeNoteRegions().catch(() => {});
+      else if (!permitted) await clearVibeNoteRegions().catch(() => {});
+    }).catch(cause => {
+      if (!active) return;
+      setVibeAlertsAvailable((cause as {status?: number})?.status === 404 ? false : null);
+      setVibeAlertsEnabled(false);
+    });
+    return () => {active = false;};
+  }, [isFocused, syncVibeNoteRegions]);
+
+  useEffect(() => {
+    if (!isFocused || !vibeAlertsEnabled || !vibeAlertsPermission) return;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') syncVibeNoteRegions().catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [isFocused, syncVibeNoteRegions, vibeAlertsEnabled, vibeAlertsPermission]);
+
+  const toggleVibeAlerts = () => {
+    if (vibeAlertsBusy || !vibeAlertsAvailable) return;
+    if (vibeAlertsEnabled) {
+      setVibeAlertsBusy(true);
+      clearVibeNoteRegions().then(() => {
+        setVibeAlertsEnabled(false);
+        return setVibeNoteAlertPreference(false);
+      })
+        .catch(cause => Alert.alert('Could not update alerts', errorText(cause)))
+        .finally(() => setVibeAlertsBusy(false));
+      return;
+    }
+    Alert.alert('Turn on Nearby Vibe alerts?', 'Hiva checks your location in the background to alert you when you enter an active Vibe Note area. It does not keep a movement history. You can still use Nearby without this permission.', [
+      {text: 'Not now', style: 'cancel'},
+      {text: 'Continue', onPress: () => {
+        setVibeAlertsBusy(true);
+        (async () => {
+          if (!await requestVibeNoteBackgroundPermission()) {
+            Alert.alert('Allow background location', 'Choose “Always” on iPhone or “Allow all the time” on Android to receive alerts while Hiva is closed.', [
+              {text: 'Not now', style: 'cancel'},
+              {text: 'Open settings', onPress: () => {Linking.openSettings();}},
+            ]);
+            return;
+          }
+          await setVibeNoteAlertPreference(true);
+          await syncVibeNoteRegions();
+          setVibeAlertsEnabled(true);
+          setVibeAlertsPermission(true);
+        })().catch(async cause => {
+          await clearVibeNoteRegions().catch(() => {});
+          await setVibeNoteAlertPreference(false).catch(() => {});
+          Alert.alert('Alerts could not be enabled', errorText(cause));
+        }).finally(() => setVibeAlertsBusy(false));
+      }},
+    ]);
+  };
 
   useEffect(() => {
     if (!isFocused || mode === 'PASSPORT' || nearbyTab !== 'PEOPLE') return;
@@ -240,6 +330,7 @@ export default function Nearby() {
     setRefreshing(true);
     try {
       await updatePosition(false);
+      if (vibeAlertsEnabled && vibeAlertsPermission) await syncVibeNoteRegions();
       await loadPeople(radiusRef.current, true);
     }
     catch (cause) {
@@ -319,7 +410,7 @@ export default function Nearby() {
               <Text numberOfLines={1} className="text-[12px] font-semibold text-primary">Your vibes</Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Drop a vibe" onPress={() => setComposing(true)} hitSlop={{top: 8, bottom: 8}}
-              className="-mr-6 h-8 w-[120px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-5 active:opacity-80">
+              className="-mr-5 h-8 w-[100px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-5 active:opacity-80">
               <IconPencil size={15} color={Colors.textDark} />
               <Text numberOfLines={1} className="text-[12px] font-bold text-text-dark">Drop a vibe</Text>
             </Pressable>
@@ -335,6 +426,21 @@ export default function Nearby() {
           {busy || checkingLocation ? <ActivityIndicator size="small" color={Colors.primary} />
             : <Text className="ml-3 text-[13px] font-semibold text-primary">{locationAction}</Text>}
         </Pressable>
+        {vibeAlertsAvailable === false ? <Text className="mt-2 text-[12px] text-muted">Nearby Vibe alerts will be available after the service update.</Text>
+          : <View className="mt-2 min-h-[56px] flex-row items-center rounded-xl bg-card px-3">
+            <View className="min-w-0 flex-1 pr-3">
+              <Text className="text-[13px] font-semibold text-foreground">Nearby Vibe alerts</Text>
+              <Text className="mt-0.5 text-[11px] leading-4 text-muted">{vibeAlertsEnabled && !vibeAlertsPermission ? 'Location permission is off; turn alerts off and on to restore it' : 'Alert me when I enter an active vibe area'}</Text>
+            </View>
+            {vibeAlertsBusy ? <ActivityIndicator size="small" color={Colors.primary} /> : <Switch
+              accessibilityLabel="Nearby Vibe alerts"
+              value={vibeAlertsEnabled}
+              onValueChange={toggleVibeAlerts}
+              disabled={!vibeAlertsAvailable}
+              trackColor={{false: Colors.border, true: Colors.primary}}
+              thumbColor={Colors.white}
+            />}
+          </View>}
         <View accessibilityRole="tablist" className="mt-3 flex-row gap-7 border-b border-border">
           {(['PEOPLE', 'EVENTS'] as const).map(option => {
             const selected = nearbyTab === option;
@@ -406,9 +512,9 @@ export default function Nearby() {
               </Pressable>}
             </View> : null}
             {loading ? <View className="mt-4"><PeopleLoading /></View> : people.length > 0
-              ? people.map(person => <PersonRow key={person.id} person={person} opening={openingId === person.id}
+              ? people.map((person, index) => <React.Fragment key={person.id}><PersonRow person={person} opening={openingId === person.id}
                 onMessage={() => openConversation(person)}
-                onOpenProfile={() => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} />)
+                onOpenProfile={() => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} />{index % 4 === 3 && <NativeAdCard />}</React.Fragment>)
               : !error && <View className="mt-5 rounded-2xl bg-card px-4 py-4">
                 <Text className="text-[16px] font-semibold text-foreground">No one within {RADII.find(option => option.meters === radius)?.label ?? 'this distance'} yet</Text>
                 <Text className="mt-1 text-[13px] leading-5 text-muted">{nextRadius < RADII.length - 1 ? 'A wider search might find more people.' : 'Check back later for new people nearby.'}</Text>
@@ -442,6 +548,7 @@ export default function Nearby() {
         contactAvatarUrl={chat.person.avatarUrl} onClose={() => setChat(null)} />}
       <MyVibesSheet visible={myVibesOpen} onClose={() => setMyVibesOpen(false)} />
       <VibeNoteComposer visible={composing} onClose={() => setComposing(false)} onPosted={() => setComposing(false)} />
+      <VibeNoteRevealSheet noteId={revealNoteId} onClose={() => setRevealNoteId(null)} />
     </SafeAreaView>
   );
 }

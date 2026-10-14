@@ -1,6 +1,8 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Keyboard, KeyboardAvoidingView, Modal, Pressable, Share, Text, TextInput, View } from 'react-native';
+import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
+import { Animated, AppState, Keyboard, KeyboardAvoidingView, Modal, Pressable, Share, Text, TextInput, View } from 'react-native';
 import {showDialog} from '../../components/Dialog';
+import {navigateWhenReady} from '../../Navigation/navigationRef';
 import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { useConnectionState, useLocalParticipant, useParticipants, useRoomContext } from '@livekit/react-native';
 import { ConnectionState, RoomEvent } from 'livekit-client';
@@ -20,18 +22,28 @@ import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconDoorExit from '@tabler/icons-react-native/IconDoorExit';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
+import IconGift from '@tabler/icons-react-native/IconGift';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
 import IconVideoOff from '@tabler/icons-react-native/IconVideoOff';
 import VideoPartyStage from './video/VideoPartyStage';
 import { usePartyCamera } from './video/usePartyCamera';
+import {getMyCreatorOnboarding} from '../creator';
 import { UserProfileModal, type UserPreview } from '../users';
 import AudioPartyStage from './AudioPartyStage';
 import RoomChatStream from './RoomChatStream';
 import { ACCESS_REVOKED_MESSAGE, isPaidAccessRequired } from '../paidRooms';
+import BottomSheet, {SheetSection, SheetRow} from '../../components/BottomSheet';
 import PartyRoomPanel, { type ReportTarget, type RoomAction, type RoomActionTarget, type RoomPanel } from './PartyRoomPanel';
 import { usePartyRoomState } from './usePartyRoomState';
 import { PartyColors, roomTitle } from './partyPresentation';
 import { deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty, type PartyRoomSettings } from './partyService';
+
+const QUICK_GIFTS = [{name: 'Rose', emoji: '🌹'}, {name: 'Heart', emoji: '❤️'}, {name: 'Crown', emoji: '👑'}, {name: 'Rocket', emoji: '🚀'}, {name: 'Star', emoji: '⭐'}] as const;
+type RoomGift = {type: 'party:gift'; name: string; emoji: string; senderId: string; senderName: string};
+const encodeGift = (gift: RoomGift) => {
+  const json = JSON.stringify(gift).split('').map(char => char.charCodeAt(0) > 127 ? `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}` : char).join('');
+  return Uint8Array.from(json, char => char.charCodeAt(0));
+};
 
 export default function AudioRoomStage({ session, onClose, closeRequest, connectionError, expanded, onMinimize, onExpand }: {
   session: JoinedParty; onClose: () => void; expanded: boolean; onMinimize: () => void; onExpand: () => void; closeRequest: React.MutableRefObject<(() => void) | null>; connectionError: string | null;
@@ -49,17 +61,34 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const busyRef = useRef(false);
   const mounted = useRef(true);
   const intentionalExit = useRef(false);
+  const promptedCreatorGifts = useRef(new Set<string>());
   const [error, setError] = useState<string | null>(null);
   const [chatText, setChatText] = useState('');
   const [outputOpen, setOutputOpen] = useState(false);
   const [viewing, setViewing] = useState<{ id: string; initial: UserPreview } | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
+  const [giftSheet, setGiftSheet] = useState(false);
+  const [giftNotice, setGiftNotice] = useState<RoomGift | null>(null);
+  const giftScale = useRef(new Animated.Value(0.7)).current;
   const chatBusyRef = useRef(false);
   const [keyboard, setKeyboard] = useState(false);
   const onEnded = useCallback((reason: string) => { onClose(); if (!intentionalExit.current) showDialog('Party closed', reason); }, [onClose]);
-  const { snapshot, messages, addMessages, refresh, syncError } = usePartyRoomState(session, onEnded, identity);
+  const onPaidGiftReceived = useCallback(async (giftId: string) => {
+    if (promptedCreatorGifts.current.has(giftId)) return;
+    promptedCreatorGifts.current.add(giftId);
+    try {
+      const creator = await getMyCreatorOnboarding();
+      if (creator.payoutEligible) return;
+      showDialog('Your gift is ready', 'The gift has been added to your creator earnings. Set up creator payouts from the Me profile before you can withdraw it.', [
+        {text: 'Later', style: 'cancel'},
+        {text: 'Go to profile', onPress: () => (navigateWhenReady as (name: string) => void)('Me')},
+      ]);
+    } catch { promptedCreatorGifts.current.delete(giftId); /* A status lookup failure must not claim that a gift can or cannot be withdrawn. */ }
+  }, []);
+  const { snapshot, messages, addMessages, refresh, syncError } = usePartyRoomState(session, onEnded, identity, onPaidGiftReceived);
   const me = snapshot.participants.find(p => p.userId === identity);
   const host = me?.role === 'HOST';
+  const canGift = !!me?.active && me.role !== 'HOST';
   const manager = host || me?.role === 'CO_HOST';
   const canSpeak = !!me?.active && me.seatIndex !== null;
   const ownRequest = snapshot.seatRequests.find(r => r.userId === identity && r.status === 'PENDING');
@@ -70,6 +99,27 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const seatCount = snapshot.party.seatCount || 8;
   const freeSeat = Array.from({ length: seatCount }, (_, i) => i).find(i => i > 0 && !snapshot.lockedSeats.includes(i) && !speakers.some(p => p.seatIndex === i));
   const partyId = session.party.id;
+
+  useEffect(() => {
+    const received = (payload: Uint8Array, participant?: {identity?: string}) => {
+      if (!participant?.identity || participant.identity === identity) return;
+      try {
+        const gift = JSON.parse(String.fromCharCode(...payload)) as RoomGift;
+        if (gift.type !== 'party:gift' || !QUICK_GIFTS.some(item => item.name === gift.name && item.emoji === gift.emoji) ||
+          gift.senderId !== participant.identity || !snapshot.participants.some(person => person.userId === participant.identity && person.active)) return;
+        setGiftNotice({...gift, senderName: snapshot.participants.find(person => person.userId === participant.identity)?.name || 'A participant'});
+      } catch { /* Ignore unrelated or malformed room data. */ }
+    };
+    room.on(RoomEvent.DataReceived, received);
+    return () => { room.off(RoomEvent.DataReceived, received); };
+  }, [identity, room, snapshot.participants]);
+  useEffect(() => {
+    if (!giftNotice) return;
+    giftScale.setValue(0.7);
+    Animated.spring(giftScale, {toValue: 1, useNativeDriver: true, friction: 5}).start();
+    const timer = setTimeout(() => setGiftNotice(null), 4500);
+    return () => clearTimeout(timer);
+  }, [giftNotice, giftScale]);
 
   useEffect(() => {
     mounted.current = true;
@@ -171,6 +221,14 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
     catch (cause) { if (mounted.current) setError((cause as Error).message || 'Message failed.'); }
     finally { chatBusyRef.current = false; if (mounted.current) setChatBusy(false); }
   }, [addMessages, partyId, snapshot.party.chatEnabled]);
+  const sendGift = async (gift: typeof QUICK_GIFTS[number]) => {
+    setGiftSheet(false);
+    const event: RoomGift = {type: 'party:gift', ...gift, senderId: identity, senderName: me?.name || 'Someone'};
+    try {
+      await localParticipant.publishData(encodeGift(event), {reliable: true, topic: 'party:gift'});
+      setGiftNotice(event);
+    } catch { setError('Could not send the gift. Try again.'); }
+  };
   const invitation = snapshot.seatInvitations?.find(item => Date.parse(item.expiresAt) > Date.now());
   const live = connection === ConnectionState.Connected;
   const status = live ? 'Live' : connection === ConnectionState.Reconnecting ? 'Reconnecting…' : connection === ConnectionState.Disconnected ? 'Audio disconnected' : 'Connecting…';
@@ -193,7 +251,7 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
       {canSpeak && <Pressable accessibilityRole="button" accessibilityLabel={isMicrophoneEnabled || micPending ? 'Mute microphone' : 'Unmute microphone'} onPress={toggleMic} className={`h-11 w-11 items-center justify-center rounded-full ${isMicrophoneEnabled ? 'bg-gold' : 'bg-background'}`}>{isMicrophoneEnabled ? <IconMicrophone size={20} color={PartyColors.ink} /> : <IconMicrophoneOff size={20} color={PartyColors.coral} />}</Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel={`Leave ${noun} party`} onPress={() => { onExpand(); setPanel({ kind: 'exit' }); }} className="h-11 w-11 items-center justify-center rounded-full active:bg-background"><IconX size={20} color={PartyColors.muted} /></Pressable>
     </View>}
-    <Modal visible={expanded} animationType="slide" presentationStyle="fullScreen" onRequestClose={onMinimize}>
+    <Modal visible={expanded} animationType={SLIDE_MODAL_ANIMATION} presentationStyle="fullScreen" onRequestClose={onMinimize}>
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <KeyboardAvoidingView className="flex-1" behavior="padding" keyboardVerticalOffset={0}>
           <View className="flex-row items-center gap-2 px-3 pb-1 pt-1">
@@ -222,9 +280,14 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
           {!!(error || syncError || connectionError) && <Text accessibilityRole="alert" className="px-5 py-1 text-center text-xs text-coral">{error || syncError || connectionError}</Text>}
           {connection === ConnectionState.Disconnected && <Pressable accessibilityRole="button" onPress={restoreAudio} className="mx-auto mb-1 h-9 flex-row items-center gap-1.5 rounded-full bg-card px-4"><IconRefresh size={15} color={PartyColors.accent} /><Text className="text-[13px] font-semibold text-primary">Retry audio</Text></Pressable>}
           <View className="border-t border-border/60 bg-nav-background px-3 pb-2 pt-2.5">
-            <View className="h-11 flex-row items-center rounded-full border border-border bg-card pl-4 pr-1">
-              <TextInput accessibilityLabel="Send a room message" value={chatText} onChangeText={setChatText} maxLength={4000} editable={!chatBusy && !chatPaused} onSubmitEditing={sendChat} returnKeyType="send" placeholder={chatPaused ? 'Chat paused by host' : 'Say something…'} placeholderTextColor={PartyColors.muted} className="h-full flex-1 text-sm text-foreground" />
-              {!!chatText.trim() && <Pressable accessibilityRole="button" accessibilityLabel="Send room message" onPress={sendChat} disabled={chatBusy || chatPaused} className="h-9 w-9 items-center justify-center rounded-full bg-gold"><IconSend size={16} color={PartyColors.ink} /></Pressable>}
+            <View className="flex-row items-center gap-2">
+              <View className="h-11 flex-1 flex-row items-center rounded-full border border-border bg-card pl-4 pr-1">
+                <TextInput accessibilityLabel="Send a room message" value={chatText} onChangeText={setChatText} maxLength={4000} editable={!chatBusy && !chatPaused} onSubmitEditing={sendChat} returnKeyType="send" placeholder={chatPaused ? 'Chat paused by host' : 'Say something…'} placeholderTextColor={PartyColors.muted} className="h-full flex-1 text-sm text-foreground" />
+                {!!chatText.trim() && <Pressable accessibilityRole="button" accessibilityLabel="Send room message" onPress={sendChat} disabled={chatBusy || chatPaused} className="h-9 w-9 items-center justify-center rounded-full bg-gold"><IconSend size={16} color={PartyColors.ink} /></Pressable>}
+              </View>
+              {!isVideo && canGift && <Pressable accessibilityRole="button" accessibilityLabel="Send a gift to the host" onPress={() => setGiftSheet(true)} className="h-11 w-11 items-center justify-center rounded-full border border-gold/40 bg-card active:opacity-70">
+                <IconGift size={20} color={PartyColors.accent} />
+              </Pressable>}
             </View>
             <View className={`mt-2.5 flex-row items-center ${isVideo && canSpeak ? 'gap-1.5' : 'gap-2'}`}>
               <Pressable accessibilityRole="button" accessibilityLabel={host ? 'End party' : 'Leave party'} onPress={() => setPanel({ kind: 'exit' })} className="h-11 flex-row items-center gap-1.5 rounded-full bg-coral/15 px-4 active:opacity-70">
@@ -247,10 +310,23 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
           </View>
         </KeyboardAvoidingView>
         {!!notice && <View pointerEvents="none" className="absolute left-0 right-0 top-16 items-center px-6"><View className="flex-row items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5"><IconCheck size={16} color={PartyColors.accent} /><Text accessibilityLiveRegion="polite" className="text-[13px] font-semibold text-foreground">{notice}</Text></View></View>}
+        {!!giftNotice && <Animated.View pointerEvents="none" style={{transform: [{scale: giftScale}]}} className="absolute left-5 right-5 top-[42%] items-center">
+          <View className="items-center rounded-3xl border border-gold/50 bg-card px-7 py-5 shadow-lg">
+            <Text className="text-[44px]">{giftNotice.emoji}</Text>
+            <Text accessibilityLiveRegion="assertive" className="mt-2 text-center text-base font-bold text-foreground">
+              {host ? `You have been gifted a ${giftNotice.name.toLowerCase()} by ${giftNotice.senderName}` : `${snapshot.party.host.name || 'The host'} has been gifted a ${giftNotice.name.toLowerCase()} by ${giftNotice.senderName}`}
+            </Text>
+          </View>
+        </Animated.View>}
         <PartyRoomPanel panel={panel} onClose={() => setPanel(null)} onSelect={setPanel} participants={snapshot.participants} requests={snapshot.seatRequests} lockedSeats={snapshot.lockedSeats} seatCount={seatCount} identity={identity} busy={busy} error={error}
           onAction={act} onOpenAudio={() => { setPanel(null); setOutputOpen(true); }}
           onViewProfile={person => { setPanel(null); setViewing({ id: person.userId, initial: { name: person.name || 'Guest', avatarUrl: person.avatarUrl ?? null } }); }} title={roomTitle(snapshot.party)} topic={snapshot.party.topic} ownRequest={ownRequest} settings={snapshot.party} partyId={partyId} />
         <AudioOutputSheet visible={outputOpen} onClose={() => setOutputOpen(false)} />
+        {!isVideo && canGift && <BottomSheet visible={giftSheet} onClose={() => setGiftSheet(false)} title="Send a gift to the host" subtitle={`Choose a gift for ${snapshot.party.host.name || 'the host'}`}>
+          <SheetSection label="Quick gifts">
+            {QUICK_GIFTS.map(gift => <SheetRow key={gift.name} icon={IconGift} label={`${gift.emoji}  ${gift.name}`} description="Send to the host" onPress={() => sendGift(gift)} />)}
+          </SheetSection>
+        </BottomSheet>}
         {viewing && <UserProfileModal userId={viewing.id} initial={viewing.initial} visible onClose={() => setViewing(null)} />}
       </SafeAreaView>
     </Modal>

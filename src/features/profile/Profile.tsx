@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -14,17 +14,22 @@ import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
+import IconGift from '@tabler/icons-react-native/IconGift';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi} from '../auth';
 import {usePartySession} from '../party';
 import {PlusBadge, usePlus, useOwnProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
+import ProfileContentTabs from '../../components/ProfileContentTabs';
+import ProfileIdentity from '../../components/ProfileIdentity';
 import {publishMyAvatarUrl} from './myAvatar';
 import {getGiftSummary, getMyProfile, getMySettings, getProfilePage, updateMyProfile} from './profileService';
 import {EventDetailSheet} from '../events';
 import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
 import {EditProfileSheet} from './ProfileSheets';
 import SettingsScreen from './SettingsScreen';
+import {listMyWorkspaces, OrganizerDashboardScreen, OrganizerOnboardingScreen, type Workspace} from '../organizer';
+import {CreatorOnboardingScreen} from '../creator';
 import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile, UserSettings} from './types';
 
 cssInterop(LinearGradient, {className: 'style'});
@@ -35,7 +40,6 @@ const emptyList = (): ListState => ({items: [], loading: false, loaded: false, e
 const tabs: ProfileTab[] = ['posts', 'parties', 'events'];
 type VisibleTab = ProfileTab | 'gifts';
 const tabLabels: Record<VisibleTab, string> = {posts: 'Posts', parties: 'Rooms', events: 'Events', gifts: 'Gifts'};
-const initialsOf = (name?: string | null) => (name || '?').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 const compact = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, '')}k` : String(value);
 // Profile design accent (violet) and the dark ink that sits on it; the same in both themes.
 const ACCENT = '#8B7CF6';
@@ -54,6 +58,10 @@ const Profile = () => {
   const [gifts, setGifts] = useState<{summary: GiftSummary | null; loading: boolean; error: string | null}>({summary: null, loading: false, error: null});
   const [lists, setLists] = useState<Record<ProfileTab, ListState>>({posts: emptyList(), parties: emptyList(), events: emptyList()});
   const [sheet, setSheet] = useState<'edit' | 'settings' | null>(null);
+  const [organizerWorkspaces, setOrganizerWorkspaces] = useState<Workspace[]>([]);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [hostEventOpen, setHostEventOpen] = useState(false);
+  const [creatorOnboardingOpen, setCreatorOnboardingOpen] = useState(false);
   // Only the Plus badge and theme are read from here; null while loading or if the server has no settings API.
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const plus = usePlus();
@@ -62,6 +70,7 @@ const Profile = () => {
   const accent = theme?.accent ?? ACCENT;
   const onAccent = theme?.onAccent ?? ON_ACCENT;
   const profileRequest = useRef(0);
+  const workspaceRequest = useRef(0);
   const visibleProfile = useRef(profile);
   visibleProfile.current = profile;
   const visibleTab = useRef(activeTab);
@@ -117,12 +126,17 @@ const Profile = () => {
   useFocusEffect(useCallback(() => {
     loadProfile();
     getMySettings().then(setSettings).catch(() => {});
+    const request = ++workspaceRequest.current;
+    listMyWorkspaces().then(rows => {
+      if (request === workspaceRequest.current) setOrganizerWorkspaces(rows.filter(row => row.status === 'ACTIVE' && row.verificationStatus === 'APPROVED' && (row.role === 'OWNER' || row.role === 'ADMIN')));
+    }).catch(() => {if (request === workspaceRequest.current) setOrganizerWorkspaces([]);});
     const currentProfile = visibleProfile.current;
     if (currentProfile?.id && listOwner.current === currentProfile.id) {
       loadList(currentProfile.id, visibleTab.current);
     }
     return () => {
       profileRequest.current++;
+      workspaceRequest.current++;
       for (const tab of tabs) listRequests.current[tab]++;
       listBusy.current.clear();
     };
@@ -221,27 +235,23 @@ const Profile = () => {
               </Pressable>
             </View>
 
-            <View className="flex-row items-center gap-5 px-5 pt-4">
-              <View style={{borderColor: accent}} className="h-[88px] w-[88px] rounded-full border-[2.5px] p-[3px]">
-                <View className="h-full w-full items-center justify-center overflow-hidden rounded-full bg-card dark:bg-[#2A2640]">
-                  {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
-                    : <Text className="font-display text-[24px] text-muted dark:text-[#C9C5DE]">{initialsOf(profile?.name)}</Text>}
-                </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Change photo" onPress={() => setSheet('edit')} hitSlop={6}
-                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-background dark:border-[#0B0A12] active:opacity-80" style={{backgroundColor: accent}}>
-                  <IconPlus size={14} strokeWidth={2.6} color={onAccent} />
-                </Pressable>
-              </View>
-              <View className="min-w-0 flex-1 flex-row gap-2">
-                {stats.map(stat => <View key={stat.label} className="min-w-0 flex-1 items-center gap-1">
-                  <Text className="font-display text-[20px] leading-[22px] text-foreground dark:text-[#F4F2FA]">{compact(stat.value)}</Text>
-                  <View className="flex-row items-center gap-[5px]">
-                    <View className={`h-1.5 w-1.5 rounded-full ${stat.dot}`} />
-                    <Text numberOfLines={1} className="text-[12px] font-medium text-muted dark:text-[#9C97B8]">{stat.label}</Text>
-                  </View>
-                </View>)}
-              </View>
-            </View>
+            <ProfileIdentity name={profile?.name ?? ''} avatarUrl={profile?.avatar_url} accentColor={accent}
+              stats={stats.map(stat => ({label: stat.label, value: stat.value, displayValue: compact(stat.value), dotClassName: stat.dot}))}
+              avatarAction={<Pressable accessibilityRole="button" accessibilityLabel="Change photo" onPress={() => setSheet('edit')} hitSlop={6}
+                className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-[2.5px] border-background dark:border-[#0B0A12] active:opacity-80" style={{backgroundColor: accent}}>
+                <IconPlus size={14} strokeWidth={2.6} color={onAccent} />
+              </Pressable>}
+              nameAccessory={profile && plus.isPlus && settings?.showPlusBadge === true ? <PlusBadge size="md" /> : null}>
+              {profile ? <>
+                {profile.bio ? <Text className="text-[13px] leading-5 text-text-body dark:text-[#B3AECB]">{profile.bio}</Text>
+                  : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-primary dark:text-[#A78BFA]">+ Add a bio</Text></Pressable>}
+                {!!meta && <Text className="text-[12px] text-muted dark:text-[#9C97B8]">{meta}</Text>}
+                {!!profile.interests?.length && <View className="mt-1 flex-row flex-wrap gap-1.5">
+                  {profile.interests.slice(0, 3).map(interest => <Text key={interest} className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] px-2.5 py-1 text-[12px] font-semibold capitalize text-muted dark:text-[#B3AECB]">{interest}</Text>)}
+                  {profile.interests.length > 3 && <Text className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] px-2.5 py-1 text-[12px] font-semibold text-muted dark:text-[#9C97B8]">+{profile.interests.length - 3} more</Text>}
+                </View>}
+              </> : null}
+            </ProfileIdentity>
 
             {profileLoading && !profile ? <View className="mt-5 gap-2.5 px-5">
               <View className="h-6 w-40 rounded-lg bg-card" /><View className="h-4 w-64 rounded-lg bg-card" />
@@ -256,20 +266,6 @@ const Profile = () => {
             </View> : null}
 
             {profile ? <>
-              <View className="gap-1.5 px-5 pt-5">
-                <View className="flex-row items-center">
-                  <Text accessibilityRole="header" numberOfLines={1} className="shrink font-display text-[18px] leading-[22px] tracking-[-0.2px] text-foreground dark:text-[#F4F2FA]">{profile.name}</Text>
-                  {plus.isPlus && settings?.showPlusBadge === true && <PlusBadge size="md" />}
-                </View>
-                {profile.bio ? <Text className="text-[13px] leading-5 text-text-body dark:text-[#B3AECB]">{profile.bio}</Text>
-                  : <Pressable accessibilityRole="button" onPress={() => setSheet('edit')} className="self-start active:opacity-70"><Text className="text-[13px] font-semibold text-primary dark:text-[#A78BFA]">+ Add a bio</Text></Pressable>}
-                {!!meta && <Text className="text-[12px] text-muted dark:text-[#9C97B8]">{meta}</Text>}
-                {!!profile.interests?.length && <View className="mt-1 flex-row flex-wrap gap-1.5">
-                  {profile.interests.slice(0, 3).map(interest => <Text key={interest} className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A] px-2.5 py-1 text-[12px] font-semibold capitalize text-muted dark:text-[#B3AECB]">{interest}</Text>)}
-                  {profile.interests.length > 3 && <Text className="overflow-hidden rounded-full border border-border dark:border-[#2E2A4A] px-2.5 py-1 text-[12px] font-semibold text-muted dark:text-[#9C97B8]">+{profile.interests.length - 3} more</Text>}
-                </View>}
-              </View>
-
               <View className="flex-row gap-3 px-5 pt-5">
                 <Pressable accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => setSheet('edit')}
                   style={{backgroundColor: accent}} className="h-10 flex-1 flex-row items-center justify-center gap-1.5 rounded-full active:opacity-80">
@@ -280,6 +276,18 @@ const Profile = () => {
                   <IconShare3 size={15} color={Colors.text} /><Text className="text-[14px] font-semibold text-foreground dark:text-[#F4F2FA]">Share profile</Text>
                 </Pressable>
               </View>
+              {!!organizerWorkspaces.length && <Pressable accessibilityRole="button" accessibilityLabel="Open organiser dashboard" onPress={() => setDashboardOpen(true)}
+                className="mx-5 mt-3 flex-row items-center gap-3 rounded-[18px] border border-purple-line dark:border-[#4A4378] bg-card dark:bg-[#17152A] p-3.5 active:opacity-75">
+                <View className="h-10 w-10 items-center justify-center rounded-[13px]" style={{backgroundColor: `${accent}22`}}><IconSquareRoundedPlus size={20} color={accent} /></View>
+                <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground dark:text-[#F4F2FA]">Organiser dashboard</Text><Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted dark:text-[#9C97B8]">Events, attendees, check-in and payouts</Text></View>
+                <IconChevronRight size={18} color={Colors.muted} />
+              </Pressable>}
+              <Pressable accessibilityRole="button" accessibilityLabel="Become a creator and earn from gifts" onPress={() => setCreatorOnboardingOpen(true)}
+                className="mx-5 mt-3 flex-row items-center gap-3 rounded-[18px] border border-purple-line dark:border-[#4A4378] bg-card dark:bg-[#17152A] p-3.5 active:opacity-75">
+                <View className="h-10 w-10 items-center justify-center rounded-[13px]" style={{backgroundColor: `${accent}22`}}><IconGift size={20} color={accent} /></View>
+                <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground dark:text-[#F4F2FA]">Become a creator</Text><Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted dark:text-[#9C97B8]">Set up your creator profile and earn from gifts</Text></View>
+                <IconChevronRight size={18} color={Colors.muted} />
+              </Pressable>
             </> : null}
           </SafeAreaView>
         </View>
@@ -296,15 +304,7 @@ const Profile = () => {
         </Pressable> : null}
 
         {profile ? <>
-          <View accessibilityRole="tablist" className="mx-5 mt-6 flex-row gap-1 rounded-[20px] border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#13111F] p-[3px]">
-            {visibleTabs.map(tab => {
-              const selected = currentTab === tab;
-              return <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => selectTab(tab)}
-                style={selected ? {backgroundColor: accent} : undefined} className={`h-[34px] flex-1 items-center justify-center rounded-[17px] ${selected ? '' : 'active:opacity-70'}`}>
-                <Text style={selected ? {color: onAccent} : undefined} className={`text-[14px] font-semibold ${selected ? '' : 'text-muted dark:text-[#B3AECB]'}`}>{tabLabels[tab]}</Text>
-              </Pressable>;
-            })}
-          </View>
+          <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: tabLabels[tab]}))} selected={currentTab} onSelect={tab => selectTab(tab)} accentColor={accent} onAccentColor={onAccent} />
 
           {currentTab === 'gifts' ? <View className="px-5 pb-5 pt-3.5">
             {gifts.summary ? <GiftPanel summary={gifts.summary} /> : null}
@@ -338,6 +338,9 @@ const Profile = () => {
         onOpenEventChat={() => navigation.navigate('Chat', {initialView: 'events'})} />
       <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
       <SettingsScreen onSettingsChange={setSettings} profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
+      <OrganizerDashboardScreen visible={dashboardOpen} onClose={() => setDashboardOpen(false)} onHostEvent={() => setHostEventOpen(true)} onAccessRevoked={() => {setOrganizerWorkspaces([]); listMyWorkspaces().then(rows => setOrganizerWorkspaces(rows.filter(row => row.status === 'ACTIVE' && row.verificationStatus === 'APPROVED' && (row.role === 'OWNER' || row.role === 'ADMIN')))).catch(() => {});}} />
+      {hostEventOpen && <OrganizerOnboardingScreen onClose={() => setHostEventOpen(false)} mode="hostEvent" workspaces={organizerWorkspaces} onEventCreated={() => {setHostEventOpen(false); setDashboardOpen(false); listMyWorkspaces().then(rows => setOrganizerWorkspaces(rows.filter(row => row.status === 'ACTIVE' && row.verificationStatus === 'APPROVED' && (row.role === 'OWNER' || row.role === 'ADMIN')))).catch(() => {});}} />}
+      <CreatorOnboardingScreen visible={creatorOnboardingOpen} onClose={() => setCreatorOnboardingOpen(false)} />
     </View>
   );
 };

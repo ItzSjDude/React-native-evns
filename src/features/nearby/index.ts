@@ -4,4 +4,5 @@ export {createDiscoveryPreset, deleteDiscoveryPreset, listDiscoveryPresets, upda
 export {getPassportPeople} from './nearbyService';
 export {default as VibeNoteComposer} from './VibeNoteComposer';
 export {default as VibeNotesList} from './VibeNotesList';
-export type {CreatedVibeNote, MyVibeNote, NewVibeNote, VibeNote, VibeNoteCreator} from './vibeNoteTypes';
+export type {CreatedVibeNote, MyVibeNote, NewVibeNote, VibeNote, VibeNoteCreator, VibeNoteAlertPreference, VibeNoteGeofenceCandidate} from './vibeNoteTypes';
+export {installVibeNoteGeofenceEntryHandler, clearVibeNoteRegions} from './vibeNoteGeofencing';

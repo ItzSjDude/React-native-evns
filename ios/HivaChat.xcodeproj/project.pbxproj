@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A00100000000000000000001 /* VibeNoteGeofence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000002 /* VibeNoteGeofence.swift */; };
+		A00100000000000000000003 /* VibeNoteGeofenceBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000004 /* VibeNoteGeofenceBridge.m */; };
 		02B818945613310FCA3A15A8 /* Pods_HivaChat.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD93C293EF0A7FA206DF7736 /* Pods_HivaChat.framework */; };
 		053B4A9CE6DC4BA3B43236C7 /* Manrope-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1BFC1CDA58C64CFC8A000A62 /* Manrope-OFL.txt */; };
 		07F7E9062637492BBF0DAC7F /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35E2782F8A484AFE9E78DCFB /* Manrope-Bold.ttf */; };
@@ -25,6 +27,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A00100000000000000000002 /* VibeNoteGeofence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VibeNoteGeofence.swift; path = HivaChat/VibeNoteGeofence.swift; sourceTree = "<group>"; };
+		A00100000000000000000004 /* VibeNoteGeofenceBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = VibeNoteGeofenceBridge.m; path = HivaChat/VibeNoteGeofenceBridge.m; sourceTree = "<group>"; };
 		017A0C1C6CF44B3B9C2380BD /* Manrope-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Manrope-ExtraBold.ttf"; path = "../assets/fonts/Manrope-ExtraBold.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* HivaChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HivaChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HivaChat/Images.xcassets; sourceTree = "<group>"; };
@@ -63,6 +67,8 @@
 		13B07FAE1A68108700A75B9A /* HivaChat */ = {
 			isa = PBXGroup;
 			children = (
+				A00100000000000000000002 /* VibeNoteGeofence.swift */,
+				A00100000000000000000004 /* VibeNoteGeofenceBridge.m */,
 				A81D8E642F8A12E700D33A10 /* HivaChat.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
@@ -326,6 +332,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00100000000000000000001 /* VibeNoteGeofence.swift in Sources */,
+				A00100000000000000000003 /* VibeNoteGeofenceBridge.m in Sources */,
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
