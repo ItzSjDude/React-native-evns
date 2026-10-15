@@ -1,6 +1,6 @@
 # On-platform paid-ticket checkout (Phase 2) - design
 
-Status: design only, nothing implemented. Author: Architect agent, 2026-10-15.
+Status: design only, nothing implemented. Author: Architect agent, 2026-10-15. **Updated for the owner's chosen Option B (see "Decision: Option B" below); legal/tax points are UNVERIFIED.**
 Audience: Backend-Dev, Frontend-Dev, QA, Security, and the owner (business/legal decisions in section 11 and Appendix A).
 Supersedes nothing: the manual flow in `docs/design/PAID_TICKET_FLOW.md` (F-06) stays live and is retired only at the end of section 9.
 
@@ -11,7 +11,25 @@ Evidence tags used throughout:
 
 ---
 
-## 0. TL;DR
+## Decision: Option B (owner-chosen, 2026-10-15) - READ THIS FIRST
+
+**What changed.** Earlier this doc recommended Option A (Razorpay Route: split at order, Razorpay holds and pays the organiser). The owner has chosen **Option B**: the buyer pays inside the app through Hiva's normal Razorpay merchant account (Standard Checkout, money settles to **Hiva's** bank account), the ticket is issued automatically from the verified webhook, Hiva keeps a configurable platform fee (300-700 bps), and **the owner pays organisers manually by bank transfer after the event**. We do **not** design around Route; Route-specific parts below are kept only as a dormant fallback (Option A) and are marked SUPERSEDED.
+
+**What this means in one sentence.** Hiva holds third-party money between settlement and payout, so the new core is a **money ledger + admin manual-payout flow + hard safeguards**, all behind flags default OFF, piloted with a few workspaces. The regulatory question (Section 12, Appendix A Q1) is **open and UNVERIFIED**; nothing may be enabled with live money until the CA / Razorpay confirm the model in writing.
+
+| Earlier section | Status under Option B |
+| --- | --- |
+| 0.1 baseline, 2.3 checkout (order, seat hold, idempotency), 2.4 webhook-driven issuance, 2.5 state machines (order, payment, refund), 2.7 failed/duplicate/late, 2.9 idempotency, 3 fee model + arithmetic, 4 core tables, 5 webhook security, 6 security, 7 app contracts, 8 test plan | **Valid**, with the deltas in Part B below |
+| 1 options table | Option B is now chosen; Option A is a dormant fallback |
+| 2.1 item 4 and 2.2 (Route linked-account onboarding), `workspace_route_accounts`, `ticket_order_transfers`, `transfers[]` in order creation, `transfer.*` / `product.route.*` webhooks, `reverse_all`, transfer holds/reversals in 2.6 and 2.8, D1 Route eligibility | **SUPERSEDED / not built.** Organiser bank details come only from the existing VERIFIED payout account (PR #81) |
+| 2.6 refunds, 2.8 chargebacks | Valid in shape; money mechanics replaced by B4 (ledger instead of transfer reversal) |
+| 9 rollout, 10 tasks, 11 decisions | Replaced / extended below (sections 9 deltas in B11, 10 rewritten, 11 extended, 12 new risk section) |
+
+Backend truth re-checked 2026-10-15 on `gathr-api` `origin/main`: merged PRs #80-#84 (088 payout-account verification, 089 payment-card event binding, 087 age gate, 086 onboarding fields, organiser attendees route). `migrations/` ends at **089**; **next free is 090**. No open backend PRs were listed at the time of writing; re-run `git ls-tree origin/main migrations/` and `gh pr list --repo ItzSjDude/gathr-api` immediately before the migration PR.
+
+---
+
+## 0. TL;DR (earlier Route recommendation - SUPERSEDED by the decision above; items 3-7 still apply)
 
 1. **Recommend Option A: Razorpay Standard Checkout + Route** (buyer pays Hiva's Razorpay account, an order-level `transfers[]` sends `price - platform_fee` to the organiser's linked account, settlement held until after the event). Razorpay is the RBI-authorised aggregator; Hiva stays a marketplace. Section 1.
 2. **Hard gate before any code: is Hiva eligible for Route?** Razorpay's Route page says that, following the RBI Payment Aggregator Directions (Sep 2025), Route needs domestic turnover above INR 40 lakh (FY25 or FY26, shown by GST-3B or a self-declaration for new/exempt businesses) plus a written "payer-payee transparency" use-case, 5-7 business-day review, and that accounts which did not submit were switched off from 1 Jan 2026 **[DOCS]**. If Hiva cannot qualify, Option A is unavailable and the answer is "stay manual" or switch provider (Option C, same RBI regime). This is decision D1 and it is USER-GATED.
@@ -43,7 +61,162 @@ Evidence tags used throughout:
 
 ---
 
-## 1. Options compared
+## Part B - Option B design (money held by Hiva, manual payout)
+
+Evidence tags as above. Money/tax/regulatory statements are **[UNVERIFIED-LEGAL]**.
+
+### B1. Flags, eligibility, caps (all default OFF)
+
+| Control | Where | Default | Effect |
+| --- | --- | --- | --- |
+| Global kill switch `payments.onplatform.kill_switch` | `app_config` | `false` | `true` = no new checkouts, no new payout batches. Settle / refund / reconcile / mark-paid keep running (money in flight must finish). |
+| Global enable `payments.onplatform.enabled` | `app_config` | `false` | Master flag; off = feature invisible (routes 404, `payment_mode` ignored). |
+| Per-workspace `workspace_payment_settings.onplatform_enabled` | DB | `false` | Set only by platform admin. |
+| Pilot allowlist `payments.onplatform.pilot_only` + `pilot_workspace_ids` (json array) | `app_config` | `true` / `[]` | While `pilot_only`, a workspace must also be in the list. Belt and braces with the per-workspace flag. |
+| Per-event `events.payment_mode` | DB | `MANUAL` | Organiser picks `ONPLATFORM` (exclusive with the manual card flow, S6). |
+| Caps | `app_config`, per-workspace override in settings | see right | `max_ticket_minor` 1,000,000 (INR 10k) in pilot; `max_event_gross_minor` 5,000,000; `max_workspace_daily_gross_minor` 2,000,000; `max_platform_daily_gross_minor` 10,000,000; **`max_open_liability_minor`** (total unpaid owed to organisers, platform-wide) 20,000,000; per-user daily orders 5. A breached cap returns `403 ONPLATFORM_CAP_REACHED` at checkout only. |
+| Payout pause `workspace_payment_settings.payouts_paused` / `sales_paused` | DB | `false` | Admin freeze for fraud / disputes. |
+
+Eligibility at checkout creation (server, returns `reasons[]`): flags above; workspace `verification_status='APPROVED'` and `status='ACTIVE'`; `workspace_payout_accounts.status='VERIFIED'` (PR #81) and not `NEEDS_REVERIFY`; event `PUBLISHED`, `INR`, `payment_mode='ONPLATFORM'`, price within min/max; caps; `recovery_due_minor = 0`; buyer passes age gate (#82), is not a workspace member (`SELF_PURCHASE`). Paid orders always finish (issue/refund) even if eligibility later lapses.
+
+Payout-account change after sales: if the organiser edits bank details (revision bump, status back to PENDING), sales for that workspace pause and **payouts are blocked until re-VERIFIED**; batch rows bind the `revision` they were approved against (same 409 pattern as #81 verify).
+
+### B2. Checkout deltas vs 2.3
+
+- Razorpay order is created **without** `transfers[]`: `POST /v1/orders {amount, currency:'INR', receipt:'tko_'+id, notes:{hiva_kind:'ticket_order', hiva_order_id, hiva_event_id, hiva_workspace_id}}`. Money lands in Hiva's account; organiser is never a Razorpay party.
+- Everything else in 2.3 stands (server price, one open order, 15-min TTL, `seats_held`, tier hook, discount quote, `USE_FREE_ISSUE`, errors) plus `403 ONPLATFORM_CAP_REACHED`.
+- On order creation the **fee is snapshotted** (3.2, bounds 300-700, workspace override only within bounds unless `fee_waiver`), so payable is known at purchase time.
+
+### B3. Webhook, issuance, late/duplicate/failure (delta to 2.4, 2.7, 5)
+
+Unchanged: persist-then-ack, `payment_webhook_events (provider,event_id)` dedupe, CAS transitions, fetch-from-provider on ambiguity, `/sync`, reconciler, DLQ. Hardening of the **existing** credit path rides along (it shares the endpoint): store the event-id for credit/gift/subscription events too, delete the `Buffer.from(JSON.stringify(req.body))` fallback (non-Buffer = 400), keep the 400-on-bad-signature behaviour [CODE].
+
+Replay: signature has no timestamp, so replay safety = event-id uniqueness + idempotent CAS + a 26 h freshness check (except events matching an open order). Ordering: not guaranteed; `payment.captured`, `order.paid`, `/sync`, and reconciler all call one `settleOrder` which locks the order row and writes ticket + ledger journal in **one transaction** (so "ticket exists iff payment journal exists"). Handled events: `payment.captured`, `order.paid`, `payment.failed`, `refund.*`, `payment.dispute.*`, `settlement.processed`. `transfer.*` and `product.route.*` are ignored. Require **auto-capture** (USER-GATED); `payment.authorized` ignored.
+
+Late capture after hold expiry: re-hold the seat; if sold out or event cancelled -> `PAID_UNFULFILLABLE` -> automatic full refund (never oversell, never silently keep money). Duplicate payment on an issued order: refund the second payment. Amount/currency mismatch: `ANOMALY`, no ticket, no auto-refund, page admin.
+
+### B4. Refunds, cancellations, chargebacks under Option B
+
+- **Buyer refund**: Razorpay refunds API on the original payment (`POST /v1/payments/:id/refund {amount}` with `X-Refund-Idempotency: tor-<refundRowId>` [CODE precedent], no `reverse_all`). Refund goes to the original instrument only. Razorpay does not return its gateway fee on refunds [DOCS], so **Hiva bears the gateway fee on refunded orders** (platform fee is reversed in the ledger). Funding: refunds draw on Hiva's Razorpay balance / next settlement; whether a refund fails when the balance is short is **[UNVERIFIED-PROVIDER]**, so the refund worker retries with backoff and alerts, and the owner keeps a buffer.
+- **Ledger effect of a refund** (B5): before payout, the sale journal is reversed (organiser payable down, fee revenue down). After payout, organiser payable goes negative -> `recovery_due` (a receivable from the organiser), netted against future payouts and blocking new sales; Hiva has still refunded the buyer. The post-event hold (B6) exists to make this rare.
+- **Holder cancel must not bypass refunds**: `ticketService.cancel` on a ticket with `order_id` returns `409 REFUND_FLOW_REQUIRED` (holder or staff); credit return (`REVOKE_REFUND`) only when `order_id IS NULL`; the refund engine cancels the ticket internally. Refund policy evaluation per 2.6 (data, snapshotted on order).
+- **Event cancelled**: `eventService.cancel` today cancels at most 1000 live tickets (`listForEvent limit:1000` [CODE]) and has no refund logic. New: event -> CANCELLED immediately (stops checkout), then a durable `refund_jobs` fan-out: one `ticket_order_refunds` row per PAID/TICKETED order (reason `EVENT_CANCELLED`, unique `(order_id, reason_ref)`), processed by `paymentEventWorker` in chunks of 25 with a time budget per invocation, resumable, no ceiling. Tickets are cancelled by the same job (also removes the 1000 cap for the manual path via paged `listForEvent`). Organiser sees `{queued, processed, failed}`. Cancelling a COMPLETED event is refused. All of the event's orders are excluded from payout while any refund is pending.
+- **Chargebacks** (`payment.dispute.*`): Hiva is merchant of record and is debited [DOCS]. On `created`: `dispute_state=OPEN`, order excluded from payout, admin + owner alerted, evidence submitted manually in the Razorpay Dashboard (scan logs from `ticket_scans` help). `WON` -> eligible again. `LOST` -> journal `CHARGEBACK` against organiser payable (or `recovery_due` if already paid), ticket cancelled if not checked in. Who bears the dispute fee and the 120-day exposure window are **[UNVERIFIED]** (Section 12).
+
+### B5. The money ledger (core of Option B)
+
+**Per-order snapshot** (`ticket_orders`, immutable after creation, all integer paise, formulas in 3.2):
+
+| Field | Meaning |
+| --- | --- |
+| `amount_minor` | Gross charged to buyer (after discount) |
+| `gateway_fee_est_minor`, `gateway_gst_est_minor` | Estimate at creation from `app_config payments.gateway.fee_bps` (default 200) and GST 1800; **replaced by actuals** from settlement reconciliation (journal true-up, not an UPDATE) |
+| `fee_bps`, `fee_source`, `fee_minor` | Platform fee snapshot (from `app_config payments.fee.default_bps` default 500; per-workspace override bounded 300-700 by DB CHECK; min/max minor) |
+| `fee_gst_minor`, `gst_mode`, `tax_withheld_minor` | GST handling **[UNVERIFIED-LEGAL]**: `INCLUSIVE` default (platform fee includes GST, split out in the journal), `EXCLUSIVE`, `NONE`; `tax_withheld_minor` (TCS/TDS) is 0 until the CA decides, but the column and journal account exist so enabling it is config, not a migration |
+| `organiser_net_minor` | `amount - fee - tax_withheld` = organiser payable. CHECK `organiser_net + fee + tax_withheld = amount` |
+
+**Journal (append-only, double entry).** `ledger_journals (id, kind, order_id?, payout_batch_id?, settlement_id?, idempotency_ref UNIQUE, created_by?, created_at)` and `ledger_entries (id bigserial, journal_id, account, workspace_id?, direction CHECK in ('DEBIT','CREDIT'), amount_minor bigint CHECK > 0)`. A **deferred constraint trigger** enforces `sum(DEBIT) = sum(CREDIT)` per journal. Accounts: `GATEWAY_CLEARING` (asset: captured, not yet settled to Hiva's bank), `HIVA_BANK` (asset: settled cash), `ORGANISER_PAYABLE` (liability, per workspace), `PLATFORM_FEE_REVENUE`, `FEE_GST_PAYABLE`, `TAX_WITHHELD_PAYABLE`, `GATEWAY_FEE_EXPENSE`, `BUYER_REFUND_CLEARING`, `ORGANISER_RECEIVABLE` (recovery due), `ADJUSTMENT`. Triggers `BEFORE UPDATE OR DELETE` on both tables raise an exception; the app DB role is also granted INSERT/SELECT only on them (USER-GATED DB role change; trigger is the guaranteed control).
+
+| Journal kind | Debit | Credit |
+| --- | --- | --- |
+| `SALE` (in the issuance tx) | `GATEWAY_CLEARING` amount | `ORGANISER_PAYABLE` net; `PLATFORM_FEE_REVENUE` fee-gst; `FEE_GST_PAYABLE` gst; `TAX_WITHHELD_PAYABLE` tax |
+| `SETTLEMENT` (recon job) | `HIVA_BANK` settled; `GATEWAY_FEE_EXPENSE` actual fee+tax | `GATEWAY_CLEARING` gross |
+| `REFUND` | `ORGANISER_PAYABLE` net (or `ORGANISER_RECEIVABLE` if payable already paid out); `PLATFORM_FEE_REVENUE`; `FEE_GST_PAYABLE`; `TAX_WITHHELD_PAYABLE` | `BUYER_REFUND_CLEARING` amount (then cleared against bank on refund settlement) |
+| `CHARGEBACK` | as `REFUND` | `GATEWAY_CLEARING` |
+| `PAYOUT` (mark-paid) | `ORGANISER_PAYABLE` batch amount | `HIVA_BANK` batch amount |
+| `RECOVERY` | `ORGANISER_PAYABLE` | `ORGANISER_RECEIVABLE` |
+| `ADJUSTMENT` (admin, reason, idempotent) | per entry | per entry |
+
+**Balances.** `workspace_balances (workspace_id PK, payable_minor bigint, receivable_minor bigint, updated_at)` is a cache updated in the same tx as each journal under `SELECT ... FOR UPDATE`; a nightly job recomputes from entries and alerts on drift (ledger wins). Definitions: `owed = payable - receivable`; **available for payout** = sum of `organiser_net_minor` for eligible orders (B6) minus `receivable`. Invariants (asserted by tests and the nightly job): (1) every journal balances; (2) per order, `sum(ORGANISER_PAYABLE credits) - debits = 0` iff refunded/paid-out, else `organiser_net`; (3) **a payout can never exceed available** (checked under the balance row lock + `CHECK (payable_minor >= 0)` on the cache for payout journals; payable can only go negative through REFUND/CHARGEBACK, which is recorded as `ORGANISER_RECEIVABLE`, never hidden); (4) `sum(HIVA_BANK)` equals Razorpay settled minus payouts and refunds (reconciled, B6); (5) money is `bigint`/`integer` paise only, no floats; (6) `sum(ORGANISER_PAYABLE)` across workspaces <= `max_open_liability_minor`.
+
+**Reconciliation against Razorpay settlements** (new scheduled Lambda `paymentReconcile`, daily plus on `settlement.processed`): fetch settlements and settlement-recon rows (payment-level fee and tax) **[UNVERIFIED-PROVIDER: endpoint names and pagination; the settlement recon report API must be confirmed in test mode]**, upsert `gateway_settlements` and `gateway_settlement_items (provider_payment_id UNIQUE, fee_minor, tax_minor, net_minor, settled_at)`, post the `SETTLEMENT` journal per settlement, mark `ticket_order_payments.settled_at`. Mismatch classes written to `reconciliation_findings` and alerted: captured-in-Razorpay but unknown locally (largest risk: money without a ticket), local-captured but missing at Razorpay, amount differences, settlement total vs items, refund local vs provider. The owner additionally ticks "received in bank" per settlement in the admin API (`POST /admin/settlements/:id/bank-confirm {utr}`), which closes the loop to the real bank statement.
+
+### B6. Admin manual payout flow
+
+**Queue** (`GET /admin/payouts/queue`): one row per workspace with available > 0, where each counted order satisfies **all** of: `ticket_orders.status='TICKETED'`, no refund row pending/processed, `dispute_state IN ('NONE','WON')`, not in a non-cancelled batch, event not cancelled and `events.ends_at + hold_days <= now()` (`payments.payout.hold_days_after_event`, default 3; per-workspace override; optional rolling reserve `payments.payout.reserve_bps` default 0), **payment already settled to Hiva** (`gateway_settlement_items` present; `payments.payout.require_settled` default true, so Hiva never pays out money it has not received), workspace payout account `VERIFIED` and organiser `APPROVED` and `payouts_paused=false`, and `workspace_payout_accounts.payout_schedule` honoured as a timing hint (`EVERY_MONDAY` = appears in the queue only from Monday). Each row shows masked account (`****1234`), IFSC bank name if known, revision, gross / fee / net, count, events, oldest eligible date, open disputes (blocking), receivable netted.
+
+**Batch lifecycle** `DRAFT -> APPROVED -> EXPORTED -> PAID` (or `CANCELLED`):
+1. `POST /admin/payout-batches {workspaceId, eventIds?, asOf, idempotencyKey}`: locks balance row, snapshots eligible orders into `payout_batch_items (order_id UNIQUE while batch not cancelled)`, records `amount_minor`, `payout_account_revision`, `account_suffix`, `statement_no` (sequential). Replays with the same key return the same batch.
+2. `POST .../approve {revision}`: second admin recommended (owner decision D15; creator != approver). Refuses (409) if the payout account `revision` changed, status is no longer VERIFIED, a dispute opened on an item, or a refund started (items auto-drop and totals recompute in DRAFT; approved batches must be cancelled and re-cut).
+3. `POST /admin/payout-batches/export {batchIds[]}` -> `text/csv` for the owner's bank bulk-upload: `batch_id,beneficiary_name,account_number,ifsc,amount_inr,narration,reference` with narration `HIVA <statement_no>`. Bank details are decrypted server-side in memory with `decryptSensitive` and the **reveal is audited exactly like PR #81 `/reveal`** (rows in `organiser_onboarding_audit` + `onplatform_audit`, actor, batch ids, count; values never logged; `Cache-Control: no-store`; rate limit 6/h; platform-admin only; batch must be APPROVED; sets EXPORTED). CSV-formula injection guard on all text fields. Owner decision D16: alternative is a masked CSV and per-row use of the existing `POST /admin/workspaces/:id/payout-account/reveal`.
+4. Owner transfers money at the bank (outside the system).
+5. `POST .../mark-paid {bankReference, paidAt, idempotencyKey}`: one transaction: lock batch, require `APPROVED|EXPORTED`, re-verify payout account still VERIFIED at the same revision (else 409 and require admin review: money may already have been sent, so mark-paid with a changed revision is allowed only with `acknowledgeRevisionChange:true` + reason), insert `PAYOUT` journal, set items `PAID`, `UNIQUE (workspace_id, bank_reference)`, write audit (actor, reference, amount), notify organiser (`PAYOUT_SENT`, dedupe key `payout:<id>`). Replay with the same key returns 200 with the same result; a second call with a different reference on a PAID batch is 409.
+6. `POST .../cancel {reason}` for DRAFT/APPROVED/EXPORTED-not-paid; releases items.
+7. Failed bank transfer: `POST .../mark-failed {reason}` after PAID reverses via an `ADJUSTMENT` journal pair; items return to the queue.
+
+**Statements for organisers**: `GET /workspaces/:ws/payouts` and `GET /workspaces/:ws/payouts/:id/statement` (JSON, plus `?format=csv`): per order gross, platform fee, GST, tax withheld, refunds, net, event, dates, bank reference, masked account. `GET /workspaces/:ws/earnings?eventId=` for pending (not yet eligible) amounts with the expected payable date. GST invoice for the fee is **[UNVERIFIED-LEGAL]**; statement is explicitly "not a tax invoice" until the CA decides.
+
+**Admin-panel scope**: API-only first (F-27 backend tasks), driven by the owner via admin API/CSV; then one admin-panel page set (payout queue, batch detail, export, mark-paid, reconciliation findings, workspace payment settings) in `admin-panel/` as a later task. The organiser-facing earnings/statement screens are in the app.
+
+### B7. Safeguards (Hiva holds third-party money)
+
+1. Everything default OFF; global kill switch; per-workspace flag; pilot allowlist; per-ticket / per-event / per-day / total-liability caps (B1). Stop-the-line alarms on any cap > 80%.
+2. Only `VERIFIED` payout accounts and `APPROVED` organisers (checked at checkout **and** at payout).
+3. Never store card/UPI data; redact webhook payloads (S1); no PII in Razorpay `notes`.
+4. Fraud/abuse: self-purchase block, wash-trade detection (many orders, one device/IP/payout beneficiary), refund velocity limits (S8), new-organiser first-payout manual extra review (`first_payout_review` flag), large-batch threshold needs second approver, organiser payout beneficiary name vs verified-legal-name check at verification time (reuse #81 admin review), minimum event lead time.
+5. Audit trail: `onplatform_audit` for every admin money action (fee override, flag change, batch create/approve/export/paid/cancel, adjustment, refund, replay), actor + reason + before/after; ledger is append-only.
+6. Funds hygiene (owner decision D17, CA question): keep Razorpay settlements for ticket money in a **separate current account**, not commingled with operating funds, until the CA confirms the structure.
+7. Webhook secret rotation (`..._previous`), live keys in env/Secrets Manager not `app_config` (USER-GATED).
+8. Dual control on fee waiver and on batches above `payments.payout.dual_approval_over_minor`.
+9. Daily digest to owner: liability, settled-not-paid, cap usage, findings, DLQ depth.
+
+### B8. Data model and migrations (delta to section 4)
+
+Numbering: **090 is next free** (main ends at 089). Recommended split, each idempotent (`IF NOT EXISTS`, guarded `DO $$` constraints, additive, no data rewrites), applied to staging then prod by the owner (USER-GATED, shared Neon DB):
+- **090_onplatform_orders_core.sql**: section 4 `events` columns, `ticket_orders` (+ gateway estimate columns; **no** `release_at`, **no** `ticket_order_transfers`, **no** Route tables), `ticket_order_payments` (+ `settled_at`), `ticket_order_refunds`, `tickets.order_id`. Drop the old `ticket_order_ledger` sketch (replaced by 092).
+- **091_payment_events_and_settings.sql**: `payment_webhook_events`, `workspace_payment_settings` (+ `payouts_paused`, `hold_days_override`, per-workspace caps, fee override with `CHECK (fee_bps_override IS NULL OR fee_waiver OR fee_bps_override BETWEEN 300 AND 700)`), `onplatform_audit`.
+- **092_money_ledger_and_payouts.sql**: `ledger_journals`, `ledger_entries`, append-only + balance triggers, `workspace_balances`, `payout_batches`, `payout_batch_items`, `gateway_settlements`, `gateway_settlement_items`, `reconciliation_findings`, `refund_jobs` (event-cancel fan-out), sequence for `statement_no`.
+- **093_onplatform_app_config_seed.sql**: `INSERT ... ON CONFLICT DO NOTHING` for every key named in B1/B5/B6 and 3.1 with the safe defaults above (`enabled=false`, `kill_switch=false`, `pilot_only=true`). No secrets.
+Code that does not know the new columns keeps working (rollback-safe). Constraints beyond the ones named: `payout_batches.amount_minor > 0`; `payout_batches.status` CHECK; `UNIQUE (idempotency_key)`; `UNIQUE (workspace_id, bank_reference)`; FKs `ON DELETE RESTRICT` on all money tables (account deletion anonymises, never cascades).
+
+**Lambdas**: reuse `api` for the webhook; new `paymentEventWorker` (rate 1 min: webhook retry queue, refund worker, order sweeper, event-cancel fan-out) modelled on `outgoingWebhookWorker`; new `paymentReconcile` (rate 1 day + manual invoke: settlements, ledger drift check, daily digest); existing `eventScheduler` unchanged. All schedules `enabled` only for stages where `payments.onplatform.enabled` is true (the handlers also no-op when it is false, except in-flight money work). Deploy is USER-GATED.
+
+### B9. Endpoints and types (additions; checkout/order/refund endpoints are in 2.3 and 2.6)
+
+```ts
+// Buyer (order create returns the Razorpay order without transfers)
+type FeeDisclosure = { platformFeeMinor: number; paidBy: 'ORGANISER' };       // optional, owner decision D18
+type CheckoutResponse = { order: TicketOrder; feeDisclosure?: FeeDisclosure; checkout: {provider:'razorpay'; keyId:string; orderId:string; amountMinor:number; currency:'INR'; name:string; description:string} };
+
+// Organiser (GET /workspaces/:wsId/onplatform-payments) - Route fields removed
+type OnPlatformStatus = { eligible: boolean; reasons: string[];
+  fee: {bps:number; minMinor:number; maxMinor:number|null; gstMode:'INCLUSIVE'|'EXCLUSIVE'|'NONE'; source:'WORKSPACE'|'PLAN'|'DEFAULT'};
+  payout: {holdDaysAfterEvent:number; schedule:'AFTER_EACH_EVENT'|'EVERY_MONDAY'; accountStatus:'PENDING'|'VERIFIED'|'REJECTED'; accountSuffix:string|null};
+  balance: {pendingMinor:number; availableMinor:number; paidOutMinor:number; receivableMinor:number} };
+type PayoutStatement = { id:string; statementNo:string; status:'DRAFT'|'APPROVED'|'EXPORTED'|'PAID'|'CANCELLED'; amountMinor:number; bankReference:string|null; paidAt:string|null; accountSuffix:string;
+  lines: {orderId:string; eventId:string; eventTitle:string; grossMinor:number; feeMinor:number; feeGstMinor:number; taxWithheldMinor:number; refundedMinor:number; netMinor:number}[] };
+// Admin
+type PayoutQueueRow = { workspaceId:string; workspaceName:string; accountSuffix:string; accountRevision:number; availableMinor:number; orderCount:number; oldestEligibleAt:string; blockers:('DISPUTE_OPEN'|'REFUND_PENDING'|'ACCOUNT_NOT_VERIFIED'|'PAUSED'|'RECEIVABLE_DUE')[] };
+type CreateBatchBody = { workspaceId:string; eventIds?:string[]; asOf?:string; idempotencyKey:string };
+type MarkPaidBody = { bankReference:string; paidAt:string; idempotencyKey:string; acknowledgeRevisionChange?:boolean; reason?:string };
+```
+
+| Method + path | Who | Notes |
+| --- | --- | --- |
+| `GET /workspaces/:ws/onplatform-payments`, `/earnings`, `/payouts`, `/payouts/:id/statement` | owner/admin of workspace | read-only |
+| `POST /admin/payout-batches`, `GET /admin/payout-batches[/:id]`, `.../approve`, `.../cancel`, `.../mark-paid`, `.../mark-failed`, `POST /admin/payout-batches/export` | platform admin | B6 |
+| `GET /admin/payouts/queue` | platform admin | B6 |
+| `GET /admin/reconciliation/findings`, `POST /admin/reconciliation/run`, `GET /admin/settlements`, `POST /admin/settlements/:id/bank-confirm` | platform admin | B5 |
+| `GET|PUT /admin/workspaces/:id/payment-settings` | platform admin | flag, allowlist, caps, fee override (300-700 or waiver), pauses; every write audited |
+| `GET /admin/orders`, `POST /admin/orders/:id/refund`, `POST /admin/payment-events/:id/replay`, `POST /admin/ledger/adjustments` | platform admin | reasons + idempotency key required |
+
+All new routes are mounted only when `payments.onplatform.enabled` (404 otherwise, so an old or flag-off server is indistinguishable to the app from "not deployed").
+
+### B10. App UX deltas (section 7 stays)
+
+Types first (F-27.11): `src/features/ticketOrders/types.ts` per 7.2 with the Route fields removed and `FeeDisclosure`, `PayoutStatement`, balance types above. The app **tolerates 404/absent fields**: `payment_mode` missing = MANUAL, any 404 from `/orders*` or `/onplatform-payments` hides the feature. Checkout via `react-native-razorpay` (already used for credits), result only moves the UI to "Confirming payment"; the ticket appears when the webhook has issued it (poll `GET /orders/:id` 1-5 s up to 120 s, refetch on AppState active, push `TICKET_ISSUED`); app-killed recovery via `GET /orders?open=true` banner and stored `pendingOrderId`; failed/cancelled states per 7.3; never show "failed" unless the server says so. Buyer sees the listed price, the refund policy before paying, "payment processed by Razorpay, sold by <organiser>", and (if D18 is yes) "includes Hiva service fee INR X paid by the organiser". **Coexistence**: the workspace/event picks `payment_mode`; ONPLATFORM events hide the manual card flow (S6); manual stays for ineligible workspaces and while the flag is off; retirement per 7.5 only after the pilot and written regulatory confirmation. Organiser screens: earnings (pending / available / paid), payout statements (masked account, bank reference), per-event "Sell on Hiva" toggle with eligibility reasons.
+
+### B11. Test plan and rollout deltas
+
+Add to section 8: **ledger property tests** (random sequences of sale / refund / chargeback / payout / adjustment: every journal balances, `payable >= 0` after payouts, derived balances equal the cache, append-only trigger rejects UPDATE/DELETE, payout > available rejected, concurrent batch creation never double-includes an order, `mark-paid` replay idempotent, mark-paid with changed revision refused); fee engine bounds 299/300/700/701; reconciliation job against recorded settlement fixtures (matching, missing, extra, amount drift); bulk event cancel with 2,500 orders (chunked, resumable after a mid-run crash, tickets cancelled, no credits touched); CSV export audit row written, formula-injection fixtures; flag matrix (global off, kill switch, not allowlisted, cap reached) for checkout vs in-flight settle/refund still working. Needs real accounts: Razorpay live-mode settlement timing and settlement-recon API shape, fee and tax per payment, refund funding from balance, dispute flow, a real bank bulk-upload file format (bank-specific), UPI intent on real devices.
+
+Rollout (replaces 9 phases): P0 dark launch, flags off. P1 Razorpay **test mode** UAT on staging. P2 **written CA / Razorpay confirmation** (hard gate, nothing live before it). P3 live pilot: 1-3 workspaces on the allowlist, INR 10k ticket cap, `max_open_liability_minor` tiny, owner pays by hand after each event, daily reconciliation review. P4 widen allowlist gradually. P5 default for eligible workspaces; manual retirement last.
+
+USER-GATED additions (replace the Route items in 9): live Razorpay keys + webhook secret into GitHub/AWS secrets (never `app_config`); webhook URL and event subscription in Dashboard; auto-capture on; **CA / Razorpay written confirmation of Option B before live**; migration approvals 090-093 (staging then prod); `serverless deploy` of the two new Lambdas; separate bank account decision; DB role grants for append-only tables; Play declarations (Data safety, Payments, financial features); T&C, organiser agreement, refund policy, grievance officer; the bank bulk-upload format.
+
+---
+
+## 1. Options compared (historical; Option B chosen, A is a dormant fallback)
 
 | | **A. Razorpay Route (split at order, linked accounts)** | **B. Razorpay Payments only, manual payout later** | **C. Other gateway (e.g. Cashfree Easy Split)** |
 | --- | --- | --- | --- |
@@ -70,12 +243,12 @@ A workspace can sell on-platform only if **all** hold (computed server-side, ret
 1. Global `app_config payments.onplatform.enabled = true`.
 2. `workspace_payment_settings.onplatform_enabled = true` (admin or allow-list; default false).
 3. `workspaces.verification_status = 'APPROVED'` and `workspace_payout_accounts.status = 'VERIFIED'` (PR #81 gate, unchanged).
-4. `workspace_route_accounts.status = 'ACTIVATED'` and `activated_at + 24 h <= now()` (Route: new linked accounts have a 24-hour cooling period before transfers **[DOCS]**) and `payout_revision` equals the current payout-account `revision`. If the organiser changes bank details after activation, Razorpay needs a support request to change bank details **[DOCS]**, so the route account moves to `NEEDS_BANK_CHANGE` and on-platform sales for that workspace pause until an admin resolves it. Existing orders are unaffected.
+4. (SUPERSEDED, Route only; skip under Option B) `workspace_route_accounts.status = 'ACTIVATED'` and `activated_at + 24 h <= now()` (Route: new linked accounts have a 24-hour cooling period before transfers **[DOCS]**) and `payout_revision` equals the current payout-account `revision`. If the organiser changes bank details after activation, Razorpay needs a support request to change bank details **[DOCS]**, so the route account moves to `NEEDS_BANK_CHANGE` and on-platform sales for that workspace pause until an admin resolves it. Existing orders are unaffected.
 5. Event `payment_mode = 'ONPLATFORM'`, event `PUBLISHED`, `currency = 'INR'` (Route transfers are INR-only **[DOCS]**), price within `payments.onplatform.min/max_ticket_minor`.
 
 The check runs at **checkout creation only**. Once a buyer has paid, issuance and refunds proceed even if eligibility later lapses or the kill switch is flipped (money in flight must always be finishable).
 
-### 2.2 Organiser linked-account onboarding (reuses the F-05 flow)
+### 2.2 Organiser linked-account onboarding - SUPERSEDED (Route not built; Option B uses only the verified payout account)
 
 Existing: `submitVerification` -> admin approves -> `PUT /workspaces/:ws/payout-account` -> admin verifies (#81). New steps start after the payout account is `VERIFIED`.
 
@@ -498,31 +671,32 @@ Stop-the-line triggers: any unfulfilled-after-capture order older than 30 min, a
 
 ---
 
-## 10. Task breakdown - draft `F-27` for `docs/TASKS.md` (do NOT merge into TASKS.md from this PR)
+## 10. Task breakdown - draft `F-27` for `docs/TASKS.md` (Option B; do NOT merge into TASKS.md from this PR)
 
 ```
-### F-27 On-platform paid-ticket checkout (Razorpay Route) | both | P1 | XL | deps: F-05 (#81 merged), #82, #83 merged, F-04, F-08
-- F-27.0  [Owner] DECISIONS D1-D12 + Route eligibility check (USER-GATED). Blocks everything below except F-27.1/F-27.11.            S
-- F-27.1  [BE] Provider interface + Razorpay Route client (order w/ transfers, refund+reverse_all, reversal, transfer hold patch, fetch order/payment/transfer/refund, linked-account/stakeholder/product) + non-prod fake provider.  L   deps: -
-- F-27.2  [BE] Migrations 090-092 + constants + seats_held in reserveSeat/holdSeat. (DB migration USER-GATED)          M   deps: -
-- F-27.3  [BE] Fee engine + config validation (300-700) + plan/workspace overrides + admin override API + audit.         M   deps: F-27.2
-- F-27.4  [BE] Route onboarding service/endpoints/worker + product.route.* handling + eligibility function.            L   deps: F-27.1, F-27.2, F-05
-- F-27.5  [BE] Checkout: holds, tier hook, quote use, order create/get/list/cancel/sync, sweeper.                        L   deps: F-27.1-3
-- F-27.6  [BE] Webhook ingestion (event log, dedupe, worker Lambda, redaction), settleOrder + issuance variant (skipCredit, seatPreHeld, orderId), transfer/refund/dispute handlers; remove JSON.stringify fallback.   L   deps: F-27.5
-- F-27.7  [BE] Refund engine: policy, buyer/organiser/admin refunds, event-cancel mass refunds (no 1000 cap), ticket.cancel guards, recovery_due.   L   deps: F-27.6
-- F-27.8  [BE] Reconciliation jobs in eventScheduler + alarms/heartbeat + ledger invariants.                          M   deps: F-27.6
-- F-27.9  [BE] Admin endpoints/panel: orders, refunds, replay, route accounts, fee override, workspace disable.        M   deps: F-27.4-7
-- F-27.10 [BE] Docs: API.md + docs/onplatform-payments.md + OpenAPI-style contract; tests/routes.json entries.        S   deps: F-27.5-9
-- F-27.11 [FE] Contracts first: types.ts + service stubs + contract check entries.                                     S   deps: this doc
-- F-27.12 [FE] Checkout + order status + recovery (killed app) + refund request UI + hide cancel for orderId tickets.  L   deps: F-27.11, F-27.5
-- F-27.13 [FE] Organiser: OnPlatformPaymentsScreen, per-event payment_mode, sales/settlements, cancel-event refund panel.  L   deps: F-27.11, F-27.4
-- F-27.14 [FE] Manual-flow coexistence gating (hide share-card on ONPLATFORM events), copy, analytics events.            S   deps: F-27.2
-- F-27.15 [QA] Test suites per section 8 (unit, DB-backed, fixtures, Lambda transport, app).                           L   deps: F-27.5-8, F-27.12
-- F-27.16 [Sec] Review of S1-S20, secrets move, webhook transport, deletion flow, rate limits.                         M   deps: F-27.6-9
-- F-27.17 [QA+Owner] Staging UAT in Razorpay test mode with two devices (USER-GATED keys/URLs).                       M   deps: F-27.12, F-27.13
-- F-27.18 [Owner] Production pilot per section 9 (USER-GATED: live Route, secrets, migration, deploy, Play, CA).       M   deps: F-27.17, Appendix A
+### F-27 On-platform paid-ticket checkout (Razorpay Standard, manual organiser payout) | both | P1 | XL | deps: F-05 (#81 merged), #82/#83 merged, F-04, F-08
+- F-27.0  [Owner] DECISIONS D2-D18 + CA / Razorpay written confirmation of the model (USER-GATED). Gates ENABLING live money, not building. S
+- F-27.1  [BE] Webhook hardening (also fixes credits): event log + event-id dedupe, delete JSON.stringify fallback, redaction, secret rotation, Lambda-transport fixtures.   M   deps: -   (ship first: standalone value)
+- F-27.2  [BE] Migrations 090-093 + constants + seats_held in reserveSeat/holdSeat. (DB migration USER-GATED)                       M   deps: -
+- F-27.3  [BE] Fee engine + config validation (300-700) + overrides + audit; ledger service (journals, triggers, balances) + property tests.   L   deps: F-27.2
+- F-27.4  [BE] Flags/caps/allowlist/kill switch + eligibility function + workspace payment-settings admin API.                       M   deps: F-27.2
+- F-27.5  [BE] Provider interface + Razorpay client (order, refund, fetch order/payment/refund/settlements) + non-prod fake provider. M   deps: -
+- F-27.6  [BE] Checkout (holds, tiers, quotes, create/get/list/cancel/sync, sweeper) + settleOrder/issuance variant (skipCredit, seatPreHeld, orderId) + SALE journal.   L   deps: F-27.1-5
+- F-27.7  [BE] Refund engine (policy, buyer/organiser/admin, duplicate/late), ticketService.cancel guards, event-cancel chunked fan-out (no 1000 cap), chargeback handlers + REFUND/CHARGEBACK/RECOVERY journals.   L   deps: F-27.6
+- F-27.8  [BE] Payout: queue, batches, approve, CSV export (audited reveal), mark-paid idempotent, statements, organiser earnings endpoints.   L   deps: F-27.3, F-27.7
+- F-27.9  [BE] paymentReconcile Lambda (settlements, fee true-up, findings, drift check, digest) + paymentEventWorker + alarms.        L   deps: F-27.6, F-27.8
+- F-27.10 [BE] Docs: API.md + docs/onplatform-payments.md; tests/routes.json entries.                                              S   deps: F-27.6-9
+- F-27.11 [FE] Contracts first: types.ts + service stubs tolerant of 404 + contract-check entries.                                   S   deps: this doc
+- F-27.12 [FE] Checkout + order status + recovery (killed app) + refund request + hide cancel for orderId tickets.                    L   deps: F-27.11, F-27.6
+- F-27.13 [FE] Organiser earnings, payout statements, per-event payment_mode toggle, cancel-event refund progress.                   M   deps: F-27.11, F-27.8
+- F-27.14 [FE] Manual-flow coexistence gating, copy (fee/refund/processor), analytics.                                               S   deps: F-27.2
+- F-27.15 [ADMIN] admin-panel pages: payout queue, batch detail/export/mark-paid, reconciliation findings, workspace settings. (After API-only use proves the flow.)   M   deps: F-27.8, F-27.9
+- F-27.16 [QA] Suites per section 8 + B11.                                                                                           L   deps: F-27.6-9, F-27.12
+- F-27.17 [Sec] Review S1-S20 + B7, secrets move, append-only DB role, CSV export, deletion flow.                                     M   deps: F-27.6-9
+- F-27.18 [QA+Owner] Staging UAT in Razorpay test mode, two devices (USER-GATED keys/URLs).                                          M   deps: F-27.12, F-27.13
+- F-27.19 [Owner] Live pilot per B11 (USER-GATED: written CA/Razorpay confirmation, live keys, migrations, deploy, Play).            M   deps: F-27.18, F-27.0
 ```
-Critical path: F-27.0 -> 27.1/27.2 -> 27.3 -> 27.5 -> 27.6 -> 27.7 -> UAT. FE can start at 27.11 using the fake provider. Rough total: BE ~3-4 weeks, FE ~2 weeks in parallel, plus Razorpay/legal lead time (the long pole, 1-3 weeks of elapsed waiting).
+Order: backend first (27.1 -> 27.2 -> 27.3/27.4/27.5 in parallel -> 27.6 -> 27.7 -> 27.8 -> 27.9); the app starts at 27.11 against the fake provider and treats 404 as "feature absent", so app releases never depend on backend deploy order. Admin panel last. Rough: BE 4-5 weeks, FE 2 weeks in parallel; the regulatory confirmation (27.0) is the long pole and is independent of build.
 
 ---
 
@@ -542,6 +716,29 @@ Critical path: F-27.0 -> 27.1/27.2 -> 27.3 -> 27.5 -> 27.6 -> 27.7 -> UAT. FE ca
 | D10 | Who is merchant of record on the buyer's statement, and what does the receipt say? | Hiva (descriptor "HIVA TICKETS"); receipt names the organiser as seller |
 | D11 | Event reschedule: automatic refund window? | Offer organiser-triggered "refund all" and notify buyers; no automatic refund in v1 |
 | D12 | Multi-quantity (group) tickets | **Not in v1** (one live ticket per attendee per event today) |
+| D13 | Hold period after event before payout | **3 days** (`payments.payout.hold_days_after_event`), optional rolling reserve later |
+| D14 | Pilot limits | **<=3 workspaces, ticket cap INR 10,000, total open liability cap INR 2,00,000** |
+| D15 | Second approver for payout batches | **Yes above a threshold**; creator != approver once there is a second admin |
+| D16 | CSV for bank upload: unmasked (audited export) or masked + per-row reveal | **Audited unmasked export** (fewer manual copies of bank numbers) |
+| D17 | Separate bank account for ticket-money settlements | **Yes** (CA to confirm) |
+| D18 | Show buyers "includes Hiva service fee INR X (paid by organiser)" | **Decide with CA**; supported by `feeDisclosure`, off by default |
+
+D1 (Route eligibility) is SUPERSEDED by Option B; D4 also covers refund-time gateway-fee loss; D6 is replaced by D13.
+
+---
+
+## 12. RISKS of Option B (all UNVERIFIED; questions for the CA, not conclusions)
+
+None of the following has been confirmed by a lawyer, the CA, Razorpay or RBI. The owner has accepted that the question is open. Do not enable live money until each is answered in writing.
+
+1. **RBI Payment Aggregator rules.** Hiva would receive ticket money in its own merchant account and later pay organisers. Does that amount to "pooling and settling for merchants" (payment aggregation, which needs RBI authorisation), or is it an ordinary merchant collecting for goods/services it sells? Does the answer depend on whether Hiva is the seller, agent of the organiser, or marketplace? Does paying organisers after the event (delayed settlement) change it? (Appendix A Q1, Q4.)
+2. **Razorpay terms.** Does Razorpay's merchant agreement allow a standard (non-Route) account to collect on behalf of third-party sellers and pay them out? Could Razorpay hold or close the account (and with it every Hiva payment, including credit packs and subscriptions) if it classifies this as marketplace activity? Written confirmation from Razorpay is needed.
+3. **GST / TCS / TDS.** Who is the supplier of the ticket (organiser or Hiva)? GST on the platform fee (rate, SAC, invoices); whether Hiva is an e-commerce operator liable for Section 52 TCS and GSTR-8; whether Section 194-O TDS applies on organiser payouts and at what base; whether `tax_withheld_minor` must be non-zero. Wrong answers create a tax liability on money Hiva does not own. The data model carries the hooks (B5) but defaults are 0 and `INCLUSIVE`.
+4. **Refund and chargeback liability.** Hiva is merchant of record: it refunds buyers and absorbs disputes. If the organiser has been paid or disappears, Hiva carries the loss (`ORGANISER_RECEIVABLE`) plus unrecovered gateway fees on refunds and any dispute fee. Is the organiser agreement enforceable for clawback? Consumer-law fall-back liability when an organiser does not deliver. Mitigations (hold period, caps, pilot) reduce but do not remove this.
+5. **Money in flight / custody.** Between settlement and payout Hiva holds organisers' funds: insolvency/commingling questions, whether a separate account or trust structure is expected, interest, and what happens on account freezes. Operationally: refunds after settlement need Hiva funds, and manual bank payouts are an error-prone human process (wrong account, duplicate payment); the batch revision binding, audit, idempotency and CSV controls mitigate only the system side.
+6. Also open: data-protection and retention of financial records vs the deletion flow; Google Play policy treatment of the in-app payment (live-event tickets are outside Play Billing per policy text we read, online-only events unclear); consumer-protection rules for grievance officer and cancellation charges; whether the 3-7% fee level and "fee included in price" presentation need disclosure.
+
+Fallbacks if the answer is "no": pause at the pilot (manual flow is untouched and remains live), or switch to Option A/C (the provider interface and everything except B5-B6 are reusable; Route eligibility D1 returns).
 
 ---
 
