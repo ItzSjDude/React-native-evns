@@ -10,7 +10,10 @@ export default function NativeAdCard() {
   const [ad, setAd] = useState<NativeAd | null>(null);
 
   useEffect(() => {
-    if (!ready || !NATIVE_AD_UNIT_ID) return;
+    if (!ready || !NATIVE_AD_UNIT_ID) {
+      setAd(null);
+      return;
+    }
     let mounted = true;
     let loaded: NativeAd | null = null;
     NativeAd.createForAdRequest(NATIVE_AD_UNIT_ID)

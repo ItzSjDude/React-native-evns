@@ -101,7 +101,7 @@ test('an ad that finishes loading after the card unmounted is destroyed and neve
 // When the user withdraws consent through the privacy options form, `ready` flips back to false. The effect
 // cleanup destroys the loaded NativeAd, but NativeAdCard.tsx never clears its `ad` state (the effect returns
 // early when !ready), so the card keeps rendering a destroyed ad after consent was withdrawn.
-test.failing('stops rendering the ad once ads are no longer ready (consent withdrawn)', async () => {
+test('stops rendering the ad once ads are no longer ready (consent withdrawn)', async () => {
   const ad = fakeAd();
   createAd.mockResolvedValue(ad);
   await mount();
