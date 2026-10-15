@@ -23,6 +23,12 @@ export const messageText = (message: Pick<ApiMessage, 'type' | 'body' | 'deleted
   return typeLabels[message.type] ?? `${message.type.toLowerCase()} message`;
 };
 
+/** Clock time for a bubble, e.g. "3:05 PM". Empty for a value that is not a date. */
+export const clockTimeOf = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+};
+
 const DAY = 86400000;
 
 /** Compact list timestamp: "now", "5m", "3h", "Yesterday", "Tue", "Mar 4", "Mar 4, 2024". */

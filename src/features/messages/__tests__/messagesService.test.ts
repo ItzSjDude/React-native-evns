@@ -1,6 +1,6 @@
 import {apiRequest} from '../../../core/api/apiClient';
 import {isOwnMessage, messageText, relativeTime} from '../conversationPresentation';
-import {markConversationRead, toConversation} from '../messagesService';
+import {getConversationDetail, markConversationRead, markPaymentCardPaid, toConversation} from '../messagesService';
 import type {ApiInboxConversation} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn()}));
@@ -58,4 +58,32 @@ test('formats message ownership, previews and relative times', () => {
   expect(relativeTime(new Date(2026, 9, 7, 9, 0).toISOString(), now)).toBe('3h');
   expect(relativeTime(new Date(2026, 9, 6, 22, 0).toISOString(), now)).toBe('Yesterday');
   expect(relativeTime('not a date', now)).toBe('');
+});
+
+test('loads the thread detail with its side and payment cards', async () => {
+  request.mockResolvedValue({id: 'c 1', kind: 'EVENT', status: 'OPEN', viewerSide: 'ATTENDEE', paymentCards: []});
+  await expect(getConversationDetail('c 1')).resolves.toMatchObject({viewerSide: 'ATTENDEE', paymentCards: []});
+  expect(request).toHaveBeenCalledWith('/conversations/c%201', {auth: 'required'});
+});
+
+test('marks a payment card paid with an optional trimmed reference, and with an empty body otherwise', async () => {
+  request.mockResolvedValue({id: 'card 1', status: 'PAID_CLAIMED'});
+
+  await expect(markPaymentCardPaid('card 1')).resolves.toMatchObject({status: 'PAID_CLAIMED'});
+  expect(request).toHaveBeenLastCalledWith('/payment-cards/card%201/mark-paid', {auth: 'required', method: 'POST', body: '{}'});
+
+  await markPaymentCardPaid('card 1', '   ');
+  expect(request).toHaveBeenLastCalledWith('/payment-cards/card%201/mark-paid', {auth: 'required', method: 'POST', body: '{}'});
+
+  await markPaymentCardPaid('card 1', '  UPI-1234  ');
+  expect(request).toHaveBeenLastCalledWith('/payment-cards/card%201/mark-paid', {auth: 'required', method: 'POST', body: '{"reference":"UPI-1234"}'});
+
+  await markPaymentCardPaid('card1', 'x'.repeat(200));
+  expect(JSON.parse(request.mock.calls.at(-1)?.[1].body).reference).toHaveLength(120);
+});
+
+test('surfaces a 409 from mark-paid to the caller without retrying', async () => {
+  request.mockRejectedValueOnce({status: 409, message: 'This payment card is no longer awaiting payment'});
+  await expect(markPaymentCardPaid('card1')).rejects.toMatchObject({status: 409});
+  expect(request).toHaveBeenCalledTimes(1);
 });

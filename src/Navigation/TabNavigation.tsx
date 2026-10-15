@@ -25,6 +25,7 @@ import {HomeScreen} from '../features/home';
 import {NearbyScreen} from '../features/nearby';
 import {PartyScreen} from '../features/party';
 import {MessagesScreen, useFollowUpOpened} from '../features/messages';
+import {MyTicketsSheet} from '../features/events';
 import {resolveNotificationTarget, useNotifications} from '../features/notifications';
 import {navigateWhenReady} from './navigationRef';
 import {ProfileScreen, useMyAvatarUrl} from '../features/profile';
@@ -241,6 +242,9 @@ const renderTabBar = (props: BottomTabBarProps) => (
 // A tapped follow-up reminder lands on the Messages tab. Chat is a tab of the root navigator, which the typed ref does not list.
 const openMessagesTab = () => (navigateWhenReady as (name: string) => void)('Chat');
 
+// Rendered inside the chat Modal (a second Modal cannot present over it on iOS), so the ticket pass opens from a TICKET bubble.
+const renderTicketPass = (ticketId: string, onClose: () => void) => <MyTicketsSheet visible ticketId={ticketId} onClose={onClose} />;
+
 const TabNavigation = () => {
   useFollowUpOpened(openMessagesTab);
   // Party rooms open through the notification navigator (Home), so Messages needs no party import.
@@ -249,7 +253,7 @@ const TabNavigation = () => {
   navigateRef.current = navigateTo;
   const renderMessages = useCallback(
     ({route}: {route: {params?: TabParamList['Chat']}}) => <MessagesScreen initialView={route.params?.initialView}
-      initialConversationId={route.params?.initialConversationId}
+      initialConversationId={route.params?.initialConversationId} renderTicketPass={renderTicketPass}
       onOpenParty={partyId => navigateRef.current(resolveNotificationTarget(undefined, {partyId}))} />,
     [],
   );

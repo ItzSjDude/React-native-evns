@@ -9,7 +9,7 @@ import IconSearch from '@tabler/icons-react-native/IconSearch';
 import {showDialog} from '../../components/Dialog';
 import {Colors} from '../../Constants/Colors';
 import {isPlusRequired, openPaywall, refreshSubscription, usePlus} from '../plus';
-import DirectConversation from './DirectConversation';
+import DirectConversation, {type TicketPassRenderer} from './DirectConversation';
 import {isConversation} from './conversationPresentation';
 import {cancelFollowUp, getFollowUps, scheduleFollowUp, type FollowUps, type ReminderOption} from './followUpReminders';
 import {FolderManagerSheet, InboxActionsSheet} from './InboxSheets';
@@ -65,9 +65,11 @@ export type MessagesProps = {
   initialView?: InboxView;
   /** Opens the matching conversation after the selected inbox view has loaded it. */
   initialConversationId?: string;
+  /** Renders a ticket pass from a TICKET bubble. Injected by the navigation layer (see DirectConversation). */
+  renderTicketPass?: TicketPassRenderer;
 };
 
-const Messages = ({onOpenParty, initialView, initialConversationId}: MessagesProps) => {
+const Messages = ({onOpenParty, initialView, initialConversationId, renderTicketPass}: MessagesProps) => {
   const isFocused = useIsFocused();
   const plus = usePlus();
   const plusOffered = plus.status !== 'unavailable';
@@ -468,6 +470,7 @@ const Messages = ({onOpenParty, initialView, initialConversationId}: MessagesPro
           backLabel="Back to messages"
           pollIntervalMs={5000}
           onLatestMessage={message => rememberLatest(open.id, message)}
+          renderTicketPass={renderTicketPass}
           onClose={closeConversation}
         />
       )}

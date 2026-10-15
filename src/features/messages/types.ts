@@ -25,6 +25,62 @@ export type ApiMessage = {
   sender_avatar_url?: string | null;
 };
 
+export type PaymentMethod = 'UPI' | 'BANK' | 'CASH' | 'LINK';
+/** `EXPIRED` exists server-side but nothing sets it. The UI never branches on it (API.md section 5). */
+export type PaymentCardStatus = 'SHARED' | 'PAID_CLAIMED' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED';
+
+/**
+ * One payment card: `paymentCards[]` of `GET /conversations/:id`, `POST .../payment-cards` and `mark-paid`
+ * responses, and the socket `message.paymentCard` extra. Sensitive: never log it and never cache it.
+ */
+export type ApiPaymentCard = {
+  id: string;
+  conversation_id?: string;
+  message_id?: string;
+  amount_minor: number;
+  currency: string;
+  method: PaymentMethod;
+  payee_name: string | null;
+  upi_id: string | null;
+  account_number: string | null;
+  ifsc: string | null;
+  payment_link: string | null;
+  qr_image_url: string | null;
+  note: string | null;
+  status: PaymentCardStatus;
+  /** A display hint only. The server still accepts mark-paid after it. */
+  expires_at: string | null;
+  created_by?: string;
+  created_at?: string;
+};
+
+/** `PAYMENT_CARD` message metadata. `eventId` arrives with gathr-api PR #83, so it is optional here. */
+export type PaymentCardMetadata = {
+  paymentCardId?: string;
+  amountMinor: number;
+  currency: string;
+  method: PaymentMethod;
+  eventId?: string;
+};
+
+/** `TICKET` message metadata. `code` is a door credential, so the UI does not display it. */
+export type TicketMetadata = {ticketId: string; code?: string; eventId?: string};
+
+/**
+ * Socket-only extras on `message.created` for payment and ticket messages. The ticket frame is partial
+ * (no secret, no attendee email), so only its id and event id are read.
+ */
+export type ThreadMessageExtras = {
+  paymentCard?: ApiPaymentCard;
+  ticket?: {id?: string; code?: string; event_id?: string; status?: string};
+};
+
+/** `GET /conversations/:id`: the thread row, the caller's side and the thread's payment cards (newest first). */
+export type ApiConversationDetail = Partial<ApiConversation> & Pick<ApiConversation, 'id' | 'kind' | 'status'> & {
+  viewerSide?: 'ATTENDEE' | 'WORKSPACE';
+  paymentCards?: ApiPaymentCard[];
+};
+
 /** One row of `GET /conversations` (conversationRepository.listForUser). */
 export type ApiConversation = {
   id: string;
@@ -176,7 +232,7 @@ export type RealtimeEnvelope = {eventId?: string; seq?: number; v?: number};
 export type RealtimeMessageEvent = {
   type: 'message.created' | 'message.edited' | 'message.deleted';
   conversationId: string;
-  message: ApiMessage;
+  message: ApiMessage & ThreadMessageExtras;
 };
 
 export type RealtimeReactionEvent = {

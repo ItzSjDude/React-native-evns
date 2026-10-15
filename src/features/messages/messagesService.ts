@@ -1,5 +1,5 @@
 import {apiRequest} from '../../core/api/apiClient';
-import type {ApiInboxConversation, Conversation} from './types';
+import type {ApiConversationDetail, ApiInboxConversation, ApiPaymentCard, Conversation} from './types';
 
 export const toConversation = (row: ApiInboxConversation): Conversation => {
   const direct = row.kind === 'DIRECT';
@@ -27,3 +27,15 @@ export const markConversationRead = (conversationId: string) =>
   apiRequest<{read: boolean}>(`/conversations/${encodeURIComponent(conversationId)}/read`, {
     auth: 'required', method: 'POST',
   });
+
+/** `GET /conversations/:id`: the thread row, the caller's side and its payment cards. Reading it marks the thread read on the server. */
+export const getConversationDetail = (conversationId: string) =>
+  apiRequest<ApiConversationDetail>(`/conversations/${encodeURIComponent(conversationId)}`, {auth: 'required'});
+
+/** Attendee claims a SHARED card as paid. The optional reference is trimmed and capped at 120 characters. */
+export const markPaymentCardPaid = (cardId: string, reference?: string) => {
+  const trimmed = reference?.trim().slice(0, 120);
+  return apiRequest<ApiPaymentCard>(`/payment-cards/${encodeURIComponent(cardId)}/mark-paid`, {
+    auth: 'required', method: 'POST', body: JSON.stringify(trimmed ? {reference: trimmed} : {}),
+  });
+};

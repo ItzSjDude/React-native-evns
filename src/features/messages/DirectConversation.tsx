@@ -1,8 +1,8 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {
-  ActivityIndicator, FlatList, Keyboard, KeyboardAvoidingView,
-  Modal, Platform, Pressable, Text, TextInput, View,
+  ActivityIndicator, Clipboard, FlatList, Keyboard, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable, Text, TextInput, View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
@@ -15,12 +15,15 @@ import BottomSheet, {SheetRow, SheetSection} from '../../components/BottomSheet'
 import {showDialog} from '../../components/Dialog';
 import {reportUser} from '../users/usersService';
 import {UserProfileModal, useViewerId} from '../users';
-import {isOwnMessage, messageText} from './conversationPresentation';
+import {clockTimeOf, isOwnMessage, messageText} from './conversationPresentation';
 import {getDirectMessages, sendDirectMessage, type DirectMessage} from './directService';
 import {loadCachedMessages, saveCachedMessages} from './messageCache';
-import {markConversationRead} from './messagesService';
+import {getConversationDetail, markConversationRead, markPaymentCardPaid} from './messagesService';
 import {applyRealtimeToMessages, createTypingThrottle, isMessageEvent, mergeMessages, TYPING_VISIBLE_MS} from './realtimeEvents';
-import type {ConversationKind, MessagesRealtimeEvent} from './types';
+import {mergeCards, paymentCardIdOf, safePaymentLink, splitRealtimeExtras, type PaymentLink} from './paymentCard';
+import PaymentCardBubble from './PaymentCardBubble';
+import TicketBubble from './TicketBubble';
+import type {ApiPaymentCard, ConversationKind, MessagesRealtimeEvent} from './types';
 import {useMessagesRealtime} from './useMessagesRealtime';
 import {usePresence} from './presence';
 import {setActiveInterval} from '../../core/appActiveInterval';
@@ -39,15 +42,21 @@ type Props = {
   pollIntervalMs?: number;
   /** Reports the newest message so a list can preview it. */
   onLatestMessage?: (message: DirectMessage) => void;
+  /**
+   * Renders the ticket pass for a TICKET bubble. The host injects it so this feature never imports events.
+   * It renders inside this Modal, because a second Modal cannot present over the chat on iOS.
+   */
+  renderTicketPass?: TicketPassRenderer;
 };
+
+export type TicketPassRenderer = (ticketId: string, onClose: () => void) => ReactNode;
 
 /** Live messages are not fetched over REST, so mark the thread read shortly after they land. */
 const MARK_READ_DELAY_MS = 1500;
-
-const timeOf = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
-};
+/** Message types whose arrival can change a card's state; the thread detail is refetched for them. */
+const CARD_STATE_TYPES = new Set<string>(['PAYMENT_CARD', 'SYSTEM']);
+/** Cancelling a card posts no message, so an open card is re-read on this interval. */
+const CARD_POLL_MS = 15000;
 
 /** Memoized chat bubble so a new message or typing tick doesn't re-render the whole history. */
 const MessageBubble = memo(({message, mine}: {message: DirectMessage; mine: boolean}) => (
@@ -55,15 +64,22 @@ const MessageBubble = memo(({message, mine}: {message: DirectMessage; mine: bool
     <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-gold' : 'rounded-bl-[5px] bg-card'}`}>
       <Text className={`text-[15px] leading-[21px] ${mine ? 'text-text-dark' : 'text-foreground'}`}>{messageText(message)}</Text>
     </View>
-    <Text className="mt-1 px-1 text-[11px] text-muted">{timeOf(message.created_at)}</Text>
+    <Text className="mt-1 px-1 text-[11px] text-muted">{clockTimeOf(message.created_at)}</Text>
   </View>
 ));
 
 const DirectConversation = ({
   conversationId, contactId, contactName, contactAvatarUrl, onClose,
-  kind = 'DIRECT', backLabel = 'Back to nearby', pollIntervalMs = 12000, onLatestMessage,
+  kind = 'DIRECT', backLabel = 'Back to nearby', pollIntervalMs = 12000, onLatestMessage, renderTicketPass,
 }: Props) => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [cards, setCards] = useState<ApiPaymentCard[]>([]);
+  const [viewerSide, setViewerSide] = useState<'ATTENDEE' | 'WORKSPACE' | null>(null);
+  const [claiming, setClaiming] = useState<Record<string, boolean>>({});
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  /** Card ids with a "Mark as paid?" confirmation open, and card ids with a mark-paid request running. */
+  const confirmingRef = useRef(new Set<string>());
+  const claimsRef = useRef(new Set<string>());
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -94,6 +110,18 @@ const DirectConversation = ({
   }, [conversationId, messages, viewerId]);
 
   useEffect(() => () => { clearTimeout(typingTimer.current); clearTimeout(readTimer.current); }, []);
+  useEffect(() => { setCards([]); setViewerSide(null); setTicketId(null); }, [conversationId]);
+
+  /** Event threads only. Card state comes from the thread detail, never inferred from messages. */
+  const loadDetail = useCallback(async () => {
+    if (kind !== 'EVENT') return;
+    try {
+      const detail = await getConversationDetail(conversationId);
+      if (conversationRef.current !== conversationId) return;
+      setViewerSide(detail.viewerSide ?? null);
+      setCards(current => mergeCards(current, detail.paymentCards ?? []));
+    } catch { /* Keep what is on screen; the next refresh, socket frame or poll retries. */ }
+  }, [conversationId, kind]);
 
   const loadMessages = useCallback(async () => {
     if (viewerId === undefined) return; // wait for the keychain read so the first open fetches once
@@ -107,12 +135,13 @@ const DirectConversation = ({
       if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
       messageOwner.current = viewerId ? `${viewerId}:${conversationId}` : null;
       setMessages(page.data.slice().reverse());
+      loadDetail();
     } catch (cause) {
       setError((cause as {message?: string})?.message ?? 'Could not load messages.');
     } finally {
       setLoading(false);
     }
-  }, [conversationId, viewerId]);
+  }, [conversationId, loadDetail, viewerId]);
 
   /** Quiet REST catch-up: fallback polling, socket (re)connects and seq gaps. */
   const refresh = useCallback(async () => {
@@ -121,8 +150,9 @@ const DirectConversation = ({
       if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
       messageOwner.current = viewerId ? `${viewerId}:${conversationId}` : null;
       setMessages(current => mergeMessages(current, page.data));
+      loadDetail();
     } catch { /* The next poll, reconnect or a manual retry can catch up. */ }
-  }, [conversationId, viewerId]);
+  }, [conversationId, loadDetail, viewerId]);
 
   const showTyping = () => {
     clearTimeout(typingTimer.current);
@@ -141,8 +171,11 @@ const DirectConversation = ({
       return;
     }
     if (!isMessageEvent(event) || event.conversationId !== conversationId) return;
-    setMessages(current => applyRealtimeToMessages(current, event));
-    if (event.type !== 'message.created' || isOwnMessage(event.message, kind, contactId)) return;
+    const {message, card} = splitRealtimeExtras(event.message);
+    if (card) setCards(current => mergeCards(current, [card]));
+    if (event.type === 'message.created' && CARD_STATE_TYPES.has(message.type)) loadDetail();
+    setMessages(current => applyRealtimeToMessages(current, {...event, message}));
+    if (event.type !== 'message.created' || isOwnMessage(message, kind, contactId)) return;
     hideTyping();
     clearTimeout(readTimer.current);
     readTimer.current = setTimeout(() => { markConversationRead(conversationId).catch(() => {}); }, MARK_READ_DELAY_MS);
@@ -157,6 +190,55 @@ const DirectConversation = ({
     if (connected) return;
     return setActiveInterval(refresh, pollIntervalMs);
   }, [connected, pollIntervalMs, refresh]);
+
+  const cardOpen = cards.some(card => card.status === 'SHARED' || card.status === 'PAID_CLAIMED');
+  useEffect(() => {
+    if (!cardOpen) return;
+    return setActiveInterval(loadDetail, CARD_POLL_MS);
+  }, [cardOpen, loadDetail]);
+
+  /** Attendee claims a SHARED card. 409 means the card moved on, so the thread is re-read rather than shown as an error. */
+  const claimPayment = useCallback(async (card: ApiPaymentCard) => {
+    if (claimsRef.current.has(card.id)) return;
+    claimsRef.current.add(card.id);
+    setClaiming(current => ({...current, [card.id]: true}));
+    try {
+      const updated = await markPaymentCardPaid(card.id);
+      if (updated?.id && updated.status) setCards(current => mergeCards(current, [updated]));
+      else loadDetail();
+    } catch (cause) {
+      const failure = cause as {status?: number; message?: string};
+      if (failure.status === 409) loadDetail();
+      else showDialog('Could not mark as paid', failure.message ?? 'Please try again.');
+    } finally {
+      claimsRef.current.delete(card.id);
+      setClaiming(current => ({...current, [card.id]: false}));
+    }
+  }, [loadDetail]);
+
+  const confirmClaim = useCallback((card: ApiPaymentCard) => {
+    if (confirmingRef.current.has(card.id) || claimsRef.current.has(card.id)) return;
+    confirmingRef.current.add(card.id);
+    showDialog('Mark as paid?', 'Only tap this after you have completed the payment. The organiser checks it before issuing your ticket.', [
+      {text: 'Not yet', style: 'cancel', onPress: () => { confirmingRef.current.delete(card.id); }},
+      {text: "I've paid", onPress: () => { confirmingRef.current.delete(card.id); claimPayment(card); }},
+    ]);
+  }, [claimPayment]);
+
+  const copyValue = useCallback((value: string) => { Clipboard.setString(value); }, []);
+
+  const openLink = useCallback((link: PaymentLink) => {
+    const direct = link.scheme === 'https';
+    showDialog(direct ? `Open ${link.host}?` : 'Open your UPI app?',
+      direct ? `This opens ${link.host} in your browser. Only pay if you trust the organiser.` : 'This opens your UPI app to pay the organiser.', [
+        {text: 'Cancel', style: 'cancel'},
+        {text: 'Open', onPress: () => {
+          // Checked again at the moment of opening, not only when the bubble was rendered.
+          if (!safePaymentLink(link.url)) return;
+          Linking.openURL(link.url).catch(() => showDialog('Could not open link', 'No app can open this payment link.'));
+        }},
+      ]);
+  }, []);
 
   const changeDraft = (text: string) => {
     setDraft(text);
@@ -180,7 +262,16 @@ const DirectConversation = ({
     }
   };
 
-  const renderMessage = ({item}: {item: DirectMessage}) => <MessageBubble message={item} mine={isOwnMessage(item, kind, contactId)} />;
+  const renderMessage = ({item}: {item: DirectMessage}) => {
+    const mine = isOwnMessage(item, kind, contactId);
+    if (item.type === 'PAYMENT_CARD') {
+      const card = cards.find(candidate => candidate.id === paymentCardIdOf(item)) ?? null;
+      return <PaymentCardBubble message={item} card={card} mine={mine} attendee={kind === 'EVENT' && viewerSide === 'ATTENDEE'}
+        claiming={!!card && !!claiming[card.id]} onCopy={copyValue} onOpenLink={openLink} onClaim={confirmClaim} />;
+    }
+    if (item.type === 'TICKET') return <TicketBubble message={item} mine={mine} onOpenTicket={setTicketId} />;
+    return <MessageBubble message={item} mine={mine} />;
+  };
 
   const close = () => { Keyboard.dismiss(); onClose(); };
   const reportSpam = () => showDialog('Report spam?', `Report ${contactName} for spam or scam?`, [
@@ -220,6 +311,7 @@ const DirectConversation = ({
               data={messages}
               keyExtractor={item => item.id}
               renderItem={renderMessage}
+              extraData={{cards, viewerSide, claiming}}
               initialNumToRender={20}
               maxToRenderPerBatch={12}
               windowSize={11}
@@ -262,6 +354,7 @@ const DirectConversation = ({
         visible
         onClose={() => setInfoOpen(false)}
       />}
+      {ticketId && renderTicketPass?.(ticketId, () => setTicketId(null))}
     </Modal>
   );
 };
