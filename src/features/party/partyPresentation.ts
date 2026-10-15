@@ -122,3 +122,69 @@ export const tagParts = (tag: string) => {
   const isText = (token: string) => token.replace(/^dark:/, '').startsWith('text-');
   return {box: tokens.filter(token => !isText(token)).join(' '), text: tokens.filter(isText).join(' ')};
 };
+
+/* ---------- Live audio room layout helpers (pure, unit-tested) ---------- */
+
+export type SpeakerGrid = {columns: number; rows: number; size: number; cell: number};
+
+/**
+ * Adaptive speaker grid: few speakers get big tiles in one row, up to 4 per row, never more than 2 rows
+ * for 8 seats. `size` is the avatar diameter, `cell` the tile width (avatar plus label room).
+ */
+export const speakerGrid = (count: number, availableWidth: number): SpeakerGrid => {
+  const total = Math.max(1, Math.floor(Number.isFinite(count) ? count : 1));
+  const width = Math.max(240, Math.floor(Number.isFinite(availableWidth) ? availableWidth : 320));
+  const columns = Math.min(total, 4);
+  const rows = Math.ceil(total / columns);
+  const maxAvatar = total === 1 ? 120 : total === 2 ? 104 : total <= 4 ? 84 : 76;
+  const cell = Math.floor(width / columns);
+  const size = Math.max(48, Math.min(maxAvatar, cell - 16));
+  return {columns, rows, size, cell: Math.min(cell, size + 28)};
+};
+
+export type StagePlan = {
+  /** Speakers in display order: host, co-hosts, then by seat. */
+  speakers: {seatIndex: number; userId: string}[];
+  /** Empty or locked seat indexes to draw as small slots. */
+  slots: number[];
+  /** Empty seats folded behind the "+ k more seats" affordance. */
+  hidden: number;
+};
+
+export const MAX_EMPTY_SLOTS = 4;
+
+/** Decides which seats become tiles, which stay as quiet slots and how many are collapsed. */
+export const planStage = (
+  seatCount: number,
+  people: {userId: string; seatIndex: number | null; role: 'HOST' | 'CO_HOST' | 'MEMBER'}[],
+  lockedSeats: number[] = [],
+  expanded = false,
+  maxSlots = MAX_EMPTY_SLOTS,
+): StagePlan => {
+  const rank = {HOST: 0, CO_HOST: 1, MEMBER: 2} as const;
+  const seated = people.filter(p => p.seatIndex !== null)
+    .sort((a, b) => rank[a.role] - rank[b.role] || (a.seatIndex as number) - (b.seatIndex as number))
+    .map(p => ({seatIndex: p.seatIndex as number, userId: p.userId}));
+  const taken = new Set(seated.map(p => p.seatIndex));
+  const free = Array.from({length: Math.max(0, seatCount)}, (_, i) => i).filter(i => !taken.has(i));
+  // Open seats first (they are actionable), locked ones after.
+  const ordered = [...free.filter(i => !lockedSeats.includes(i)), ...free.filter(i => lockedSeats.includes(i))];
+  const shown = expanded || ordered.length <= maxSlots ? ordered : ordered.slice(0, Math.max(0, maxSlots - 1));
+  return {speakers: seated, slots: shown.sort((a, b) => a - b), hidden: ordered.length - shown.length};
+};
+
+export const moreSeatsLabel = (hidden: number) => hidden === 1 ? '+ 1 more seat' : `+ ${hidden} more seats`;
+
+export const seatSlotLabel = (index: number, locked: boolean) => locked ? `Locked seat ${index + 1}` : `Open seat ${index + 1}, tap to take it`;
+
+export const speakerLabel = (name: string | null | undefined, opts: {mine: boolean; role: 'HOST' | 'CO_HOST' | 'MEMBER'; speaking?: boolean; muted?: boolean}) =>
+  `${name || 'Guest'}, ${opts.mine ? 'you, ' : ''}${opts.role === 'HOST' ? 'host, ' : opts.role === 'CO_HOST' ? 'co-host, ' : ''}${opts.speaking ? 'speaking' : opts.muted ? 'muted' : 'on stage'}`;
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "3 listening · 2 speaking" style subtitle for the room header. */
+export const roomMetaLabel = (listeners: number, speakers: number) =>
+  `${plural(Math.max(0, listeners), 'listener', 'listeners')} · ${plural(Math.max(0, speakers), 'speaker', 'speakers')}`;
+
+/** Avatars to draw in the listeners strip and the "+N" overflow. */
+export const listenerStrip = (count: number, maxAvatars = 6) => participantStack(count, maxAvatars);

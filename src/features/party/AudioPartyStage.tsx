@@ -1,4 +1,4 @@
-import React, {memo, useEffect, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
 import {AccessibilityInfo, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming} from 'react-native-reanimated';
 import {useIsSpeaking} from '@livekit/react-native';
@@ -8,9 +8,8 @@ import IconMicrophoneOff from '@tabler/icons-react-native/IconMicrophoneOff';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import IconStarFilled from '@tabler/icons-react-native/IconStarFilled';
 import IconLock from '@tabler/icons-react-native/IconLock';
-import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import RemoteImage from '../../components/RemoteImage';
-import {PartyColors, initialsOf} from './partyPresentation';
+import {PartyColors, initialsOf, moreSeatsLabel, planStage, seatSlotLabel, speakerGrid, speakerLabel} from './partyPresentation';
 import type {PartyParticipant} from './partyService';
 
 /** Pulsing halo behind a speaking avatar. Runs on the UI thread; static when reduce-motion is on. */
@@ -36,30 +35,32 @@ type SeatProps = {
   live?: Participant;
   index: number;
   size: number;
+  cell: number;
   speaking?: boolean;
-  locked: boolean;
   localIdentity: string;
   onSeatPress: (person: PartyParticipant | undefined, index: number) => void;
 };
 
-const Seat = memo(({person, live, index, size, speaking, locked, localIdentity, onSeatPress}: SeatProps) => {
+/** A speaker tile: large avatar, name, role badge, mute indicator and speaking ring. */
+const Seat = memo(({person, live, index, size, cell, speaking, localIdentity, onSeatPress}: SeatProps) => {
   const muted = live ? !live.isMicrophoneEnabled : person?.muted;
   const mine = person?.userId === localIdentity;
+  const role = person?.role ?? 'MEMBER';
+  const badge = Math.max(20, Math.round(size * 0.26));
   return (
     <Pressable onPress={() => onSeatPress(person, index)} accessibilityRole="button"
-      accessibilityLabel={person ? `${person.name || 'Guest'}, ${mine ? 'you, ' : ''}${person.role === 'HOST' ? 'host, ' : person.role === 'CO_HOST' ? 'co-host, ' : ''}${speaking ? 'speaking' : muted ? 'muted' : 'on stage'}` : locked ? `Locked seat ${index + 1}` : `Request speaker seat ${index + 1}`}
-      className="items-center active:opacity-70">
-      <View style={{width: size, height: size}} className={`items-center justify-center rounded-full border-2 ${speaking ? 'border-solid border-glow-green bg-primary-dark' : person ? 'border-solid border-border bg-card' : 'border-dashed border-border bg-card/50'}`}>
+      accessibilityLabel={speakerLabel(person?.name, {mine, role, speaking, muted})}
+      style={{width: cell}} className="items-center py-1 active:opacity-70">
+      <View style={{width: size, height: size}} className={`items-center justify-center rounded-full border-2 ${speaking ? 'border-glow-green bg-primary-dark' : 'border-border bg-card'}`}>
         {speaking && <SpeakingRing size={size} />}
         {person?.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} style={{width: size - 6, height: size - 6}} className="rounded-full" />
-          : person ? <Text className="text-lg font-bold text-foreground">{initialsOf(person.name)}</Text>
-            : locked ? <IconLock size={22} color={PartyColors.muted} /> : <IconPlus size={22} color={PartyColors.muted} />}
-        {person && muted && <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-card"><IconMicrophoneOff size={11} color={PartyColors.coral} /></View>}
-        {person?.role === 'CO_HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-primary-dark border border-primary/50"><IconStarFilled size={11} color={PartyColors.accent} /></View>}
-        {person?.role === 'HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-gold"><IconCrown size={12} color={PartyColors.ink} /></View>}
+          : <Text style={{fontSize: Math.round(size * 0.3)}} className="font-bold text-foreground">{initialsOf(person?.name)}</Text>}
+        {muted && <View style={{width: badge, height: badge, borderRadius: badge / 2}} className="absolute -bottom-0.5 -right-0.5 items-center justify-center border-2 border-background bg-card"><IconMicrophoneOff size={Math.round(badge * 0.55)} color={PartyColors.coral} /></View>}
+        {role === 'CO_HOST' && <View style={{width: badge, height: badge, borderRadius: badge / 2}} className="absolute -top-2 items-center justify-center border border-primary/50 bg-primary-dark"><IconStarFilled size={Math.round(badge * 0.55)} color={PartyColors.accent} /></View>}
+        {role === 'HOST' && <View style={{width: badge, height: badge, borderRadius: badge / 2}} className="absolute -top-2 items-center justify-center bg-gold"><IconCrown size={Math.round(badge * 0.6)} color={PartyColors.ink} /></View>}
       </View>
-      <Text className="mt-1.5 w-[78px] text-center text-xs font-semibold text-foreground" numberOfLines={1}>{person ? mine ? 'You' : person.name || 'Guest' : `Seat ${index + 1}`}</Text>
-      <Text className={`mt-0.5 text-xs ${speaking ? 'font-semibold text-glow-emerald dark:text-glow-green' : 'text-muted'}`}>{person ? speaking ? 'Speaking' : person.role === 'HOST' ? 'Host' : person.role === 'CO_HOST' ? 'Co-host' : 'Speaker' : locked ? 'Locked' : 'Open'}</Text>
+      <Text style={{width: cell - 4}} className="mt-2 text-center text-[13px] font-semibold text-foreground" numberOfLines={1}>{mine ? 'You' : person?.name || 'Guest'}</Text>
+      <Text className={`mt-0.5 text-[11px] ${speaking ? 'font-semibold text-glow-emerald dark:text-glow-green' : 'text-muted'}`} numberOfLines={1}>{speaking ? 'Speaking' : role === 'HOST' ? 'Host' : role === 'CO_HOST' ? 'Co-host' : 'Speaker'}</Text>
     </Pressable>
   );
 });
@@ -68,6 +69,14 @@ const LiveSeat = memo((props: SeatProps & {live: Participant}) => {
   const speaking = useIsSpeaking(props.live);
   return <Seat {...props} speaking={speaking} />;
 });
+
+/** Quiet empty/locked seat: a small slot with no printed text; the label carries the meaning. */
+const SeatSlot = memo(({index, locked, onSeatPress}: {index: number; locked: boolean; onSeatPress: SeatProps['onSeatPress']}) => (
+  <Pressable onPress={() => onSeatPress(undefined, index)} accessibilityRole="button" accessibilityLabel={seatSlotLabel(index, locked)}
+    hitSlop={2} className="h-12 w-12 items-center justify-center rounded-full border border-dashed border-border bg-card/50 active:opacity-70">
+    {locked ? <IconLock size={18} color={PartyColors.muted} /> : <IconPlus size={20} color={PartyColors.muted} />}
+  </Pressable>
+));
 
 export default function AudioPartyStage({seatCount, speakers, liveById, localIdentity, onSeatPress, lockedSeats = [], scrollEnabled = false}: {
   seatCount: number;
@@ -78,37 +87,38 @@ export default function AudioPartyStage({seatCount, speakers, liveById, localIde
   lockedSeats?: number[];
   scrollEnabled?: boolean;
 }) {
-  const {width,height,fontScale} = useWindowDimensions();
-  const diameter = Math.min(width - 48, 350);
-  const size = seatCount > 6 ? 48 : 64;
-  const radius = diameter / 2 - 37;
-  const bySeat = new Map(speakers.map(person => [person.seatIndex, person]));
+  const {width, height} = useWindowDimensions();
+  const [showAll, setShowAll] = useState(false);
+  const toggleAll = useCallback(() => setShowAll(value => !value), []);
+  const plan = useMemo(() => planStage(seatCount, speakers, lockedSeats, showAll), [seatCount, speakers, lockedSeats, showAll]);
+  const byId = useMemo(() => new Map(speakers.map(person => [person.userId, person])), [speakers]);
+  const grid = speakerGrid(plan.speakers.length, width - 32);
   return (
     <ScrollView
       scrollEnabled={scrollEnabled}
       bounces={false}
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
-      style={scrollEnabled ? {maxHeight: Math.min(diameter + 64, Math.max(200,height-420))} : undefined}
-      contentContainerClassName="items-center pb-3 pt-6"
+      style={{flexGrow: 0, ...(scrollEnabled ? {maxHeight: Math.max(160, height - 420)} : null)}}
+      contentContainerClassName="items-center px-4 pb-2 pt-5"
     >
-      <View style={{width: diameter, height: diameter + Math.max(48,36 * fontScale)}}>
-        <View pointerEvents="none" style={{width: diameter - 74, height: diameter - 74}} className="absolute left-[37px] top-[37px] rounded-full border border-dashed border-primary/25 bg-primary-dark/40" />
-        <View pointerEvents="none" style={{left: diameter / 2 - 48, top: diameter / 2 - 42}} className="absolute w-24 items-center">
-          <View className="h-14 w-14 items-center justify-center rounded-[20px] border border-primary/30 bg-primary-dark"><IconHeadphones size={28} color={PartyColors.accent} /></View>
-          <Text className="mt-2 text-[16px] font-bold tracking-[-0.4px] text-foreground">Hiva Chat</Text>
-          <Text className="mt-0.5 text-xs text-muted">Awaaz ki party</Text>
-        </View>
-        {Array.from({length: seatCount}, (_, index) => {
-          const angle = -Math.PI / 2 + index * Math.PI * 2 / seatCount;
-          const person = bySeat.get(index);
-          const live = person ? liveById.get(person.userId) : undefined;
-          const props: SeatProps = {person, live, index, size, locked: lockedSeats.includes(index), localIdentity, onSeatPress};
-          return <View key={index} className="absolute w-[78px]" style={{left: diameter / 2 + radius * Math.cos(angle) - 39, top: diameter / 2 + radius * Math.sin(angle) - size / 2}}>
-            {live ? <LiveSeat {...props} live={live} /> : <Seat {...props} />}
-          </View>;
+      <View className="w-full flex-row flex-wrap justify-center gap-y-3">
+        {plan.speakers.map(({userId, seatIndex}) => {
+          const person = byId.get(userId) as PartyParticipant;
+          const live = liveById.get(userId);
+          const props: SeatProps = {person, live, index: seatIndex, size: grid.size, cell: grid.cell, localIdentity, onSeatPress};
+          return live ? <LiveSeat key={userId} {...props} live={live} /> : <Seat key={userId} {...props} />;
         })}
       </View>
+      {(plan.slots.length > 0 || plan.hidden > 0 || showAll) && <View className="mt-3 w-full flex-row flex-wrap items-center justify-center gap-3">
+        {plan.slots.map(index => <SeatSlot key={index} index={index} locked={lockedSeats.includes(index)} onSeatPress={onSeatPress} />)}
+        {plan.hidden > 0 && <Pressable accessibilityRole="button" accessibilityLabel={`${moreSeatsLabel(plan.hidden)}, show all seats`} onPress={toggleAll} className="min-h-12 justify-center rounded-full border border-border bg-card/60 px-4 active:opacity-70">
+          <Text className="text-[13px] font-semibold text-muted">{moreSeatsLabel(plan.hidden)}</Text>
+        </Pressable>}
+        {showAll && plan.hidden === 0 && seatCount - plan.speakers.length > 4 && <Pressable accessibilityRole="button" accessibilityLabel="Show fewer seats" onPress={toggleAll} className="min-h-12 justify-center rounded-full px-3 active:opacity-70">
+          <Text className="text-[13px] font-semibold text-primary">Show fewer</Text>
+        </Pressable>}
+      </View>}
     </ScrollView>
   );
 }
