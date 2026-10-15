@@ -162,15 +162,12 @@ const CustomTabBar = ({
     pillWidth ||
     screenWidth * (screenWidth < 360 ? 0.94 : 0.86);
 
+  // Unselected tabs are content-sized (44dp keeps the touch target) so the icons sit together instead of spreading across the pill.
+  const inactiveWidth = 44;
+
   const activeWidth = Math.min(
     80,
-    Math.max(0, availableWidth - 12 - 4 * 43),
-  );
-
-  const inactiveWidth = Math.max(
-    43,
-    (availableWidth - 12 - activeWidth) /
-      (state.routes.length - 1),
+    Math.max(0, availableWidth - 12 - (state.routes.length - 1) * inactiveWidth),
   );
 
   useEffect(() => {
