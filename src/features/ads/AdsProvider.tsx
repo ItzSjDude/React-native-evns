@@ -6,14 +6,22 @@ type AdsContextValue = {ready: boolean; showPrivacyOptions: () => Promise<void>}
 const AdsContext = createContext<AdsContextValue>({ready: false, showPrivacyOptions: async () => {}});
 let initializePromise: Promise<unknown> | null = null;
 
+// A rejected initialisation is dropped from the cache so the next consent refresh retries it.
+const initializeAds = () => {
+  initializePromise ??= MobileAds().initialize().catch(error => {
+    initializePromise = null;
+    throw error;
+  });
+  return initializePromise;
+};
+
 export default function AdsProvider({children}: {children: React.ReactNode}) {
   const [ready, setReady] = useState(false);
 
   const refreshConsent = useCallback(async () => {
     const info = await AdsConsent.getConsentInfo();
     if (info.canRequestAds) {
-      initializePromise ??= MobileAds().initialize();
-      await initializePromise;
+      await initializeAds();
       setReady(true);
     } else setReady(false);
   }, []);
@@ -25,8 +33,7 @@ export default function AdsProvider({children}: {children: React.ReactNode}) {
       .catch(() => AdsConsent.getConsentInfo())
       .then(async info => {
         if (!mounted || !info.canRequestAds) return;
-        initializePromise ??= MobileAds().initialize();
-        await initializePromise;
+        await initializeAds();
         if (mounted) setReady(true);
       })
       .catch(() => {});

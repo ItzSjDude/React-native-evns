@@ -178,7 +178,7 @@ describe('privacy options', () => {
 // A transient SDK initialisation failure should be retryable (e.g. after the user re-opens the privacy
 // options). AdsProvider.tsx caches the rejected promise in `initializePromise ??= ...`, so every later
 // attempt re-throws the same rejection and `initialize` is never called again for the life of the process.
-test.failing('a failed SDK initialisation is retried on the next consent refresh instead of being cached', async () => {
+test('a failed SDK initialisation is retried on the next consent refresh instead of being cached', async () => {
   const s = setup();
   s.AdsConsent.gatherConsent.mockResolvedValue(consent(true));
   s.initialize.mockRejectedValueOnce(new Error('transient init failure')).mockResolvedValue([]);

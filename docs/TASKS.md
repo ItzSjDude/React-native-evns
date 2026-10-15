@@ -77,17 +77,17 @@ not edit other features' tasks. Priority: **P0** blocks shipping, **P1** needed 
 Why: FE onboarding sends `gender/country/profession/intent` and refuses to finish if `PATCH /auth/me` does not echo them. Deployed BE ignores unknown keys (non-strict
 `updateProfile`, origin/main `auth.schema.js:32`) and returns 200 without them, so **every new user is stuck on the last step** until 086 is live.
 
-- **F-01.1** [BE] `TODO` Merge branch `feat/onboarding-profile-fields` to main via PR after the DB suites pass on PostGIS.
+- **F-01.1** [BE] `DONE (gathr-api #80)` Merge branch `feat/onboarding-profile-fields` to main via PR after the DB suites pass on PostGIS.
   - AC: CI (`.github/workflows/ci.yml`, postgis image) green; `tests/onboarding-profile.unit.test.js` plus a DB test: each enum value saved, invalid gender/intent -> 400, `null` clears, account deletion nulls all four (`user.repository.js` anonymize).
   - Edge: country 1-80 chars with unicode; profession whitespace-only -> 400; `intent` unknown value; PATCH with only new fields.
   - Sec: fields must never appear in `publicProfile` (whitelist at `profile.service.js:60-80`), `/nearby`, `/users/search`, party participants. Add regression test asserting absence. Treat as personal data in the privacy policy (F-08).
   - Test: unit + DB suite; curl matrix against local dev server.
-- **F-01.2** [BE] `TODO` **USER-GATED (needs user approval: DB migration on shared Neon).** Apply `086_onboarding_profile_fields.sql` to staging, verify, then prod.
+- **F-01.2** [BE] `DONE (086 applied by the repo CI deploy, per owner; gathr-api #80)` **USER-GATED (needs user approval: DB migration on shared Neon).** Apply `086_onboarding_profile_fields.sql` to staging, verify, then prod.
   - AC: `npm run migrate:plan` lists exactly 086 (and shows whether both `085_*` files, `085_nearby_vibe_geofences` and `085_organiser_onboarding`, are applied: **UNVERIFIED**); `migrate:status` clean after; columns nullable, no table rewrite; rollback = forward fix (runner is forward-only).
   - Edge: two files share prefix 085 (runner keys by filename, fine, but confirm). Run in a low-traffic window.
-- **F-01.3** [BE] `TODO` **USER-GATED (needs user approval: AWS deploy).** Deploy API (`npm run deploy` stage) and smoke-test.
+- **F-01.3** [BE] `DONE (gathr-api #80, deployed)` **USER-GATED (needs user approval: AWS deploy).** Deploy API (`npm run deploy` stage) and smoke-test.
   - AC: `PATCH /auth/me` with 4 fields -> `GET /auth/me` returns them under `data.user`; admin panel still loads; deploy before any app build that contains the check.
-- **F-01.4** [FE] `TODO` Release guard for the "API not updated" case (`Onboarding.tsx:172-176`).
+- **F-01.4** [FE] `DONE (PR #21)` Release guard for the "API not updated" case (`Onboarding.tsx:172-176`).
   - AC: mismatch shows a specific message ("server update pending, try again later") not a generic one; `recordError` with context only (no field values); release checklist in `docs/` states "086 live before app release"; update `ONBOARDING_PROFILE_FIELDS_CONTRACT.md` (064 -> 086) and `FEATURES.md`.
   - Test: extend `__tests__/Onboarding*.test.tsx` with a stripped-response case.
   - Idea: use saved `intent` to route first-run (`host_room` -> Party create, `organise_events` -> organiser entry, `find_events` -> Events tab).
@@ -100,29 +100,29 @@ Why: FE onboarding sends `gender/country/profession/intent` and refuses to finis
   - Test: reviewer spot-checks 5 random claims against code.
 
 ### F-03 Paywall and store-claim honesty | FE | P0 | S | deps: none
-- **F-03.1** [FE] `TODO` Never show invented prices (`PaywallSheet.tsx:42,94`). When Play offers fail/load, show skeleton or "Prices unavailable" with Retry; disable purchase CTA.
+- **F-03.1** [FE] `DONE (PR #20)` Never show invented prices (`PaywallSheet.tsx:42,94`). When Play offers fail/load, show skeleton or "Prices unavailable" with Retry; disable purchase CTA.
   - AC: no `$` literals in production render path; CTA label "Retry" only when load failed; Restore/Terms/renewal copy stay visible; currency comes from Play (`formattedPrice`).
   - Edge: Play not installed/sandbox account; offers load slowly (timeout 10s); offline; iOS (billing returns false at `billing.ts:186`, so paywall must hide/explain, see F-16).
   - Test: update `PaywallSheet.test.tsx` (currently asserts retry-only CTA); add loading/failed/ready/offline cases.
-- **F-03.2** [FE+BE] `TODO` Copy must match entitlements: line 31 advertises "age range, similar interests"; BE has neither (`grep minAge|similarInterests` in BE src: none).
+- **F-03.2** [FE+BE] `DONE (PR #20)` Copy must match entitlements: line 31 advertises "age range, similar interests"; BE has neither (`grep minAge|similarInterests` in BE src: none).
   - AC: copy lists only city, language, interest, active now; or BE adds the filters (Architect decides; default = trim copy). Source plan features from `/me/subscription` entitlements where possible instead of constants.
   - Sec: if age filter is ever built, never expose DOB/exact age (see `EXPLORE_AND_PAYWALL_CONTRACT.md`).
 
 ### F-04 Contract reconciliation: app calls with no backend route | both | P0 | L | deps: F-01
 Why: three FE areas call non-existent routes, so they 404 in production. Architect must pick, per area, "build BE" vs "change FE to existing BE" vs "hide until ready".
-- **F-04.1** [Architect+QA] `TODO` Add an automated drift check: script that extracts `apiRequest(...)` paths from `src/**/*Service.ts` and diffs them against BE `tests/routes.json` (exists, used by `tests/coverage.js`).
+- **F-04.1** [Architect+QA] `DONE (PR #25)` Add an automated drift check: script that extracts `apiRequest(...)` paths from `src/**/*Service.ts` and diffs them against BE `tests/routes.json` (exists, used by `tests/coverage.js`).
   - AC: `npm run check:contract` (FE) fails on any FE path with no BE route; allowlist file with justification for each exception; wired into CI (F-09). Initial run reproduces the 7 gaps in section 2.
   - Edge: template-literal paths, module prefixes (`/waitlist`, `/tiers`, `/scanner`, `/transfer`), query strings.
-- **F-04.2** [Architect] `TODO` Decide organiser dashboard path. Recommended: build BE per `ORGANIZER_DASHBOARD_API_CONTRACT.md` but reuse existing data: `GET /workspaces/:id/events/:eid/stats`, `/tickets`, `/scans`, `POST /workspaces/:id/tickets/verify` (existing, idempotent?) instead of a new `check-ins` route.
+- **F-04.2** [Architect] `DONE (PR #28 + gathr-api #84 attendees route)` Decide organiser dashboard path. Recommended: build BE per `ORGANIZER_DASHBOARD_API_CONTRACT.md` but reuse existing data: `GET /workspaces/:id/events/:eid/stats`, `/tickets`, `/scans`, `POST /workspaces/:id/tickets/verify` (existing, idempotent?) instead of a new `check-ins` route.
   - AC: written decision + updated contract; FE service maps to final routes.
 - **F-04.3** [BE] `TODO` Implement agreed organiser read endpoints: overview, `organizer-summary`, attendees (min fields: name, ticket label, order ref, status, checkedInAt; no email/phone), payouts (masked account only).
   - AC: OWNER/ADMIN + `verification_status=APPROVED` + ACTIVE workspace enforced on every request (403/404 otherwise, event must belong to workspace); `limit` clamp 100; money integer minor units; ANALYST sees aggregates only; search term never logged; DB tests for IDOR (other workspace's event id), SCANNER/MEMBER 403, refunded/cancelled rows.
   - Sec: attendee list is PII; audit-log reads; rate limit (reuse `createRateLimit` prefix `organizer-dashboard`).
   - Test: new `tests/organizer-dashboard.test.js` following `organizer-tools.test.js`.
-- **F-04.4** [Architect+BE+FE] `TODO` Decide Nearby vibe alerts. Option A (recommended, smaller): drop FE native geofence registration; FE sends fixes via existing `POST /me/location {lat,lng,accuracyMeters}` and exposes `notifyVibeNotes` from `/me/settings`. Option B: BE adds `/me/vibe-note-alerts` + `geofence-candidates` per `NEARBY_VIBES_GEOFENCING_CONTRACT.md` (exposes note centres to the device: privacy review).
+- **F-04.4** [Architect+BE+FE] `DECIDED: Nearby unchanged by owner; routes remain a gap in the drift allowlist` Decide Nearby vibe alerts. Option A (recommended, smaller): drop FE native geofence registration; FE sends fixes via existing `POST /me/location {lat,lng,accuracyMeters}` and exposes `notifyVibeNotes` from `/me/settings`. Option B: BE adds `/me/vibe-note-alerts` + `geofence-candidates` per `NEARBY_VIBES_GEOFENCING_CONTRACT.md` (exposes note centres to the device: privacy review).
   - AC: chosen option documented; FE calls only existing routes (or new BE ships first); Android/iOS native modules either used or removed (and `ACCESS_BACKGROUND_LOCATION` / iOS "Always" strings removed if Option A, which also shrinks F-08 Play review).
   - Sec: coordinates never in logs/analytics; sign-out clears registrations (`VibeNoteGeofenceModule`).
-- **F-04.5** [Architect+BE+FE] `TODO` Decide creator onboarding. FE sends bank account + IFSC to `/creators/me/onboarding` (no BE). Options: map to existing `POST/PATCH /creators/me` + `payout-requests` and drop bank capture; or BE adds encrypted payout storage like `workspace_payout_accounts` (AES-256-GCM, `ORGANISER_PAYOUT_ENCRYPTION_KEY`).
+- **F-04.5** [Architect+BE+FE] `DECIDED: encrypted creator payout account required (diamonds redeemed -> platform pays); design first` Decide creator onboarding. FE sends bank account + IFSC to `/creators/me/onboarding` (no BE). Options: map to existing `POST/PATCH /creators/me` + `payout-requests` and drop bank capture; or BE adds encrypted payout storage like `workspace_payout_accounts` (AES-256-GCM, `ORGANISER_PAYOUT_ENCRYPTION_KEY`).
   - AC: no screen collects bank details unless BE stores them encrypted and returns only last 4; contract doc written first.
 - **F-04.6** [FE] `TODO` Interim guard until each decision ships: capability probe hides the entry (organiser dashboard from Profile, creator onboarding banner, vibe-alert toggle) on 404 instead of showing error screens.
   - AC: with the BE as deployed today, none of the three screens is reachable; unit tests for the probe (pattern exists in `organizer/availability.ts`).
@@ -130,7 +130,7 @@ Why: three FE areas call non-existent routes, so they 404 in production. Archite
 ### F-05 Paid-organiser eligibility (payout VERIFIED path) | BE | P0 | M | deps: none
 Why: see section 2 last row. Without it nobody can publish a paid event or issue a paid ticket (`403 Paid ticketing requires approved organiser verification and a verified payout account`).
 - **F-05.1** [Architect] `TODO` Choose verification mechanism: (a) admin manually sets VERIFIED after reviewing (cheapest, matches current manual payout queue); (b) provider penny-drop/bank validation (**USER-GATED: paid third-party plan**, e.g. Razorpay X / Cashfree); document the choice.
-- **F-05.2** [BE] `TODO` Implement the chosen path. For (a): `POST /admin/workspaces/:id/payout-account/verify|reject` + audit row (`organiser_onboarding_audit` needs new action values -> new migration; **USER-GATED DB migration**) + admin-panel button.
+- **F-05.2** [BE] `DONE (gathr-api #81; API only, admin panel button NOT built)` Implement the chosen path. For (a): `POST /admin/workspaces/:id/payout-account/verify|reject` + audit row (`organiser_onboarding_audit` needs new action values -> new migration; **USER-GATED DB migration**) + admin-panel button.
   - AC: only platform admin; idempotent; changing the payout account resets status to PENDING; publish/ticket-issue succeed after VERIFIED; `workspace_payout_accounts.status` change audited with actor; notify workspace owner (push) on verified/rejected.
   - Edge: verification APPROVED but payout PENDING (current state), re-submission while PENDING, workspace SUSPENDED, existing paid events published before 085 (fail-closed per `docs/organiser-onboarding.md`).
   - Sec: admin sees masked account only; decrypt only in a dedicated, logged path; never log decrypted values.
@@ -141,12 +141,12 @@ Why: see section 2 last row. Without it nobody can publish a paid event or issue
 
 ### F-06 Paid-event purchase in chat (attendee + organiser) | both | P0 | L | deps: F-04, F-05
 Why: `POST /events/:id/purchase` returns `CHAT_OPENED`; FE opens the chat but it renders only text (`conversationPresentation.ts:16` labels PAYMENT_CARD for previews; no card/ticket bubble, no `mark-paid`). Organiser side has no sales inbox, payment-card share, confirm/cancel, or share-ticket (`GET /workspaces/:id/conversations` has no FE caller).
-- **F-06.1** [FE] `TODO` Attendee: render `PAYMENT_CARD` bubble (amount, method, payee, UPI id/QR/link/bank per method, expiry as a hint only) with actions "Copy", "Open UPI/link", **"I've paid"** -> `POST /payment-cards/:id/mark-paid {reference?}`; render `TICKET` bubble -> opens ticket with QR.
+- **F-06.1** [FE] `DONE (PR #23)` Attendee: render `PAYMENT_CARD` bubble (amount, method, payee, UPI id/QR/link/bank per method, expiry as a hint only) with actions "Copy", "Open UPI/link", **"I've paid"** -> `POST /payment-cards/:id/mark-paid {reference?}`; render `TICKET` bubble -> opens ticket with QR.
   - AC: states SHARED / PAID_CLAIMED / CONFIRMED / CANCELLED shown; button disabled after claim; 409 re-fetches card; `EXPIRED` never branched on (API.md s5); card data comes from `message.paymentCard` over REST and socket.
   - Edge: duplicate taps; offline; event cancelled (409); thread spans several events (header uses `event_id` as latest); DIRECT-thread cards (role rules differ: creator confirms, other side marks paid).
   - Sec: `paymentLink` is `z.string().url()` on BE (any scheme): FE opens only `https:`/`upi:` after confirm dialog showing host; mask account numbers in bubbles; never log card metadata; screenshots allowed but no auto-upload.
   - Test: bubble snapshot per state; `mark-paid` service test; Jest for URL-scheme guard.
-- **F-06.2** [BE] `TODO` Harden payment cards: validate `paymentLink`/`qrImageUrl` as https only, host length cap, strip control chars; cap cards per thread per hour; enforce `expiresAt` on `mark-paid` (currently display-only, `API.md` s5) or document as intentional.
+- **F-06.2** [BE] `DONE (gathr-api #83)` Harden payment cards: validate `paymentLink`/`qrImageUrl` as https only, host length cap, strip control chars; cap cards per thread per hour; enforce `expiresAt` on `mark-paid` (currently display-only, `API.md` s5) or document as intentional.
   - AC: `javascript:`/`http:`/`intent:` rejected 400; DB tests; DIRECT-thread cards rate-limited (scam vector: peer-to-peer card shown to strangers who message you).
 - **F-06.3** [FE] `TODO` Organiser sales inbox: list `GET /workspaces/:id/conversations`, open thread, "Share payment details" form (method-specific fields per API.md table), Confirm / Cancel card, **Share ticket** (`POST /conversations/:cid/ticket`, optional `tierId`), handle `402 NO_TICKET_CREDITS` (link to credits), `409` sold out/already holds ticket/DRAFT.
   - AC: ADMIN+ only; button live once a card is SHARED (not only CONFIRMED); check the thread headline event before issuing (no `eventId` param); notifications `PURCHASE_REQUESTED`/`PAYMENT_MARKED_PAID` deep-link to the thread.
@@ -156,9 +156,9 @@ Why: `POST /events/:id/purchase` returns `CHAT_OPENED`; FE opens the chat but it
   - Idea: payment reference auto-detect (paste UTR) and one-tap "copy UPI id".
 
 ### F-07 Android release and signing hardening | FE | P0 | M | deps: none
-- **F-07.1** [FE] `TODO` Fail the release build when `android/keystore.properties` is absent instead of silently signing with the debug key (`android/app/build.gradle:123-133`).
+- **F-07.1** [FE] `DONE (PR #19; keystore fail-fast is opt-in via hivaRequireReleaseKey)` Fail the release build when `android/keystore.properties` is absent instead of silently signing with the debug key (`android/app/build.gradle:123-133`).
   - AC: `assembleRelease`/`bundleRelease` without keystore exits non-zero with instructions; debug builds unaffected; `scripts/create-release-keystore.sh` documented. **USER-GATED:** generating/storing the upload key and Play App Signing enrollment.
-- **F-07.2** [FE] `TODO` Turn on R8/resource shrinking (`enableProguardInReleaseBuilds = false`, `build.gradle:62`) with keep rules for LiveKit/WebRTC, Firebase, Razorpay, react-native-iap, Reanimated, our native modules (`audio`, `geofence`).
+- **F-07.2** [FE] `DONE (PR #19; R8 default off, not device-tested)` Turn on R8/resource shrinking (`enableProguardInReleaseBuilds = false`, `build.gradle:62`) with keep rules for LiveKit/WebRTC, Firebase, Razorpay, react-native-iap, Reanimated, our native modules (`audio`, `geofence`).
   - AC: release AAB builds; smoke test on device: login, push, join audio room, gift purchase sandbox, geofence receiver, Crashlytics mapping upload; size delta recorded in the task.
   - Edge: reflection in LiveKit/WebRTC; Hermes + R8; Crashlytics needs mapping file.
 - **F-07.3** [FE] `TODO` Release hygiene: `versionCode` bump rule, `HIVA_API_URL` must be set explicitly for staging builds, `usesCleartextTraffic` false in release (verify manifest placeholder), `allowBackup=false` already set.
@@ -178,7 +178,7 @@ Why: `POST /events/:id/purchase` returns `CHAT_OPENED`; FE opens the chat but it
 ### F-09 Test and CI infrastructure | FE | P1 | M | deps: F-04.1
 - **F-09.1** [FE] `TODO` CI gaps (`.github/workflows/ci.yml` runs only typecheck + jest): add `npm run lint`, contract check (F-04.1), Android `assembleDebug` job, and `assembleRelease` with a throwaway keystore secret.
   - AC: PR fails on lint/type/test/contract; build artifacts cached; runs in <15 min. Jest config must run in a clean checkout (AUDIT noted missing local Jest).
-- **F-09.2** [FE] `TODO` Zero-test features: `ads` (consent flow, unit-id fallback exists in `adConfig.test.ts` only) and `creator` (`CreatorOnboardingScreen`, `creatorService`).
+- **F-09.2** [FE] `DONE (PR #19)` Zero-test features: `ads` (consent flow, unit-id fallback exists in `adConfig.test.ts` only) and `creator` (`CreatorOnboardingScreen`, `creatorService`).
   - AC: >=1 test per public hook/service; error/empty/loading states covered; no network in tests.
 - **F-09.3** [QA] `TODO` Device e2e smoke suite (recommend Maestro: YAML flows, no native deps) for: Google login stub -> onboarding -> home; join/leave party; send DM; open event -> purchase (free); logout. Run nightly on an emulator in CI.
   - AC: 5 flows green on emulator; flake budget documented; test accounts seeded on staging (`scripts/seed.js` in BE).
@@ -199,11 +199,11 @@ Verified: rate limiting exists only on discovery, networking, organiser event to
 
 ### F-11 Local data wipe and PII at rest | FE | P1 | S | deps: none
 Verified: sign-out only clears the Plus cache (`PlusProvider.tsx:34`). Last 50 messages per chat (`messageCache.ts`, plaintext AsyncStorage), saved posts (key not user-scoped), recent searches, follow-up reminders, pending gift/party link persist after logout and after account deletion.
-- **F-11.1** [FE] `TODO` One `wipeLocalUserData()` called on logout, account deletion, session-invalid, and account switch.
+- **F-11.1** [FE] `DONE (PR #21)` One `wipeLocalUserData()` called on logout, account deletion, session-invalid, and account switch.
   - AC: removes all `hiva.*` AsyncStorage keys, cached messages, geofence registrations, notification badge, FCM token deletion (exists), realtime socket reset, Plus cache; unit test seeds each store and asserts empty; saved posts and searches become user-scoped.
   - Edge: logout while offline; wipe must not race with a pending write (`queueMutation` in `session.ts`).
   - Sec: consider encrypting the message cache with a Keychain key or dropping it (value vs risk).
-- **F-11.2** [FE] `TODO` Redact PII from Crashlytics breadcrumbs: audit `recordError(..., context)` callers and server `message` strings that may include emails/phones.
+- **F-11.2** [FE] `DONE (PR #21)` Redact PII from Crashlytics breadcrumbs: audit `recordError(..., context)` callers and server `message` strings that may include emails/phones.
   - AC: grep shows no user text in contexts; documented rule in AGENTS.md style guide.
 
 ### F-12 Observability, force-update and ops | both | P1 | M | deps: F-10
@@ -337,10 +337,11 @@ Agents append one entry per finding; the Task-Builder folds them into features a
 
 Template: `- [YYYY-MM-DD] <role> <feature/task id> : <finding> | evidence: <file:line or command> | proposed priority`
 
-- [2026-10-15] Backend-Dev F-01 : The app's age gate (DOB in onboarding, `ageStatus`, `AGE_REQUIRED`/`UNDERAGE`) has NO backend: no `dateOfBirth`, `ageStatus` or age errors exist in `origin/main` or any gathr-api branch; the app's `PATCH /auth/me {dateOfBirth}` is silently stripped by Zod, so the gate never triggers and minors are not blocked. Profile data (incl. gender) is collected without age enforcement | evidence: `ageService.ts:24`; `grep -rn "dateOfBirth|ageStatus" gathr-api/src migrations` finds nothing; auth.routes.js PATCH /auth/me gated only by `authenticate` | P0 (legal/store: DPDP minors, Play policy). Needs an Architect decision: build BE age support or remove the app gate.
+- [2026-10-15] Backend-Dev F-01 : The app's age gate (DOB in onboarding, `ageStatus`, `AGE_REQUIRED`/`UNDERAGE`) has NO backend: no `dateOfBirth`, `ageStatus` or age errors exist in `origin/main` or any gathr-api branch; the app's `PATCH /auth/me {dateOfBirth}` is silently stripped by Zod, so the gate never triggers and minors are not blocked. Profile data (incl. gender) is collected without age enforcement | evidence: `ageService.ts:24`; `grep -rn "dateOfBirth|ageStatus" gathr-api/src migrations` finds nothing; auth.routes.js PATCH /auth/me gated only by `authenticate` | P0 (legal/store: DPDP minors, Play policy). Needs an Architect decision: build BE age support or remove the app gate. | status: DONE (gathr-api #82; flags age_gate.enforce_underage=true, age_gate.enforce_unknown=false)
 - [2026-10-15] QA-Engineer F-03 : `AdsProvider` caches a rejected `MobileAds().initialize()` promise (`initializePromise ??=`), so after one transient failure ads never initialise again this process and reopening privacy options re-throws the old error | evidence: src/features/ads/AdsProvider.tsx:14,22; `test.failing` in AdsProvider.test.tsx | P2
 - [2026-10-15] QA-Engineer F-03 : `NativeAdCard` keeps rendering a destroyed NativeAd after consent is withdrawn (effect cleanup destroys it but `ad` state is never cleared) | evidence: src/features/ads/NativeAdCard.tsx:12-25; `test.failing` in NativeAdCard.test.tsx | P2
 - [2026-10-15] Security-Auditor F-01 : `PATCH /auth/me` had no rate limit; added a 20/min per-user Postgres-backed limit (reuses `api_rate_limit_buckets`); `/auth/firebase` and change-password still unlimited | evidence: src/routes/auth.routes.js | P1 (see F-10)
+- [2026-10-15] Owner decision : ticket money will be collected by Hiva via Razorpay (Option B, docs/design/ONPLATFORM_TICKET_PAYMENTS.md) and organisers paid manually after commission 3-7%; blocked until CA/Razorpay written confirmation
 
 ## 6. Won't do / deferred (with reason)
 
