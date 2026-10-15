@@ -162,7 +162,7 @@ const CustomTabBar = ({
     pillWidth ||
     screenWidth * (screenWidth < 360 ? 0.94 : 0.86);
 
-  // Unselected tabs are content-sized (44dp keeps the touch target) so the icons sit together instead of spreading across the pill.
+  // Unselected tabs are a fixed 44dp slot (keeps the touch target) and the pill hugs its tabs, so the icons sit together instead of spreading across a full-width bar.
   const inactiveWidth = 44;
 
   const activeWidth = Math.min(
@@ -182,7 +182,7 @@ const CustomTabBar = ({
       edges={['bottom']}
       className="absolute bottom-0 left-0 right-0 items-center bg-transparent">
       <View
-        className={`h-[50px] flex-row items-center justify-center rounded-[25px] border border-border-muted dark:border-[#514B62] bg-nav-background dark:bg-[#11101B] px-[5px] ${screenWidth < 360 ? 'w-[94%]' : 'w-[86%]'}`}
+        className={`h-[50px] flex-row items-center justify-center self-center rounded-[25px] border border-border-muted dark:border-[#514B62] bg-nav-background dark:bg-[#11101B] px-[5px]`}
         onLayout={event =>
           setPillWidth(event.nativeEvent.layout.width)
         }>
