@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [staging, main]
+    branches: [staging, prod]
   pull_request:
+    branches: [staging, prod]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -52,7 +53,7 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/staging' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/prod' && github.ref != 'refs/heads/staging' }}
       - name: assembleRelease (arm64 only to keep PR builds fast)
         working-directory: android
         run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --stacktrace
