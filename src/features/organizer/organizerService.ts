@@ -1,6 +1,8 @@
 import {apiRequestPage, apiRequest} from '../../core/api/apiClient';
 import type {ApiCreditOverview, ApiCreditPurchase, ApiEventStats, ApiOrganizerAttendee, ApiOrganizerEvent, ApiVerifyResponse, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, OrganizerAttendeeFilter, OrganizerAttendeePage, OrganizerCheckIn, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventFilter, OrganizerEventStats, OrganizerEventStatus, OrganizerPayoutAccount, Workspace} from './types';
 import type {OrganizerOnboardingDraft} from './types';
+import type {ApiPaymentCard} from '../messages';
+import type {ApiSalesThread, OrganizerEventPrice, SalesThread, SalesThreadPage, SharePaymentBody} from './types';
 
 export const LEDGER_PAGE_SIZE = 20;
 
@@ -186,3 +188,58 @@ export async function checkInOrganizerTicket(workspaceId: string, eventId: strin
     attendeeName: data?.ticket?.attendee_name ?? null, checkedInAt: data?.ticket?.checked_in_at ?? null,
   };
 }
+
+const SALES_PAGE_SIZE = 20;
+const previewOf = (row: ApiSalesThread) => {
+  const last = row.last_message;
+  if (!last) return null;
+  if (last.type === 'PAYMENT_CARD') return 'Payment details shared';
+  if (last.type === 'TICKET') return 'Ticket shared';
+  if (last.type === 'IMAGE') return 'Photo';
+  return last.type === 'TEXT' && last.body ? last.body : null;
+};
+
+const toSalesThread = (row: ApiSalesThread): SalesThread => {
+  const unread = Number(row.unread_count);
+  return {
+    id: row.id, status: row.status, eventId: row.event_id, eventTitle: row.event_title?.trim() || 'Event',
+    buyerName: row.attendee_name?.trim() || 'Buyer', buyerAvatarUrl: row.attendee_avatar_url ?? null,
+    unreadCount: Number.isFinite(unread) && unread > 0 ? unread : 0, lastActivityAt: row.last_message_at ?? row.created_at, lastMessagePreview: previewOf(row),
+  };
+};
+
+/** Sales threads of one workspace (ADMIN/OWNER). One thread per buyer, headlined by the event most recently discussed. */
+export async function listSalesThreads(workspaceId: string, input: {eventId?: string; offset?: number; limit?: number} = {}): Promise<SalesThreadPage> {
+  const query = new URLSearchParams({limit: String(input.limit ?? SALES_PAGE_SIZE), offset: String(input.offset ?? 0)});
+  if (input.eventId) query.set('eventId', input.eventId);
+  const page = await apiRequestPage<ApiSalesThread[]>(`/workspaces/${encodeURIComponent(workspaceId)}/conversations?${query}`, {auth: 'required'});
+  return {items: page.data.map(toSalesThread), hasMore: page.meta.hasMore, offset: page.meta.offset};
+}
+
+/** Ticket price of a published event, the only source of a payment request's amount. Null when the event is not found. */
+export async function getOrganizerEventPrice(workspaceId: string, eventId: string): Promise<OrganizerEventPrice | null> {
+  const page = await apiRequestPage<ApiOrganizerEvent[]>(`/workspaces/${encodeURIComponent(workspaceId)}/events?status=PUBLISHED&limit=100&offset=0`, {auth: 'required'});
+  const row = page.data.find(event => event.id === eventId);
+  if (!row) return null;
+  return {isPaid: row.is_paid === true, priceMinor: Number(row.price_minor) || 0, currency: row.currency || 'INR'};
+}
+
+/** Shares payment details. The body holds payee details, so it is never logged. */
+export async function sharePaymentDetails(conversationId: string, body: SharePaymentBody): Promise<ApiPaymentCard> {
+  const data = await apiRequest<{paymentCard: ApiPaymentCard}>(`/conversations/${encodeURIComponent(conversationId)}/payment-cards`, {
+    auth: 'required', method: 'POST', body: JSON.stringify(body),
+  });
+  return data.paymentCard;
+}
+
+export const confirmPaymentCard = (cardId: string) =>
+  apiRequest<ApiPaymentCard>(`/payment-cards/${encodeURIComponent(cardId)}/confirm`, {auth: 'required', method: 'POST'});
+
+export const cancelPaymentCard = (cardId: string) =>
+  apiRequest<ApiPaymentCard>(`/payment-cards/${encodeURIComponent(cardId)}/cancel`, {auth: 'required', method: 'POST'});
+
+/** Issues a ticket for the thread's current event. There is no event parameter; the server uses the thread headline. */
+export const shareTicket = (conversationId: string, input: {paymentCardId?: string; tierId?: string} = {}) =>
+  apiRequest<{id?: string}>(`/conversations/${encodeURIComponent(conversationId)}/ticket`, {
+    auth: 'required', method: 'POST', body: JSON.stringify({...(input.paymentCardId ? {paymentCardId: input.paymentCardId} : {}), ...(input.tierId ? {tierId: input.tierId} : {})}),
+  });

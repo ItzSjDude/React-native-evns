@@ -351,3 +351,32 @@ test('a TICKET bubble opens the ticket pass the host renders inside the chat', a
   expect(texts(renderer)).toContain('pass tk1');
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
 });
+
+describe('organiser actions slot', () => {
+  const renderWith = async (viewerSide: 'ATTENDEE' | 'WORKSPACE', slot: jest.Mock) => {
+    detail.mockResolvedValue({id: 'c1', kind: 'EVENT', status: 'OPEN', event_id: 'e1', viewerSide, paymentCards: [card()]});
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <DirectConversation conversationId="c1" contactId="" contactName="Asha" contactAvatarUrl={null} kind="EVENT" onClose={jest.fn()} pollIntervalMs={5000} renderOrganizerActions={slot} />,
+      );
+      await flush();
+    });
+    return renderer!;
+  };
+
+  test('renders for the workspace side with the thread cards and event id', async () => {
+    const slot = jest.fn(() => <Text>ORG-BAR</Text>);
+    const renderer = await renderWith('WORKSPACE', slot);
+    expect(texts(renderer)).toContain('ORG-BAR');
+    expect(slot).toHaveBeenLastCalledWith(expect.objectContaining({eventId: 'e1', cards: [expect.objectContaining({id: 'card1'})]}));
+    await ReactTestRenderer.act(async () => { renderer.unmount(); });
+  });
+
+  test('never renders for the attendee side', async () => {
+    const slot = jest.fn(() => <Text>ORG-BAR</Text>);
+    const renderer = await renderWith('ATTENDEE', slot);
+    expect(texts(renderer)).not.toContain('ORG-BAR');
+    await ReactTestRenderer.act(async () => { renderer.unmount(); });
+  });
+});

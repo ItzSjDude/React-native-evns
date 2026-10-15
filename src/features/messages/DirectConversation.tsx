@@ -47,7 +47,21 @@ type Props = {
    * It renders inside this Modal, because a second Modal cannot present over the chat on iOS.
    */
   renderTicketPass?: TicketPassRenderer;
+  /**
+   * Organiser-side actions for an EVENT thread, injected by the organizer feature so this feature never imports it.
+   * Rendered above the composer and only for the workspace side of the thread.
+   */
+  renderOrganizerActions?: OrganizerActionsRenderer;
 };
+
+export type OrganizerActionsContext = {
+  cards: ApiPaymentCard[];
+  /** The event the thread currently headlines, when the thread detail carries it. */
+  eventId: string | null | undefined;
+  onCard: (card: ApiPaymentCard) => void;
+  refresh: () => void;
+};
+export type OrganizerActionsRenderer = (context: OrganizerActionsContext) => ReactNode;
 
 export type TicketPassRenderer = (ticketId: string, onClose: () => void) => ReactNode;
 
@@ -70,13 +84,14 @@ const MessageBubble = memo(({message, mine}: {message: DirectMessage; mine: bool
 
 const DirectConversation = ({
   conversationId, contactId, contactName, contactAvatarUrl, onClose,
-  kind = 'DIRECT', backLabel = 'Back to nearby', pollIntervalMs = 12000, onLatestMessage, renderTicketPass,
+  kind = 'DIRECT', backLabel = 'Back to nearby', pollIntervalMs = 12000, onLatestMessage, renderTicketPass, renderOrganizerActions,
 }: Props) => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [cards, setCards] = useState<ApiPaymentCard[]>([]);
   const [viewerSide, setViewerSide] = useState<'ATTENDEE' | 'WORKSPACE' | null>(null);
   const [claiming, setClaiming] = useState<Record<string, boolean>>({});
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [threadEventId, setThreadEventId] = useState<string | null | undefined>(undefined);
   /** Card ids with a "Mark as paid?" confirmation open, and card ids with a mark-paid request running. */
   const confirmingRef = useRef(new Set<string>());
   const claimsRef = useRef(new Set<string>());
@@ -110,7 +125,7 @@ const DirectConversation = ({
   }, [conversationId, messages, viewerId]);
 
   useEffect(() => () => { clearTimeout(typingTimer.current); clearTimeout(readTimer.current); }, []);
-  useEffect(() => { setCards([]); setViewerSide(null); setTicketId(null); }, [conversationId]);
+  useEffect(() => { setCards([]); setViewerSide(null); setTicketId(null); setThreadEventId(undefined); }, [conversationId]);
 
   /** Event threads only. Card state comes from the thread detail, never inferred from messages. */
   const loadDetail = useCallback(async () => {
@@ -119,6 +134,7 @@ const DirectConversation = ({
       const detail = await getConversationDetail(conversationId);
       if (conversationRef.current !== conversationId) return;
       setViewerSide(detail.viewerSide ?? null);
+      setThreadEventId(detail.event_id);
       setCards(current => mergeCards(current, detail.paymentCards ?? []));
     } catch { /* Keep what is on screen; the next refresh, socket frame or poll retries. */ }
   }, [conversationId, kind]);
@@ -266,7 +282,7 @@ const DirectConversation = ({
     const mine = isOwnMessage(item, kind, contactId);
     if (item.type === 'PAYMENT_CARD') {
       const card = cards.find(candidate => candidate.id === paymentCardIdOf(item)) ?? null;
-      return <PaymentCardBubble message={item} card={card} mine={mine} attendee={kind === 'EVENT' && viewerSide === 'ATTENDEE'}
+      return <PaymentCardBubble message={item} card={card} mine={mine} attendee={kind === 'EVENT' && viewerSide === 'ATTENDEE'} organiser={kind === 'EVENT' && viewerSide === 'WORKSPACE'}
         claiming={!!card && !!claiming[card.id]} onCopy={copyValue} onOpenLink={openLink} onClaim={confirmClaim} />;
     }
     if (item.type === 'TICKET') return <TicketBubble message={item} mine={mine} onOpenTicket={setTicketId} />;
@@ -325,6 +341,7 @@ const DirectConversation = ({
           )}
 
           {error && <Pressable onPress={loadMessages} className="px-5 py-2" accessibilityRole="button" accessibilityLabel="Retry loading messages"><Text className="text-center text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
+          {kind === 'EVENT' && viewerSide === 'WORKSPACE' && renderOrganizerActions?.({cards, eventId: threadEventId, onCard: card => setCards(current => mergeCards(current, [card])), refresh: loadDetail})}
           <View className="flex-row items-end gap-3 border-t border-border px-4 py-3">
             <TextInput
               accessibilityLabel={`Message ${contactName}`}

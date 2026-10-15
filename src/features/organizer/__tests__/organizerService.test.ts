@@ -1,5 +1,6 @@
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
 import {checkInOrganizerTicket, getCreditOverview, getOrganizerDashboard, getOrganizerEventStats, isRouteNotDeployed, listCreditPacks, listMyWorkspaces, listOrganizerAttendees, getPayoutAccountStatus, listOrganizerEvents, startCreditPackPurchase} from '../organizerService';
+import {cancelPaymentCard, confirmPaymentCard, getOrganizerEventPrice, listSalesThreads, sharePaymentDetails, shareTicket} from '../organizerService';
 import type {ApiCreditOverview, ApiWorkspace} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
@@ -166,5 +167,47 @@ describe('getPayoutAccountStatus', () => {
     const failure = {status: 500, message: 'Something went wrong'};
     (apiRequest as jest.Mock).mockRejectedValueOnce(failure);
     await expect(getPayoutAccountStatus('w1')).rejects.toEqual(failure);
+  });
+});
+
+describe('sales', () => {
+  test('listSalesThreads hits the workspace inbox and maps buyer, event and unread', async () => {
+    (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [
+      {id: 'c1', status: 'OPEN', event_id: 'e1', event_title: 'Night Run', event_starts_at: null, user_id: 'u1', attendee_name: 'Asha', attendee_avatar_url: null, last_message_at: '2026-10-01T10:00:00Z', created_at: '2026-09-30T10:00:00Z', unread_count: '2'},
+      {id: 'c2', status: 'CLOSED', event_id: null, event_title: null, event_starts_at: null, user_id: 'u2', attendee_name: null, attendee_avatar_url: null, last_message_at: null, created_at: '2026-09-30T10:00:00Z', unread_count: 0, last_message: {type: 'PAYMENT_CARD', body: 'secret'}},
+    ], meta: {limit: 20, offset: 0, hasMore: true}});
+    const page = await listSalesThreads('w 1', {eventId: 'e1'});
+    expect(apiRequestPage).toHaveBeenCalledWith('/workspaces/w%201/conversations?limit=20&offset=0&eventId=e1', {auth: 'required'});
+    expect(page.hasMore).toBe(true);
+    expect(page.items[0]).toMatchObject({id: 'c1', buyerName: 'Asha', eventTitle: 'Night Run', unreadCount: 2, lastActivityAt: '2026-10-01T10:00:00Z', lastMessagePreview: null});
+    expect(page.items[1]).toMatchObject({buyerName: 'Buyer', eventTitle: 'Event', eventId: null, lastMessagePreview: 'Payment details shared'});
+  });
+
+  test('getOrganizerEventPrice reads the published event price', async () => {
+    (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [{id: 'e1', is_paid: true, price_minor: '49900', currency: 'INR'}, {id: 'e2', is_paid: false}], meta: {limit: 100, offset: 0, hasMore: false}});
+    await expect(getOrganizerEventPrice('w1', 'e1')).resolves.toEqual({isPaid: true, priceMinor: 49900, currency: 'INR'});
+    (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [], meta: {limit: 100, offset: 0, hasMore: false}});
+    await expect(getOrganizerEventPrice('w1', 'zz')).resolves.toBeNull();
+  });
+
+  test('share, confirm, cancel and ticket use the documented routes', async () => {
+    const paymentCard = {id: 'card1', status: 'SHARED'};
+    (apiRequest as jest.Mock).mockResolvedValueOnce({message: {}, paymentCard});
+    await expect(sharePaymentDetails('c 1', {amountMinor: 100, currency: 'INR', method: 'CASH'})).resolves.toBe(paymentCard);
+    expect(apiRequest).toHaveBeenLastCalledWith('/conversations/c%201/payment-cards', {auth: 'required', method: 'POST', body: JSON.stringify({amountMinor: 100, currency: 'INR', method: 'CASH'})});
+    (apiRequest as jest.Mock).mockResolvedValue({});
+    await confirmPaymentCard('card/1');
+    expect(apiRequest).toHaveBeenLastCalledWith('/payment-cards/card%2F1/confirm', {auth: 'required', method: 'POST'});
+    await cancelPaymentCard('card1');
+    expect(apiRequest).toHaveBeenLastCalledWith('/payment-cards/card1/cancel', {auth: 'required', method: 'POST'});
+    await shareTicket('c1', {paymentCardId: 'card1', tierId: 't1'});
+    expect(apiRequest).toHaveBeenLastCalledWith('/conversations/c1/ticket', {auth: 'required', method: 'POST', body: JSON.stringify({paymentCardId: 'card1', tierId: 't1'})});
+    await shareTicket('c1');
+    expect(apiRequest).toHaveBeenLastCalledWith('/conversations/c1/ticket', {auth: 'required', method: 'POST', body: '{}'});
+  });
+
+  test('a failed share rejects with the server error and does not echo the body', async () => {
+    (apiRequest as jest.Mock).mockRejectedValueOnce({status: 402, code: 'NO_TICKET_CREDITS', message: 'No credits'});
+    await expect(shareTicket('c1')).rejects.toMatchObject({status: 402});
   });
 });

@@ -13,6 +13,8 @@ type Props = {
   mine: boolean;
   /** Attendee side of an EVENT thread. Anything else gets the generic bubble (D5): no payee, no details, no actions. */
   attendee: boolean;
+  /** Workspace side of an EVENT thread: sees amount and state only. Payee details stay hidden. */
+  organiser?: boolean;
   claiming: boolean;
   onCopy: (value: string) => void;
   onOpenLink: (link: PaymentLink) => void;
@@ -22,6 +24,13 @@ type Props = {
 const STATUS_LABEL: Partial<Record<ApiPaymentCard['status'], string>> = {
   SHARED: 'Waiting for your payment',
   PAID_CLAIMED: 'Payment claimed. Waiting for the organiser to confirm',
+  CONFIRMED: 'Payment confirmed',
+  CANCELLED: 'Request withdrawn',
+};
+
+const ORGANISER_STATUS_LABEL: Partial<Record<ApiPaymentCard['status'], string>> = {
+  SHARED: 'Waiting for the buyer to pay',
+  PAID_CLAIMED: 'Buyer says they have paid. Check your account, then confirm',
   CONFIRMED: 'Payment confirmed',
   CANCELLED: 'Request withdrawn',
 };
@@ -43,7 +52,7 @@ const ActionButton = ({label, onPress, disabled = false, primary = false}: {labe
 );
 
 /** Payment request in the thread. Amount and method come from the message; payee and details come from the card. */
-const PaymentCardBubble = memo(({message, card, mine, attendee, claiming, onCopy, onOpenLink, onClaim}: Props) => {
+const PaymentCardBubble = memo(({message, card, mine, attendee, organiser = false, claiming, onCopy, onOpenLink, onClaim}: Props) => {
   const meta = paymentCardMetadataOf(message);
   const amountMinor = card?.amount_minor ?? meta.amountMinor;
   const currency = card?.currency ?? meta.currency ?? 'INR';
@@ -57,7 +66,7 @@ const PaymentCardBubble = memo(({message, card, mine, attendee, claiming, onCopy
   /** Copy, open-link and I've paid only make sense while money is still expected. */
   const open = detail?.status === 'SHARED' || detail?.status === 'PAID_CLAIMED';
   const expired = !!detail?.expires_at && Date.parse(detail.expires_at) < Date.now();
-  const status = detail ? STATUS_LABEL[detail.status] : undefined;
+  const status = detail ? STATUS_LABEL[detail.status] : organiser && card ? ORGANISER_STATUS_LABEL[card.status] : undefined;
 
   return (
     <View testID="payment-card-bubble" className={`mb-4 max-w-[82%] ${mine ? 'self-end items-end' : 'self-start items-start'}`}>
@@ -79,7 +88,7 @@ const PaymentCardBubble = memo(({message, card, mine, attendee, claiming, onCopy
         </>}
 
         {attendee && !card && <Text className="mt-2 text-[13px] text-muted">Loading payment details</Text>}
-        {!attendee && <Text className="mt-2 text-[13px] text-muted">Payment details are not shown in direct chats.</Text>}
+        {!attendee && !organiser && <Text className="mt-2 text-[13px] text-muted">Payment details are not shown in direct chats.</Text>}
         {!!status && <Text className="mt-3 text-[13px] font-semibold text-muted">{status}</Text>}
         {claimable && expired && <Text className="mt-1 text-[12px] text-muted">Past its expiry date. Confirm with the organiser before paying.</Text>}
 
