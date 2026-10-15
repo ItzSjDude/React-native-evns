@@ -1,4 +1,4 @@
-import {buildPartyListItems, initialsOf, languageLabel, listenerLabel, participantStack, partyState} from '../partyPresentation';
+import {tagParts, buildPartyListItems, initialsOf, languageLabel, listenerLabel, participantStack, partyState} from '../partyPresentation';
 
 describe('participantStack', () => {
   it('shows every avatar when the room is small', () => {
@@ -59,4 +59,11 @@ describe('buildPartyListItems', () => {
   it('omits an empty section', () => {
     expect(buildPartyListItems([room('a', 'SCHEDULED')]).map(item => item.key)).toEqual(['h-soon', 'a']);
   });
+});
+
+test('tagParts keeps dark variants on the right element', () => {
+  const chill = tagParts('chill');
+  expect(chill.box).toContain('dark:bg-[#32232B]');
+  expect(chill.text).toBe('text-coral');
+  expect(tagParts('other').text).toContain('dark:text-[#C2BECE]');
 });

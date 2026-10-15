@@ -115,3 +115,10 @@ export const buildPartyListItems = (rooms: PartyRoom[]): PartyListItem[] => {
   if (soon.length) out.push({type: 'header', key: 'h-soon', title: 'Starting soon', count: soon.length}, ...toItems(soon));
   return out;
 };
+
+/** Splits tagClasses into background and text class strings (both may carry dark: variants). */
+export const tagParts = (tag: string) => {
+  const tokens = tagClasses(tag).split(' ');
+  const isText = (token: string) => token.replace(/^dark:/, '').startsWith('text-');
+  return {box: tokens.filter(token => !isText(token)).join(' '), text: tokens.filter(isText).join(' ')};
+};

@@ -7,7 +7,7 @@ import IconVideoFilled from '@tabler/icons-react-native/IconVideoFilled';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
 import RemoteImage from '../../components/RemoteImage';
 import {PartyStateChip, ParticipantStack} from './PartyBits';
-import {PartyColors, initialsOf, languageLabel, listenerLabel, partyState, roomCover, roomTags, roomTitle, tagClasses} from './partyPresentation';
+import {PartyColors, initialsOf, languageLabel, listenerLabel, partyState, roomCover, roomTags, roomTitle, tagParts} from './partyPresentation';
 import type {PartyRoom} from './partyService';
 
 export const HostAvatar = ({room, size = 28}: {room: PartyRoom; size?: number}) => {
@@ -58,7 +58,7 @@ const PartyRoomCard = memo(({room, onOpen, onMore}: {room: PartyRoom; onOpen: (r
         {!!summary && <Text className="mt-1 text-[12px] leading-[17px] text-muted" numberOfLines={2}>{summary}</Text>}
         <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
           <PartyStateChip label={state.label} tone={state.tone} />
-          {tags.map(tag => <View key={tag} className={'max-w-[96px] rounded-full px-2 py-1 ' + tagClasses(tag).split(' ')[0]}><Text className={'text-[11px] font-medium capitalize ' + tagClasses(tag).split(' ')[1]} numberOfLines={1}>{tag}</Text></View>)}
+          {tags.map(tag => { const parts = tagParts(tag); return <View key={tag} className={'max-w-[96px] rounded-full px-2 py-1 ' + parts.box}><Text className={'text-[11px] font-medium capitalize ' + parts.text} numberOfLines={1}>{tag}</Text></View>; })}
           {!!language && <View className="flex-row items-center gap-1 rounded-full bg-border/40 px-2 py-1"><IconLanguage size={11} color={PartyColors.muted} /><Text className="text-[11px] font-medium text-muted" numberOfLines={1}>{language}</Text></View>}
         </View>
         <View className="mt-auto flex-row items-center justify-between pt-2.5">

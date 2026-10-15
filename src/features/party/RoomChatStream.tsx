@@ -23,8 +23,9 @@ const Message = memo(({ message, mine, reduced, onPress }: { message: PartyChatM
         accessibilityLabel={`${mine ? 'You' : message.name}: ${message.body}. Message options`}
         accessibilityHint="Opens report or delete options"
         onPress={() => onPress?.(message)}
-        className="mb-1.5 min-h-8 flex-row items-center gap-2"
-        style={{ maxWidth: '70%' }}
+        hitSlop={{ top: 3, bottom: 3 }}
+        className="mb-2 min-h-9 flex-row items-center gap-2 self-start rounded-2xl bg-card/70 py-1.5 pl-1.5 pr-3 dark:bg-card/60"
+        style={{ maxWidth: '82%' }}
       >
         <View className={`h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ${mine ? 'border border-border bg-card' : 'bg-primary-dark'}`}>
           {message.avatarUrl ? (
@@ -35,7 +36,7 @@ const Message = memo(({ message, mine, reduced, onPress }: { message: PartyChatM
             </Text>
           )}
         </View>
-        <Text className="min-w-0 flex-1 text-sm leading-5 text-foreground">
+        <Text className="min-w-0 shrink text-sm leading-5 text-foreground">
           <Text className={`font-semibold ${mine ? 'text-muted' : 'text-primary'}`}>{mine ? 'You' : message.name}{'  '}</Text>
           {message.body}
         </Text>
@@ -131,7 +132,7 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
           data={messages}
           keyExtractor={message => message.id}
           renderItem={renderMessage}
-          ListEmptyComponent={<Text className="pb-4 text-sm leading-5 text-muted">You're in. Say hello to the room 👋</Text>}
+          ListEmptyComponent={<Text className="pb-4 text-sm leading-5 text-muted">No messages yet. Say hello to the room 👋</Text>}
           initialNumToRender={20}
           maxToRenderPerBatch={10}
           windowSize={9}
@@ -178,7 +179,7 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
               accessibilityRole="button"
               accessibilityLabel={`Send ${emoji}`}
               onPress={() => handleEmoji(emoji)}
-              className="h-10 w-10 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
+              className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
             >
               <Text style={{ fontSize: 20 }}>{emoji}</Text>
             </Pressable>
@@ -190,7 +191,7 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
           accessibilityRole="button"
           accessibilityLabel={emojiOpen ? 'Close emoji picker' : 'Open quick emoji reactions'}
           onPress={toggleEmoji}
-          className={`h-10 w-10 items-center justify-center rounded-full border active:opacity-70 ${
+          className={`h-11 w-11 items-center justify-center rounded-full border active:opacity-70 ${
             emojiOpen
               ? 'bg-card border-border'
               : 'bg-primary-dark border-primary/40'
