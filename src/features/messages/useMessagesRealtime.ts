@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {AppState, type NativeEventSubscription} from 'react-native';
 import {apiRequest, getRealtimeAccessToken} from '../../core/api/apiClient';
+import {registerLocalDataWiper} from '../../core/localData';
 import {subscribeRealtime} from '../../core/realtime/subscribeRealtime';
 import {parseRealtimeEvent} from './realtimeEvents';
 import type {MessagesRealtimeEvent, RealtimeEnvelope} from './types';
@@ -108,6 +109,16 @@ const disconnect = () => {
   setStatus(false);
 };
 
+/** Closes the socket and forgets per-stream state (URL, seen events, seq) so the next account starts clean. */
+const resetStream = () => {
+  disconnect();
+  hub.url = null;
+  hub.urlRequest = null;
+  hub.seen.clear();
+  hub.lastSeq = null;
+};
+registerLocalDataWiper(resetStream);
+
 const wanted = () => hub.listeners.size > 0 && hub.foreground;
 
 const update = () => {
@@ -193,9 +204,5 @@ export const resetMessagesRealtime = () => {
   hub.listeners.clear();
   hub.appState?.remove();
   hub.appState = null;
-  disconnect();
-  hub.url = null;
-  hub.urlRequest = null;
-  hub.seen.clear();
-  hub.lastSeq = null;
+  resetStream();
 };

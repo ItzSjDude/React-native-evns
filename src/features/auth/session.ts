@@ -1,4 +1,5 @@
 import * as Keychain from 'react-native-keychain';
+import {wipeLocalUserData} from '../../core/localData';
 import type {AuthSession} from './types';
 
 const SESSION_SERVICE = 'hiva.backend.session';
@@ -37,9 +38,14 @@ export async function loadSession(): Promise<AuthSession | null> {
   catch { await clearSession(); return null; }
 }
 
+/**
+ * Logout, account deletion and an invalid session all end here. The token is reset first, behind any
+ * in-flight save, so a late write cannot bring the session back; then the user's local data is wiped.
+ */
 export async function clearSession(): Promise<void> {
   ++version;
   await queueMutation(async () => {
     await Keychain.resetGenericPassword({service: SESSION_SERVICE});
   });
+  await wipeLocalUserData();
 }

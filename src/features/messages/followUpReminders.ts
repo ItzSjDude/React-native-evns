@@ -1,5 +1,6 @@
 import {useEffect, useRef} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {getWipeEpoch, registerLocalDataWiper} from '../../core/localData';
 import notifee, {AndroidImportance, AuthorizationStatus, EventType, TriggerType, type Event} from '@notifee/react-native';
 
 /**
@@ -29,6 +30,17 @@ export const reminderTime = (option: ReminderOption, now: Date = new Date()): Da
   return at;
 };
 
+/** Logout/account change: cancel every OS-scheduled reminder (they would fire for the next account) and clear the app badge. */
+registerLocalDataWiper(async () => {
+  let ids: string[] = [];
+  try {
+    const parsed = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '{}') as FollowUps;
+    ids = Object.values(parsed ?? {}).map(item => item?.notificationId).filter((id): id is string => typeof id === 'string');
+  } catch { /* Unreadable record: nothing recoverable to cancel. */ }
+  const run = (call: () => Promise<unknown>) => Promise.resolve().then(call);
+  await Promise.allSettled([...ids.map(id => run(() => notifee.cancelNotification(id))), run(() => notifee.setBadgeCount(0))]);
+});
+
 const save = (followUps: FollowUps) => AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(followUps));
 
 /** Pending reminders by conversation id. Ones whose time has passed have fired, so they are dropped. */
@@ -53,6 +65,7 @@ const ensurePermission = async () => {
 
 /** Returns the reminder, or null when notifications are not allowed. Replaces an existing reminder for the chat. */
 export const scheduleFollowUp = async (conversationId: string, name: string, option: ReminderOption, now: Date = new Date()): Promise<FollowUp | null> => {
+  const startedAt = getWipeEpoch();
   if (!(await ensurePermission())) return null;
   await notifee.createChannel({id: CHANNEL_ID, name: 'Follow-up reminders', importance: AndroidImportance.DEFAULT});
   const at = reminderTime(option, now);
@@ -68,7 +81,13 @@ export const scheduleFollowUp = async (conversationId: string, name: string, opt
     {type: TriggerType.TIMESTAMP, timestamp: at.getTime()},
   );
   const followUp = {notificationId, at: at.toISOString()};
-  await save({...(await getFollowUps(now.getTime())), [conversationId]: followUp});
+  const followUps = {...(await getFollowUps(now.getTime())), [conversationId]: followUp};
+  if (startedAt !== getWipeEpoch()) {
+    // The user logged out while this was being scheduled: it must not outlive the wipe.
+    await notifee.cancelNotification(notificationId).catch(() => {});
+    return null;
+  }
+  await save(followUps);
   return followUp;
 };
 

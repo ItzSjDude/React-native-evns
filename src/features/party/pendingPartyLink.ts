@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {registerLocalDataWiper} from '../../core/localData';
 import {isPartyShareToken} from './partyLinks';
 
 const STORAGE_KEY = '@hiva/pending-party-link';
@@ -9,6 +10,9 @@ const publish = (token: string | null) => {
   current = token;
   subscribers.forEach(listener => listener(token));
 };
+
+// Logout/account change: a link opened by the previous user must not join the next user to that room. The stored key is swept by the wipe.
+registerLocalDataWiper(() => publish(null));
 
 export const subscribeToPendingPartyLink = (listener: (token: string | null) => void) => {
   subscribers.add(listener);

@@ -3,6 +3,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppDispatch, useAppSelector} from '../../core/store/hooks';
+import {recordError} from '../../core/monitoring';
 import {imagePicker, uploadErrorMessage, uploadMedia} from '../../core/media';
 import {Colors} from '../../Constants/Colors';
 import {completeOnboarding} from './authSlice';
@@ -16,6 +17,11 @@ import type {OnboardingDraft, OnboardingField, OnboardingFieldErrors, Onboarding
 import type {AuthStackParamList} from '../../Navigation/StackNavigation';
 
 const TOTAL_STEPS = 5;
+
+/** `PATCH /auth/me` succeeded but dropped the profile fields: the API has not been updated (migration 086) yet. */
+class ServerUpdatePendingError extends Error {
+  constructor() { super('Our server update is still pending, so we could not save your profile. Please try again later.'); }
+}
 const styles = StyleSheet.create({safe: {flex: 1, backgroundColor: Colors.background}, flex: {flex: 1}, scroll: {flex: 1, backgroundColor: Colors.background}});
 
 const initialsOf = (name: string) =>
@@ -173,12 +179,14 @@ const Onboarding = ({route, navigation, previewMode, onPreviewClose}: Onboarding
       if (savedProfile.gender !== payload.gender || savedProfile.country !== payload.country ||
           savedProfile.profession !== payload.profession || savedProfile.intent !== payload.intent ||
           JSON.stringify(savedProfile.interests) !== JSON.stringify(payload.interests)) {
-        throw new Error('Could not save your profile details. Please try again later.');
+        throw new ServerUpdatePendingError();
       }
       dispatch(completeOnboarding());
     } catch (error) {
+      // Field names only, never values: the payload is personal data.
+      if (error instanceof ServerUpdatePendingError) recordError(error, 'Onboarding: PATCH /auth/me did not echo gender/country/profession/intent/interests (API not updated?)');
       if (!mounted.current) return;
-      const mapped = mapSaveError(error);
+      const mapped = error instanceof ServerUpdatePendingError ? {fields: {}, message: error.message} : mapSaveError(error);
       setErrors(mapped.fields);
       setFormError(mapped.message);
       const fieldWithError = (Object.keys(mapped.fields) as OnboardingField[])[0];
