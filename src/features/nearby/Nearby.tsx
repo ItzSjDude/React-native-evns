@@ -24,7 +24,7 @@ import MyVibesSheet from './MyVibesSheet';
 import PassportResults from './PassportResults';
 import PresetsBar from './PresetsBar';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocationFromFix} from './nearbyService';
-import {getVibeNoteAlertPreference, getVibeNoteGeofenceCandidates, setVibeNoteAlertPreference} from './vibeNoteService';
+import {getVibeNoteAlertPreference, getVibeNoteGeofenceCandidates, setVibeNoteAlertPreference, vibeAlertsCapability} from './vibeNoteService';
 import {clearVibeNoteRegions, hasVibeNoteBackgroundPermission, replaceVibeNoteRegions, requestVibeNoteBackgroundPermission, vibeNoteGeofenceCapacity} from './vibeNoteGeofencing';
 import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
 import VibeNoteComposer from './VibeNoteComposer';
@@ -185,6 +185,7 @@ export default function Nearby() {
   useEffect(() => {
     if (!isFocused) return;
     let active = true;
+    if (vibeAlertsCapability.peek() === false) {setVibeAlertsAvailable(false); return;}
     getVibeNoteAlertPreference().then(async preference => {
       if (!active) return;
       setVibeAlertsAvailable(true);
@@ -196,7 +197,9 @@ export default function Nearby() {
       else if (!permitted) await clearVibeNoteRegions().catch(() => {});
     }).catch(cause => {
       if (!active) return;
-      setVibeAlertsAvailable((cause as {status?: number})?.status === 404 ? false : null);
+      const missing = (cause as {status?: number})?.status === 404;
+      if (missing) vibeAlertsCapability.check().catch(() => {});
+      setVibeAlertsAvailable(missing ? false : null);
       setVibeAlertsEnabled(false);
     });
     return () => {active = false;};
@@ -443,7 +446,7 @@ export default function Nearby() {
           {busy || checkingLocation ? <ActivityIndicator size="small" color={Colors.primary} />
             : <Text className="ml-3 text-[13px] font-semibold text-primary">{locationAction}</Text>}
         </Pressable>
-        {vibeAlertsAvailable === false ? <Text className="mt-2 text-[12px] text-muted">Nearby Vibe alerts will be available after the service update.</Text>
+        {vibeAlertsAvailable === false ? null
           : <View className="mt-2 min-h-[56px] flex-row items-center rounded-xl bg-card px-3">
             <View className="min-w-0 flex-1 pr-3">
               <Text className="text-[13px] font-semibold text-foreground">Nearby Vibe alerts</Text>

@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react';
-import {listMyWorkspaces} from './organizerService';
+import {createCapabilityProbe, useCapability} from '../../core/api/capability';
+import {getOrganizerDashboard, listMyWorkspaces} from './organizerService';
 
 /**
  * Whether to show the organizer ticket-credits entry point.
@@ -19,4 +20,13 @@ export function useOrganizerCreditsAvailable(active: boolean): boolean {
     return () => {mounted = false;};
   }, [active]);
   return available;
+}
+
+let dashboardWorkspaceId = '';
+const dashboardProbe = createCapabilityProbe(() => getOrganizerDashboard(dashboardWorkspaceId));
+
+/** Whether `GET /workspaces/:id/organizer-dashboard` is deployed (F-04.6); hidden on 404 and until a workspace is known. */
+export function useOrganizerDashboardAvailable(workspaceId: string | undefined): boolean {
+  if (workspaceId) dashboardWorkspaceId = workspaceId;
+  return useCapability(dashboardProbe, !!workspaceId);
 }
