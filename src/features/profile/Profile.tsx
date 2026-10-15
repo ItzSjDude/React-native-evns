@@ -29,8 +29,8 @@ import {EventDetailSheet} from '../events';
 import {GiftPanel, ProfileRowView, eventRows, postRows, roomRows, type ProfileRow} from './ProfileItems';
 import {EditProfileSheet} from './ProfileSheets';
 import SettingsScreen from './SettingsScreen';
-import {listMyWorkspaces, OrganizerDashboardScreen, OrganizerOnboardingScreen, type Workspace} from '../organizer';
-import {CreatorOnboardingScreen} from '../creator';
+import {listMyWorkspaces, OrganizerDashboardScreen, OrganizerOnboardingScreen, useOrganizerDashboardAvailable, type Workspace} from '../organizer';
+import {CreatorOnboardingScreen, useCreatorOnboardingAvailable} from '../creator';
 import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile, UserSettings} from './types';
 
 cssInterop(SafeAreaView, {className: 'style'});
@@ -65,6 +65,8 @@ const Profile = () => {
   const [sheet, setSheet] = useState<'edit' | 'settings' | null>(null);
   const [organizerWorkspaces, setOrganizerWorkspaces] = useState<Workspace[]>([]);
   const [dashboardOpen, setDashboardOpen] = useState(false);
+  const dashboardAvailable = useOrganizerDashboardAvailable(organizerWorkspaces[0]?.id);
+  const creatorOnboardingAvailable = useCreatorOnboardingAvailable();
   const [hostEventOpen, setHostEventOpen] = useState(false);
   const [creatorOnboardingOpen, setCreatorOnboardingOpen] = useState(false);
   const [onboardingPreviewOpen, setOnboardingPreviewOpen] = useState(false);
@@ -300,16 +302,16 @@ const Profile = () => {
                   <IconShare3 size={15} color={Colors.text} /><Text className="text-[14px] font-semibold text-foreground dark:text-[#F4F2FA]">Share profile</Text>
                 </Pressable>
               </View>
-              {!!organizerWorkspaces.length && <Pressable accessibilityRole="button" accessibilityLabel="Open organiser dashboard" onPress={() => setDashboardOpen(true)}
+              {!!organizerWorkspaces.length && dashboardAvailable && <Pressable accessibilityRole="button" accessibilityLabel="Open organiser dashboard" onPress={() => setDashboardOpen(true)}
                 className="mx-5 mt-3 flex-row items-center gap-3 rounded-[18px] border border-purple-line dark:border-[#4A4378] bg-card dark:bg-[#17152A] p-3.5 active:opacity-75">
                 <View className="h-10 w-10 items-center justify-center rounded-[13px]" style={{backgroundColor: `${accent}22`}}><IconSquareRoundedPlus size={20} color={accent} /></View>
                 <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground dark:text-[#F4F2FA]">Organiser dashboard</Text><Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted dark:text-[#9C97B8]">Events, attendees, check-in and payouts</Text></View>
                 <IconChevronRight size={18} color={Colors.muted} />
               </Pressable>}
-              <View className="mx-5 mt-3">
+              {creatorOnboardingAvailable && <View className="mx-5 mt-3">
                 <GradientBanner icon={IconGift} title="Become a creator" subtitle="Set up your profile and earn from gifts" accessibilityLabel="Become a creator and earn from gifts"
                   onPress={() => setCreatorOnboardingOpen(true)} />
-              </View>
+              </View>}
             </> : null}
           </SafeAreaView>
         </View>

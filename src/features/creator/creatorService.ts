@@ -1,4 +1,5 @@
 import {apiRequest} from '../../core/api/apiClient';
+import {createCapabilityProbe, useCapability} from '../../core/api/capability';
 
 export type CreatorCategory = 'MUSIC' | 'PODCASTS' | 'ART' | 'COMEDY' | 'GAMING' | 'EDUCATION' | 'OTHER';
 export type CreatorOnboarding = {
@@ -23,3 +24,8 @@ export const submitMyCreatorOnboarding = (body: {
 }) => apiRequest<CreatorOnboarding>('/creators/me/onboarding', {
   auth: 'required', method: 'PUT', body: JSON.stringify(body),
 });
+
+const onboardingProbe = createCapabilityProbe(getMyCreatorOnboarding);
+
+/** Whether `GET /creators/me/onboarding` is deployed (F-04.6); the banner and screen stay hidden on 404. */
+export const useCreatorOnboardingAvailable = (active = true) => useCapability(onboardingProbe, active);

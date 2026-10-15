@@ -2,6 +2,7 @@ import {Platform} from 'react-native';
 import {GoogleSignin, isSuccessResponse} from '@react-native-google-signin/google-signin';
 import {getAuth, getIdToken, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut} from '@react-native-firebase/auth';
 import {apiRequest} from '../../core/api/apiClient';
+import {resetCapabilities} from '../../core/api/capability';
 import {claimLocalDataOwner} from '../../core/localData';
 import {ageInfoOf, fetchMe, userOf} from './age/ageService';
 import {clearSession, getSessionVersion, loadSession, saveSession} from './session';
@@ -120,6 +121,7 @@ export function refreshOnce(session: AuthSession): Promise<AuthSession> {
 export async function logoutFromApi(): Promise<void> {
   const refreshToken = (await loadSession())?.refreshToken;
   await clearSession();
+  resetCapabilities();
   try {
     if (refreshToken) {
       await apiRequest('/auth/logout', {method: 'POST', body: JSON.stringify({refreshToken})});

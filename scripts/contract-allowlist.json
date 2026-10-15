@@ -1,0 +1,45 @@
+{
+  "_comment": "Routes the app calls that the backend does not serve yet. Every entry needs a reason; an entry becomes an error once the backend has the route or the app stops calling it.",
+  "allow": [
+    {
+      "route": "GET /workspaces/:id/organizer-dashboard",
+      "reason": "Organiser dashboard route that exists on no backend branch (docs/TASKS.md F-04.2/F-04.3). Entry point hidden by the capability probe (F-04.6) until the backend ships it; remove this entry when it does."
+    },
+    {
+      "route": "GET /workspaces/:id/events/:id/organizer-summary",
+      "reason": "Organiser dashboard route that exists on no backend branch (docs/TASKS.md F-04.2/F-04.3). Entry point hidden by the capability probe (F-04.6) until the backend ships it; remove this entry when it does."
+    },
+    {
+      "route": "GET /workspaces/:id/events/:id/attendees",
+      "reason": "Organiser dashboard route that exists on no backend branch (docs/TASKS.md F-04.2/F-04.3). Entry point hidden by the capability probe (F-04.6) until the backend ships it; remove this entry when it does."
+    },
+    {
+      "route": "POST /workspaces/:id/events/:id/check-ins",
+      "reason": "Organiser dashboard route that exists on no backend branch (docs/TASKS.md F-04.2/F-04.3). Entry point hidden by the capability probe (F-04.6) until the backend ships it; remove this entry when it does."
+    },
+    {
+      "route": "GET /workspaces/:id/payouts",
+      "reason": "Organiser dashboard route that exists on no backend branch (docs/TASKS.md F-04.2/F-04.3). Entry point hidden by the capability probe (F-04.6) until the backend ships it; remove this entry when it does."
+    },
+    {
+      "route": "GET /me/vibe-note-alerts",
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
+    },
+    {
+      "route": "PUT /me/vibe-note-alerts",
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
+    },
+    {
+      "route": "GET /vibe-notes/geofence-candidates",
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
+    },
+    {
+      "route": "GET /creators/me/onboarding",
+      "reason": "Creator onboarding route (bank account + IFSC) that the backend does not have (F-04.5). Entry point hidden by the capability probe (F-04.6); remove when F-04.5 lands."
+    },
+    {
+      "route": "PUT /creators/me/onboarding",
+      "reason": "Creator onboarding route (bank account + IFSC) that the backend does not have (F-04.5). Entry point hidden by the capability probe (F-04.6); remove when F-04.5 lands."
+    }
+  ]
+}
