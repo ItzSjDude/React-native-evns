@@ -4,7 +4,7 @@ import Party from '../Party';
 import {getPartyDiscoveryPage} from '../partyService';
 import {PartySessionProvider} from '../PartySessionProvider';
 
-jest.mock('@react-navigation/native', () => ({useIsFocused: () => true}));
+jest.mock('@react-navigation/native', () => ({useIsFocused: () => true, createNavigationContainerRef: () => ({isReady: () => false, navigate: jest.fn()})}));
 jest.mock('../partyService', () => ({getPartyDiscoveryPage: jest.fn(), createParty: jest.fn()}));
 
 const discover = getPartyDiscoveryPage as jest.Mock;

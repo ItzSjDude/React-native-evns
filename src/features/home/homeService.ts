@@ -71,9 +71,12 @@ export const unlikePost = (postId: string) => apiRequest<ApiPostReactions>(`${po
   auth: 'required', method: 'DELETE',
 });
 
-export const getPostComments = async (postId: string, offset = 0, limit = COMMENTS_PAGE_SIZE): Promise<HomeCommentPage> => {
-  const page = await apiRequestPage<HomeComment[]>(`${postPath(postId)}/comments?limit=${limit}&offset=${offset}`, {auth: 'required'});
-  return {items: page.data, hasMore: page.meta.hasMore, offset: page.meta.offset};
+/** With `aroundCommentId` the server ignores `offset` and returns the page containing that comment (first page if it can't). */
+export const getPostComments = async (postId: string, offset = 0, limit = COMMENTS_PAGE_SIZE, aroundCommentId?: string): Promise<HomeCommentPage> => {
+  const position = aroundCommentId ? `aroundCommentId=${encodeURIComponent(aroundCommentId)}` : `offset=${offset}`;
+  const page = await apiRequestPage<HomeComment[]>(`${postPath(postId)}/comments?limit=${limit}&${position}`, {auth: 'required'});
+  const focusIndex = (page.meta as {focusIndex?: number}).focusIndex;
+  return {items: page.data, hasMore: page.meta.hasMore, offset: page.meta.offset, ...(typeof focusIndex === 'number' ? {focusIndex} : {})};
 };
 
 export const addPostComment = (postId: string, body: string) => apiRequest<HomeComment>(`${postPath(postId)}/comments`, {

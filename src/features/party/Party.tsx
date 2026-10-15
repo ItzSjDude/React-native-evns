@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Modal,
   Pressable,
   RefreshControl,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Colors } from '../../Constants/Colors';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import { useIsFocused } from '@react-navigation/native';
@@ -51,6 +51,10 @@ import {
   type PartyRoom,
 } from './partyService';
 
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = { paddingHorizontal: 16, paddingBottom: 110 };
+const roomKey = (item: PartyRoom) => item.id;
+
 const categoryIcons = {
   all: IconLayoutGridFilled,
   music: IconMusic,
@@ -87,6 +91,7 @@ const Party = () => {
     promptActiveParty,
   } = usePartySession();
   const [menuRoom, setMenuRoom] = useState<PartyRoom | null>(null);
+  const renderRoom = useCallback(({ item }: { item: PartyRoom }) => <PartyRoomCard room={item} onOpen={setSelectedRoom} onMore={setMenuRoom} />, []);
   const request = useRef(0);
   const moreInFlight = useRef(false);
 
@@ -330,17 +335,11 @@ const Party = () => {
           </ScrollView>
         </View>
       </View>
-      <FlatList
+      <FlashList
         data={visibleRooms}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <PartyRoomCard
-            room={item}
-            onOpen={() => setSelectedRoom(item)}
-            onMore={() => setMenuRoom(item)}
-          />
-        )}
-        contentContainerClassName="flex-grow px-4 pb-[110px]"
+        keyExtractor={roomKey}
+        renderItem={renderRoom}
+        contentContainerStyle={LIST_CONTENT}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={

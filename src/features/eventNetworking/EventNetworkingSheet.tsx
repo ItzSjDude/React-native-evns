@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, Text, TextInput, View} from 'react-native';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
@@ -102,12 +102,18 @@ export default function EventNetworkingSheet({eventId, eventTitle, visible, onCl
     }
   };
 
+  // Stable card callbacks (the latest closures live in a ref) so the memoized cards only re-render when their own state changes.
+  const cardActions = useRef({connect: (_person: NetworkingAttendee) => {}, disconnect: (_person: NetworkingAttendee) => {}});
+  cardActions.current = {
+    connect: person => {act(person.id, () => connectWithAttendee(eventId, person.id));},
+    disconnect: person => {act(person.id, () => disconnectFromAttendee(eventId, person.id));},
+  };
+  const connectCard = useCallback((person: NetworkingAttendee) => cardActions.current.connect(person), []);
+  const disconnectCard = useCallback((person: NetworkingAttendee) => cardActions.current.disconnect(person), []);
   const renderCard = (person: NetworkingAttendee) =>
     <AttendeeCard key={person.id} attendee={person} busy={busyId === person.id}
       state={connectionStateOf(person.id, viewerId, connections.items)}
-      onConnect={() => act(person.id, () => connectWithAttendee(eventId, person.id))}
-      onDisconnect={() => act(person.id, () => disconnectFromAttendee(eventId, person.id))}
-      onOpenProfile={() => setProfileOf(person)} />;
+      onConnect={connectCard} onDisconnect={disconnectCard} onOpenProfile={setProfileOf} />;
 
   const renderList = (list: ListView, items: NetworkingAttendee[], empty: string) => <>
     {items.map(renderCard)}

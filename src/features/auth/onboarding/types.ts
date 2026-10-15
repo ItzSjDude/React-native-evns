@@ -7,6 +7,10 @@ export type OnboardingProfile = {
   avatar_url: string | null;
   interests: string[] | null;
   city: string | null;
+  gender?: string | null;
+  country?: string | null;
+  profession?: string | null;
+  intent?: string | null;
   /** Absent on servers without the age gate. */
   ageStatus?: 'unknown' | 'adult' | 'minor';
   dateOfBirthSet?: boolean;
@@ -41,4 +45,4 @@ export type OnboardingDraft = {
 
 export type OnboardingField = 'name' | 'handle' | 'gender' | 'country' | 'profession' | 'intent' | 'interests' | 'avatarUrl';
 export type OnboardingFieldErrors = Partial<Record<OnboardingField, string>>;
-export type OnboardingStep = 0 | 1 | 2;
+export type OnboardingStep = 0 | 1 | 2 | 3 | 4;

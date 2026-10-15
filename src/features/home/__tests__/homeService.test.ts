@@ -78,6 +78,13 @@ test('creates and deletes posts', async () => {
   expect(request).toHaveBeenLastCalledWith('/posts/new', {auth: 'required', method: 'DELETE'});
 });
 
+test('asks for the page around a comment and passes focusIndex through', async () => {
+  const comment = {id: 'c45', body: 'Deep', createdAt: '2026-10-07T10:00:00.000Z', author: {id: 'user-2', name: 'Ravi', avatarUrl: null}};
+  requestPage.mockResolvedValue({data: [comment], meta: {limit: 20, offset: 40, hasMore: true, focusIndex: 4}});
+  await expect(getPostComments('post-1', 0, 20, 'c45')).resolves.toEqual({items: [comment], hasMore: true, offset: 40, focusIndex: 4});
+  expect(requestPage).toHaveBeenLastCalledWith('/posts/post-1/comments?limit=20&aroundCommentId=c45', {auth: 'required'});
+});
+
 test('uses the comments contract', async () => {
   const comment = {id: 'c1', body: 'Nice', createdAt: '2026-10-07T10:00:00.000Z', author: {id: 'user-2', name: 'Ravi', avatarUrl: null}};
   requestPage.mockResolvedValue({data: [comment], meta: {limit: 20, offset: 20, hasMore: true}});

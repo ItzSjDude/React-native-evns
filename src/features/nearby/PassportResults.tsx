@@ -1,5 +1,6 @@
-import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Image, Pressable, Text, TextInput, View} from 'react-native';
+import React, {Fragment, memo, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, Text, TextInput, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconWorld from '@tabler/icons-react-native/IconWorld';
@@ -9,6 +10,7 @@ import {nearbyErrorMessage} from './nearbyErrors';
 import {getPassportPeople} from './nearbyService';
 import type {PassportPerson} from './types';
 import {NativeAdCard} from '../ads';
+import RemoteImage from '../../components/RemoteImage';
 
 type Props = {
   /** The committed city the list is for. */
@@ -21,10 +23,17 @@ type Props = {
   onMessage: (person: PassportPerson) => void;
 };
 
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = {paddingHorizontal: 20, paddingBottom: 110};
+const personKey = (item: PassportPerson) => item.id;
+/** Every 4th row carries a native ad under the person, so it gets its own recycling pool. */
+const personType = (_item: PassportPerson, index: number) => index % 4 === 3 ? 'personWithAd' : 'person';
+
 /** Never shows a distance: Passport results are about a city, not a place near you. */
-export const PassportRow = ({person, city, opening, onPress, onOpenProfile}: {person: PassportPerson; city: string; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
+export const PassportRow = memo(({person, city, opening, onPress, onOpenProfile}: {person: PassportPerson; city: string; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => {
+  return (
   <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name} in ${city}`} onPress={onOpenProfile} className="min-h-[72px] flex-row items-center border-b border-border py-3 active:opacity-70">
-    {person.avatarUrl ? <Image source={{uri: person.avatarUrl}} className="h-12 w-12 rounded-full" /> : (
+    {person.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} className="h-12 w-12 rounded-full" /> : (
       <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
         <Text className="text-base font-bold text-primary">{person.name.slice(0, 1).toUpperCase()}</Text>
       </View>
@@ -38,7 +47,8 @@ export const PassportRow = ({person, city, opening, onPress, onOpenProfile}: {pe
       {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <><IconMessageCircle size={17} color={Colors.primary} /><Text className="text-[12px] font-semibold text-primary">Say hi</Text></>}
     </Pressable>
   </Pressable>
-);
+  );
+});
 
 /** Plus-only Social Passport list: people in another city, paged by `hasMore`/offset. Does not use device location. */
 export default function PassportResults({city, onCityChange, filters, onFiltersChange, openingId, onOpenProfile, onMessage}: Props) {
@@ -85,6 +95,12 @@ export default function PassportResults({city, onCityChange, filters, onFiltersC
     if (next === target && next) load(0);
     else onCityChange(next);
   };
+  // Parent callbacks are inline, so rows call through refs and stay memoized.
+  const callbacks = useRef({onMessage, onOpenProfile});
+  callbacks.current = {onMessage, onOpenProfile};
+  const renderPerson = useCallback(({item, index}: {item: PassportPerson; index: number}) => <Fragment>
+    <PassportRow person={item} city={item.city ?? target} opening={openingId === item.id} onPress={() => callbacks.current.onMessage(item)} onOpenProfile={() => callbacks.current.onOpenProfile(item)} />
+    {index % 4 === 3 && <NativeAdCard />}</Fragment>, [target, openingId]);
   const more = () => { if (hasMore && !loading && !error && target) load(people.length); };
   const header = <>
     <View className="pt-6">
@@ -110,13 +126,14 @@ export default function PassportResults({city, onCityChange, filters, onFiltersC
     {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry city search" onPress={() => load(people.length)} className="mb-4 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
   </>;
 
-  return <FlatList
+  return <FlashList
     data={people}
-    keyExtractor={item => item.id}
-    renderItem={({item, index}) => <Fragment><PassportRow person={item} city={item.city ?? target} opening={openingId === item.id} onPress={() => onMessage(item)} onOpenProfile={() => onOpenProfile(item)} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
+    keyExtractor={personKey}
+    getItemType={personType}
+    renderItem={renderPerson}
     keyboardShouldPersistTaps="handled"
     showsVerticalScrollIndicator={false}
-    contentContainerClassName="flex-grow px-5 pb-[110px]"
+    contentContainerStyle={LIST_CONTENT}
     onEndReachedThreshold={0.4}
     onEndReached={more}
     ListHeaderComponent={header}

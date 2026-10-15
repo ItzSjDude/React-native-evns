@@ -1,13 +1,14 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, Text, View} from 'react-native';
+import {ActivityIndicator, Pressable, Text, View} from 'react-native';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {showDialog} from '../../components/Dialog';
 import {Colors} from '../../Constants/Colors';
-import {formatEventWhen, messageOf} from './eventsPresentation';
+import {actionMessageOf, formatEventWhen} from './eventsPresentation';
 import {cancelMyTicket, getMyTicket, listMyTickets} from './ticketsService';
 import type {Ticket} from './ticketsService';
+import RemoteImage from '../../components/RemoteImage';
 
 const when = (ticket: Ticket) => formatEventWhen(ticket.event_starts_at, ticket.event_ends_at);
 
@@ -24,7 +25,7 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
     try {
       const page = await listMyTickets(0, 50, upcoming);
       setItems(eventId ? page.items.filter(ticket => ticket.event_id === eventId) : page.items);
-    } catch (cause) {setError(messageOf(cause));}
+    } catch (cause) {setError(actionMessageOf(cause));}
     finally {setLoading(false);}
   }, [eventId, upcoming]);
 
@@ -33,14 +34,14 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
     setSelected(null); setError(null);
     if (ticketId) {
       setBusy(true);
-      getMyTicket(ticketId).then(setSelected).catch(cause => setError(messageOf(cause))).finally(() => setBusy(false));
+      getMyTicket(ticketId).then(setSelected).catch(cause => setError(actionMessageOf(cause))).finally(() => setBusy(false));
     } else load();
   }, [visible, ticketId, load]);
 
   const openTicket = async (ticket: Ticket) => {
     setSelected(ticket); setBusy(true); setError(null);
     try {setSelected(await getMyTicket(ticket.id));}
-    catch (cause) {setError(messageOf(cause));}
+    catch (cause) {setError(actionMessageOf(cause));}
     finally {setBusy(false);}
   };
 
@@ -51,7 +52,7 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
       {text: 'Cancel ticket', style: 'destructive', onPress: async () => {
         setBusy(true); setError(null);
         try {await cancelMyTicket(selected.id); setSelected(null); await load();}
-        catch (cause) {setError(messageOf(cause));}
+        catch (cause) {setError(actionMessageOf(cause));}
         finally {setBusy(false);}
       }},
     ]);
@@ -74,7 +75,7 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
         {busy && !selected.qrImageDataUrl
           ? <ActivityIndicator accessibilityLabel="Loading ticket pass" color={Colors.gold} />
           : selected.qrImageDataUrl
-            ? <Image source={{uri: selected.qrImageDataUrl}} accessibilityLabel="Ticket QR code" className="h-56 w-56 bg-white" resizeMode="contain" />
+            ? <RemoteImage uri={selected.qrImageDataUrl} accessibilityLabel="Ticket QR code" className="h-56 w-56 bg-white" resizeMode="contain" />
             : <View className="h-56 w-56 items-center justify-center rounded-2xl bg-background"><IconTicket size={36} color={Colors.muted} /></View>}
         <Text className="mt-3 text-[19px] font-extrabold tracking-[1px] text-foreground">{selected.code}</Text>
         <Text accessibilityLabel={`Ticket status ${selected.status}`} className="mt-1 text-[12px] font-bold text-gold">{selected.status.replace('_', ' ')}</Text>

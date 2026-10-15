@@ -46,7 +46,8 @@ export type HomeComment = {
   author: ApiPostAuthor;
 };
 
-export type HomeCommentPage = {items: HomeComment[]; hasMore: boolean; offset: number};
+/** `offset` is the page start the server used; `focusIndex` is set only when `aroundCommentId` found its comment. */
+export type HomeCommentPage = {items: HomeComment[]; hasMore: boolean; offset: number; focusIndex?: number};
 
 /** UI model for one feed item. `time` is derived at render from `createdAt`. */
 export type HomePost = {

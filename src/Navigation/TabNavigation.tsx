@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -32,6 +31,7 @@ import {ProfileScreen, useMyAvatarUrl} from '../features/profile';
 
 import {Colors} from '../Constants/Colors';
 import AppIcon, {type IconName} from '../Constants/Icons';
+import RemoteImage from '../components/RemoteImage';
 
 export type TabParamList = {
   Home: undefined;
@@ -122,8 +122,9 @@ const TabButton = ({
         onLongPress={onLongPress}
         className="h-[46px] w-full flex-row items-center justify-center gap-1 px-[5px] active:opacity-70">
         {name === 'Me' && avatarUrl ? (
-          <Image
-            source={{uri: avatarUrl}}
+          <RemoteImage
+            uri={avatarUrl}
+            priority="high"
             className={`h-6 w-6 rounded-full border-[1.5px] ${focused ? 'border-gold-ink' : 'border-transparent'}`}
           />
         ) : (

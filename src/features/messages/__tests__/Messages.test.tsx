@@ -1,5 +1,6 @@
 import React from 'react';
-import {FlatList, Text} from 'react-native';
+import {Text} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import ReactTestRenderer from 'react-test-renderer';
 import {apiRequest} from '../../../core/api/apiClient';
 import {subscribeRealtime} from '../../../core/realtime/subscribeRealtime';
@@ -141,9 +142,13 @@ const live = (overrides: Partial<ApiMessage> = {}): ApiMessage => ({
   id: 'live1', conversation_id: 'c1', sender_id: 'u2', sender_role: 'ATTENDEE', type: 'TEXT', body: 'Just landed',
   created_at: new Date().toISOString(), edited_at: null, deleted_at: null, ...overrides,
 });
-const rowLabels = (renderer: ReactTestRenderer.ReactTestRenderer) => [...new Set(renderer.root
-  .findAll(node => String(node.props.accessibilityLabel).startsWith('Open conversation with'))
-  .map(node => node.props.accessibilityLabel as string))];
+// FlashList keeps cells in a stable React order and positions them by index, so read rows in list order via each cell's `index`.
+const rowLabels = (renderer: ReactTestRenderer.ReactTestRenderer) => {
+  const labelOf = (cell: ReactTestRenderer.ReactTestInstance) => cell
+    .findAll(node => String(node.props.accessibilityLabel).startsWith('Open conversation with'))[0]?.props.accessibilityLabel as string | undefined;
+  const cells = renderer.root.findAll(node => typeof node.type === 'string' && typeof node.props.index === 'number');
+  return cells.sort((a, b) => a.props.index - b.props.index).map(labelOf).filter((label): label is string => !!label);
+};
 
 test('live messages update the preview, bump unread, move the thread up, and refetch for unknown threads', async () => {
   me.mockResolvedValue({realtimeUrl: 'wss://rt.example/ws'});
@@ -407,10 +412,11 @@ test('a denied notification permission explains itself instead of failing silent
 });
 
 test('loads the next page with the current offset while the view stays the same', async () => {
-  list.mockResolvedValue({items: [conversation()], hasMore: true, nextOffset: 1});
-  const renderer = await render();
+  // FlashList asks for the next page by itself when the first page doesn't fill the (mocked) viewport, so later pages must end the list.
+  list.mockResolvedValueOnce({items: [conversation()], hasMore: true, nextOffset: 1});
   list.mockResolvedValue({items: [conversation({id: 'c2', title: 'Rohan Mehta'})], hasMore: false, nextOffset: 2});
-  await ReactTestRenderer.act(async () => { renderer.root.findByType(FlatList).props.onEndReached(); });
+  const renderer = await render();
+  await ReactTestRenderer.act(async () => { renderer.root.findByType(FlashList).props.onEndReached(); });
   expect(list).toHaveBeenLastCalledWith({view: 'all'}, 1);
   expect(texts(renderer)).toEqual(expect.arrayContaining(['Ananya Sharma', 'Rohan Mehta']));
   await unmount(renderer);

@@ -1,5 +1,6 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Modal, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -15,8 +16,9 @@ import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconGift from '@tabler/icons-react-native/IconGift';
+import IconSparkles from '@tabler/icons-react-native/IconSparkles';
 import {useAppDispatch} from '../../core/store/hooks';
-import {clearSession, logoutFromApi} from '../auth';
+import {clearSession, logoutFromApi, OnboardingScreen} from '../auth';
 import {usePartySession} from '../party';
 import {PlusBadge, usePlus, useOwnProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
@@ -25,7 +27,7 @@ import ProfileIdentity from '../../components/ProfileIdentity';
 import {publishMyAvatarUrl} from './myAvatar';
 import {getGiftSummary, getMyProfile, getMySettings, getProfilePage, updateMyProfile} from './profileService';
 import {EventDetailSheet} from '../events';
-import {EventCard, GiftPanel, PostGrid, RoomGrid} from './ProfileItems';
+import {GiftPanel, ProfileRowView, eventRows, postRows, roomRows, type ProfileRow} from './ProfileItems';
 import {EditProfileSheet} from './ProfileSheets';
 import SettingsScreen from './SettingsScreen';
 import {listMyWorkspaces, OrganizerDashboardScreen, OrganizerOnboardingScreen, type Workspace} from '../organizer';
@@ -44,6 +46,11 @@ const compact = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(val
 // Profile design accent (violet) and the dark ink that sits on it; the same in both themes.
 const ACCENT = '#8B7CF6';
 const ON_ACCENT = '#160F2E';
+const noRows: ProfileRow[] = [];
+const rowKey = (row: ProfileRow) => row.key;
+/** Post grids, room grids and event cards have different layouts, so each kind recycles on its own. */
+const rowType = (row: ProfileRow) => row.kind;
+const LIST_CONTENT = {paddingBottom: 125};
 const messageOf = (error: unknown) => (error as {message?: string})?.message ?? 'Please try again.';
 
 const Profile = () => {
@@ -62,6 +69,7 @@ const Profile = () => {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [hostEventOpen, setHostEventOpen] = useState(false);
   const [creatorOnboardingOpen, setCreatorOnboardingOpen] = useState(false);
+  const [onboardingPreviewOpen, setOnboardingPreviewOpen] = useState(false);
   // Only the Plus badge and theme are read from here; null while loading or if the server has no settings API.
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const plus = usePlus();
@@ -211,11 +219,24 @@ const Profile = () => {
   const joined = (profile as {created_at?: string} | null)?.created_at;
   const meta = [profile?.city, joined ? `Joined ${new Date(joined).toLocaleDateString(undefined, {month: 'short', year: 'numeric'})}` : null].filter(Boolean).join(' · ');
 
+  // The active content tab as virtualized rows (post/room grid rows, event cards); the gifts tab has no rows.
+  const contentRows = useMemo(() => {
+    if (currentTab === 'gifts') return noRows;
+    if (activeTab === 'posts') return postRows(list.items as ProfilePost[]);
+    if (activeTab === 'parties') return (list.loaded || list.items.length > 0) && !list.error ? roomRows(list.items as ProfileParty[]) : noRows;
+    return eventRows(list.items as ProfileEvent[]);
+  }, [activeTab, currentTab, list.error, list.items, list.loaded]);
+  const hostRoom = useCallback(() => navigation.navigate('Party'), [navigation]);
+  const renderRow = useCallback(({item, index}: {item: ProfileRow; index: number}) =>
+    <ProfileRowView row={item} first={index === 0} onHost={hostRoom} onOpenEvent={setOpenEvent} />, [hostRoom]);
+
   return (
     <View className="flex-1 bg-background">
       <ThemedStatusBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-[125px]"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}>
+      <FlashList showsVerticalScrollIndicator={false} contentContainerStyle={LIST_CONTENT}
+        data={contentRows} keyExtractor={rowKey} getItemType={rowType} renderItem={renderRow}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
+        ListHeaderComponent={<>
         <View>
           {/* Design hero: violet radial glow from the top-left fading into the page background. */}
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
@@ -234,6 +255,11 @@ const Profile = () => {
                 <IconMenu2 size={20} color={Colors.text} />
               </Pressable>
             </View>
+            {__DEV__ ? (
+              <Pressable accessibilityRole="button" onPress={() => setOnboardingPreviewOpen(true)} className="mx-5 mb-2 self-start rounded-full border border-border bg-card px-4 py-2 active:opacity-70">
+                <Text className="text-sm font-semibold text-foreground">Preview onboarding</Text>
+              </Pressable>
+            ) : null}
 
             <ProfileIdentity name={profile?.name ?? ''} avatarUrl={profile?.avatar_url} accentColor={accent}
               stats={stats.map(stat => ({label: stat.label, value: stat.value, displayValue: compact(stat.value), dotClassName: stat.dot}))}
@@ -283,10 +309,17 @@ const Profile = () => {
                 <IconChevronRight size={18} color={Colors.muted} />
               </Pressable>}
               <Pressable accessibilityRole="button" accessibilityLabel="Become a creator and earn from gifts" onPress={() => setCreatorOnboardingOpen(true)}
-                className="mx-5 mt-3 flex-row items-center gap-3 rounded-[18px] border border-purple-line dark:border-[#4A4378] bg-card dark:bg-[#17152A] p-3.5 active:opacity-75">
-                <View className="h-10 w-10 items-center justify-center rounded-[13px]" style={{backgroundColor: `${accent}22`}}><IconGift size={20} color={accent} /></View>
-                <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground dark:text-[#F4F2FA]">Become a creator</Text><Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted dark:text-[#9C97B8]">Set up your creator profile and earn from gifts</Text></View>
-                <IconChevronRight size={18} color={Colors.muted} />
+                className="mx-5 mt-3 overflow-hidden rounded-[16px] active:opacity-90">
+                <LinearGradient colors={['#6D5DF6', '#A855F7', '#FF5D8F']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} className="flex-row items-center gap-3 px-3.5 py-2.5">
+                  <View pointerEvents="none" className="absolute -right-5 -top-7 h-20 w-20 rounded-full bg-white/15" />
+                  <View pointerEvents="none" className="absolute right-12 top-2"><IconSparkles size={12} color="#FFFFFFB3" /></View>
+                  <View className="h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/25"><IconGift size={18} color="#FFFFFF" /></View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-[14px] font-extrabold text-white">Become a creator</Text>
+                    <Text numberOfLines={1} className="text-[11.5px] text-white/85">Set up your profile and earn from gifts</Text>
+                  </View>
+                  <IconChevronRight size={18} color="#FFFFFF" />
+                </LinearGradient>
               </Pressable>
             </> : null}
           </SafeAreaView>
@@ -303,39 +336,39 @@ const Profile = () => {
           <IconChevronRight size={16} color="#1A0610" />
         </Pressable> : null}
 
-        {profile ? <>
-          <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: tabLabels[tab]}))} selected={currentTab} onSelect={tab => selectTab(tab)} accentColor={accent} onAccentColor={onAccent} />
-
-          {currentTab === 'gifts' ? <View className="px-5 pb-5 pt-3.5">
-            {gifts.summary ? <GiftPanel summary={gifts.summary} /> : null}
-            {gifts.loading ? <ActivityIndicator accessibilityLabel="Loading gifts" color={ACCENT} className="my-[30px]" /> : null}
-            {gifts.error ? <Pressable accessibilityRole="button" onPress={() => loadGifts(profile.id)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
-              <Text className="text-sm text-coral">{gifts.error} Tap to retry.</Text>
-            </Pressable> : null}
-          </View> : <View className="px-5 pb-5 pt-3.5">
-            {activeTab === 'posts' && !!list.items.length && <PostGrid posts={list.items as ProfilePost[]} />}
-            {activeTab === 'parties' && (list.loaded || list.items.length > 0) && !list.error && <RoomGrid parties={list.items as ProfileParty[]} onHost={() => navigation.navigate('Party')} />}
-            {activeTab === 'events' && <View className="gap-3">{(list.items as ProfileEvent[]).map(event => <EventCard key={event.id} event={event} onPress={() => setOpenEvent(event)} />)}</View>}
-            {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={ACCENT} className="my-[30px]" /> : null}
-            {list.error ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
-              <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
-            </Pressable> : null}
-            {!list.loading && !list.error && list.items.length === 0 && activeTab !== 'parties' ? <View className="items-center gap-1.5 px-5 py-10">
-              <View className="mb-2 h-14 w-14 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A]">
-                <IconSquareRoundedPlus size={24} strokeWidth={1.8} color={Colors.muted} />
-              </View>
-              <Text className="text-[17px] font-bold text-foreground dark:text-[#F4F2FA]">No {tabLabels[activeTab].toLowerCase()} yet</Text>
-              <Text className="text-center text-[14px] text-muted dark:text-[#9C97B8]">{activeTab === 'posts' ? 'Share something from the Home tab.' : 'Events you join show up here.'}</Text>
-            </View> : null}
-            {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} className="mt-3 items-center p-[15px] active:opacity-70">
-              <Text className="text-sm font-semibold text-primary dark:text-[#A78BFA]">Load more</Text>
-            </Pressable> : null}
-          </View>}
-        </> : null}
-      </ScrollView>
+        {profile ? <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: tabLabels[tab]}))} selected={currentTab} onSelect={tab => selectTab(tab)} accentColor={accent} onAccentColor={onAccent} /> : null}
+        {profile ? <View className="h-3.5" /> : null}
+        </>}
+        ListFooterComponent={profile ? currentTab === 'gifts' ? <View className="px-5 pb-5">
+          {gifts.summary ? <GiftPanel summary={gifts.summary} /> : null}
+          {gifts.loading ? <ActivityIndicator accessibilityLabel="Loading gifts" color={ACCENT} className="my-[30px]" /> : null}
+          {gifts.error ? <Pressable accessibilityRole="button" onPress={() => loadGifts(profile.id)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
+            <Text className="text-sm text-coral">{gifts.error} Tap to retry.</Text>
+          </Pressable> : null}
+        </View> : <View className="px-5 pb-5">
+          {list.loading ? <ActivityIndicator accessibilityLabel={`Loading ${tabLabels[activeTab]}`} color={ACCENT} className="my-[30px]" /> : null}
+          {list.error ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, list.items.length > 0)} className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
+            <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
+          </Pressable> : null}
+          {!list.loading && !list.error && list.items.length === 0 && activeTab !== 'parties' ? <View className="items-center gap-1.5 px-5 py-10">
+            <View className="mb-2 h-14 w-14 items-center justify-center rounded-full border border-border dark:border-[#2E2A4A] bg-card dark:bg-[#17152A]">
+              <IconSquareRoundedPlus size={24} strokeWidth={1.8} color={Colors.muted} />
+            </View>
+            <Text className="text-[17px] font-bold text-foreground dark:text-[#F4F2FA]">No {tabLabels[activeTab].toLowerCase()} yet</Text>
+            <Text className="text-center text-[14px] text-muted dark:text-[#9C97B8]">{activeTab === 'posts' ? 'Share something from the Home tab.' : 'Events you join show up here.'}</Text>
+          </View> : null}
+          {!list.loading && !list.error && list.hasMore && list.items.length > 0 ? <Pressable accessibilityRole="button" onPress={() => loadList(profile.id, activeTab, true)} className="mt-3 items-center p-[15px] active:opacity-70">
+            <Text className="text-sm font-semibold text-primary dark:text-[#A78BFA]">Load more</Text>
+          </Pressable> : null}
+        </View> : undefined} />
 
       <EventDetailSheet eventId={openEvent?.id ?? null} initial={openEvent} visible={!!openEvent} onClose={() => setOpenEvent(null)}
         onOpenEventChat={() => navigation.navigate('Chat', {initialView: 'events'})} />
+      {__DEV__ ? (
+        <Modal visible={onboardingPreviewOpen} animationType="slide" onRequestClose={() => setOnboardingPreviewOpen(false)}>
+          <OnboardingScreen previewMode onPreviewClose={() => setOnboardingPreviewOpen(false)} />
+        </Modal>
+      ) : null}
       <EditProfileSheet profile={profile} visible={sheet === 'edit'} onClose={() => setSheet(null)} onSave={saveProfile} />
       <SettingsScreen onSettingsChange={setSettings} profile={profile} visible={sheet === 'settings'} onClose={() => setSheet(null)} onEditProfile={() => setSheet('edit')} onLogout={logout} />
       <OrganizerDashboardScreen visible={dashboardOpen} onClose={() => setDashboardOpen(false)} onHostEvent={() => setHostEventOpen(true)} onAccessRevoked={() => {setOrganizerWorkspaces([]); listMyWorkspaces().then(rows => setOrganizerWorkspaces(rows.filter(row => row.status === 'ACTIVE' && row.verificationStatus === 'APPROVED' && (row.role === 'OWNER' || row.role === 'ADMIN')))).catch(() => {});}} />

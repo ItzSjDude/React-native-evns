@@ -3,6 +3,7 @@ import {AppState} from 'react-native';
 import {getRealtimeAccessToken} from '../../core/api/apiClient';
 import {subscribeRealtime} from '../../core/realtime/subscribeRealtime';
 import {getPartyRoom, type JoinedParty, type PartyChatMessage, type PartySnapshot} from './partyService';
+import {setActiveInterval} from '../../core/appActiveInterval';
 
 const partyWithHost = (party: JoinedParty['party'], participants: PartySnapshot['participants']): JoinedParty['party'] => {
   if (party.host) return party;
@@ -62,8 +63,7 @@ export function usePartyRoomState(session: JoinedParty, onEnded: (reason: string
   }, [refresh]);
   useEffect(() => {
     refresh();
-    const timer = setInterval(() => refresh(), live ? 30000 : 3000);
-    return () => clearInterval(timer);
+    return setActiveInterval(() => refresh(), live ? 30000 : 3000);
   }, [live, refresh]);
   useEffect(() => {
     if (!snapshot.realtimeUrl) {setLive(false); return;}

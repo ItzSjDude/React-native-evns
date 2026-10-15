@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
-import {ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import DateTimePicker, {DateTimePickerAndroid} from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import IconArrowLeft from '@tabler/icons-react-native/IconArrowLeft';
@@ -15,6 +15,7 @@ import {uploadMedia} from '../../core/media/uploadMedia';
 import type {LocalMediaFile} from '../../core/media/types';
 import type {OrganizerOnboardingDraft, Workspace} from './types';
 import {createOrganizerEvent, createOrganizerWorkspace, listMyWorkspaces, saveOrganizerPayoutAccount, submitOrganizerVerification, updateOrganizerWorkspace} from './organizerService';
+import RemoteImage from '../../components/RemoteImage';
 
 const STORE_PREFIX = '@hiva/organizer-onboarding/';
 const NO_WORKSPACES: Workspace[] = [];
@@ -211,7 +212,7 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
         {step === 0 && <>
           <View className="mb-4 flex-row items-center gap-3">
             <Pressable accessibilityRole="button" accessibilityLabel="Add organisation logo" onPress={() => chooseImage('logo')} className="h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-[15px] border border-dashed border-border bg-card">
-              {draft.logoUrl ? <Image source={{uri: draft.logoUrl}} className="h-full w-full" /> : <IconPlus size={19} color={Colors.muted} />}
+              {draft.logoUrl ? <RemoteImage uri={draft.logoUrl} className="h-full w-full" /> : <IconPlus size={19} color={Colors.muted} />}
             </Pressable>
             <View className="flex-1"><Text className="mb-1.5 text-[12px] font-bold text-foreground">Organisation name</Text><TextInput accessibilityLabel="Organisation name" value={draft.organizationName} onChangeText={organizationName => update({organizationName})} placeholder="e.g. Kala Collective" placeholderTextColor={Colors.muted} className="h-[46px] rounded-[13px] border border-border bg-card px-3 text-[14px] text-foreground" /></View>
           </View>
@@ -247,7 +248,7 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
           </>}
           <Text className="mb-2 text-[12px] font-bold text-foreground">Event photo</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Upload event cover photo" onPress={() => chooseImage('event')} className="mb-4 h-[128px] items-center justify-center overflow-hidden rounded-[16px] border border-dashed border-border bg-card">
-            {draft.eventCoverUrl ? <Image source={{uri: draft.eventCoverUrl}} className="h-full w-full" resizeMode="cover" /> : <View className="items-center"><IconUpload size={22} color={Colors.primary} /><Text className="mt-2 text-[12px] font-semibold text-primary">{eventFile?.name ?? 'Add a cover photo'}</Text><Text className="mt-1 text-[11px] text-muted">A clear photo helps your event stand out</Text></View>}
+            {draft.eventCoverUrl ? <RemoteImage uri={draft.eventCoverUrl} className="h-full w-full" resizeMode="cover" /> : <View className="items-center"><IconUpload size={22} color={Colors.primary} /><Text className="mt-2 text-[12px] font-semibold text-primary">{eventFile?.name ?? 'Add a cover photo'}</Text><Text className="mt-1 text-[11px] text-muted">A clear photo helps your event stand out</Text></View>}
           </Pressable>
           <Field label="Event name" value={draft.eventName} onChangeText={eventName => update({eventName})} placeholder="Monsoon Sessions, Bandra" />
           <View className="mb-4">

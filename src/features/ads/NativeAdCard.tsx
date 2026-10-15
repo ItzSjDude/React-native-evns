@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {Image, Text, View} from 'react-native';
 import {NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView} from 'react-native-google-mobile-ads';
 import {Colors} from '../../Constants/Colors';
@@ -26,6 +26,10 @@ export default function NativeAdCard() {
     };
   }, [ready]);
 
+  const iconUrl = ad?.icon?.url;
+  // NativeAsset needs a plain Image child, so the stable source is memoized here instead of via RemoteImage.
+  const iconSource = useMemo(() => iconUrl ? {uri: iconUrl} : undefined, [iconUrl]);
+
   if (!ad) return null;
   return <NativeAdView nativeAd={ad} style={{marginVertical: 12, borderRadius: 18, overflow: 'hidden', backgroundColor: Colors.card, borderColor: Colors.border, borderWidth: 1}}>
     <View style={{padding: 14}}>
@@ -34,7 +38,7 @@ export default function NativeAdCard() {
       {ad.mediaContent && <NativeMediaView resizeMode="cover" style={{width: '100%', aspectRatio: 16 / 9, marginTop: 10, borderRadius: 12, overflow: 'hidden'}} />}
       {!!ad.body && <NativeAsset assetType={NativeAssetType.BODY}><Text numberOfLines={3} style={{color: Colors.muted, fontSize: 13, lineHeight: 19, marginTop: 8}}>{ad.body}</Text></NativeAsset>}
       <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 12}}>
-        {ad.icon?.url ? <NativeAsset assetType={NativeAssetType.ICON}><Image source={{uri: ad.icon.url}} style={{width: 36, height: 36, borderRadius: 8, marginRight: 10}} /></NativeAsset> : null}
+        {iconSource ? <NativeAsset assetType={NativeAssetType.ICON}><Image source={iconSource} style={{width: 36, height: 36, borderRadius: 8, marginRight: 10}} /></NativeAsset> : null}
         <NativeAsset assetType={NativeAssetType.ADVERTISER}><Text numberOfLines={1} style={{flex: 1, color: Colors.text, fontSize: 12, fontWeight: '600'}}>{ad.advertiser ?? 'Sponsored'}</Text></NativeAsset>
         {!!ad.callToAction && <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}><Text style={{color: Colors.textDark, backgroundColor: Colors.gold, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, overflow: 'hidden', fontSize: 12, fontWeight: '700'}}>{ad.callToAction}</Text></NativeAsset>}
       </View>

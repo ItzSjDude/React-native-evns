@@ -23,7 +23,7 @@ jest.mock('../profileService', () => ({
 }));
 jest.mock('../../auth', () => {
   const slice = jest.requireActual('../../auth/authSlice');
-  return {authReducer: slice.default, clearSession: slice.clearSession, logoutFromApi: jest.fn().mockResolvedValue(undefined)};
+  return {authReducer: slice.default, clearSession: slice.clearSession, logoutFromApi: jest.fn().mockResolvedValue(undefined), OnboardingScreen: () => null};
 });
 const settingsDefaults = {notifyFollowedLive: true, notifyGiftsMentions: true, joinMuted: true, hideOnlineStatus: false, privateProfile: false, seatInvitesFrom: 'everyone', language: 'hinglish', showPlusBadge: false, profileTheme: 'default'};
 

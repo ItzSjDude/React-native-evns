@@ -9,6 +9,7 @@ import IconDeviceMobile from '@tabler/icons-react-native/IconDeviceMobile';
 import IconCheck from '@tabler/icons-react-native/IconCheck';
 import BottomSheet, {SheetRow, SheetSection} from '../../components/BottomSheet';
 import {PartyColors} from './partyPresentation';
+import {setActiveInterval} from '../../core/appActiveInterval';
 
 const outputs: Record<string, {label: string; icon: typeof IconVolume}> = {
   speaker: {label: 'Speaker', icon: IconVolume},
@@ -28,8 +29,8 @@ export default function AudioOutputSheet({visible, onClose}: {visible: boolean; 
     if (!visible) return;
     let mounted = true;
     const load = () => AudioSession.getAudioOutputs().then(next => {if (mounted) setAvailable(next);}).catch(() => {if (mounted) setError('Could not list audio devices.');});
-    setError(null); load(); const timer = setInterval(load, 2000);
-    return () => {mounted = false; clearInterval(timer);};
+    setError(null); load(); const stop = setActiveInterval(load, 2000);
+    return () => {mounted = false; stop();};
   }, [visible]);
   const select = async (output: string) => {
     setBusy(true); setError(null);

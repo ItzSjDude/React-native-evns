@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text} from 'react-native';
+import {FlatList, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import UserProfileModal from '../UserProfileModal';
 import FollowListSheet from '../FollowListSheet';
@@ -149,9 +149,11 @@ test('follow list pages with Load more and shows a follow button per row', async
 
   await press(tree!, 'Load more');
   expect(getFollowList).toHaveBeenLastCalledWith('u2', 'followers', 20);
-  expect(texts(tree!)).toEqual(expect.arrayContaining(['Fan 0', 'Fan 19', 'Fan 21']));
+  // The list is virtualized: all 22 people are in the data, but only the first window is mounted without layout.
+  expect(tree!.root.findByType(FlatList).props.data.map((user: {name: string}) => user.name)).toEqual(expect.arrayContaining(['Fan 0', 'Fan 19', 'Fan 21']));
+  expect(texts(tree!)).toEqual(expect.arrayContaining(['Fan 0']));
   expect(pressable(tree!, 'Load more')).toHaveLength(0);
 
-  await press(tree!, "Open Fan 21's profile");
-  expect(onOpenUser).toHaveBeenCalledWith(person(21));
+  await press(tree!, "Open Fan 5's profile");
+  expect(onOpenUser).toHaveBeenCalledWith(person(5));
 });

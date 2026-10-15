@@ -21,5 +21,8 @@ const inlineHivaEnv = ({types: t}) => ({
 
 module.exports = {
   presets: ['module:@react-native/babel-preset', 'nativewind/babel'],
+  // react-native-boost is intentionally NOT listed here: v2 is configured through Metro (`withBoostConfig` in
+  // metro.config.js), which injects its plugin into Metro's Babel transformer only, so Jest is unaffected.
+  // react-native-worklets/plugin must stay LAST.
   plugins: [inlineHivaEnv, 'react-native-worklets/plugin'],
 };

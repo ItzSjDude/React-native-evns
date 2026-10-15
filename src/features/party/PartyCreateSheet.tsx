@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
-import {ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
@@ -8,6 +8,7 @@ import IconX from '@tabler/icons-react-native/IconX';
 import {createParty, getPartyInvitees, type PartySeatCount, type CreatedParty} from './partyService';
 import {PartyColors, partyCategories, type PartyCategory} from './partyPresentation';
 import {TemplatePicker, type TemplateConfig} from '../hostStudio';
+import RemoteImage from '../../components/RemoteImage';
 
 const styles = StyleSheet.create({sheet: {maxHeight: '92%'}});
 
@@ -114,7 +115,7 @@ const PartyCreateSheet = ({onClose, onCreated}: {onClose: () => void; onCreated:
               {invitees.map(person=>{
                 const selected=selectedInvitees.includes(person.id);
                 return <Pressable key={person.id} accessibilityRole="checkbox" accessibilityState={{checked:selected}} onPress={()=>setSelectedInvitees(current=>selected?current.filter(id=>id!==person.id):[...current,person.id])} className="min-h-14 flex-row items-center gap-3">
-                  {person.avatarUrl?<Image source={{uri:person.avatarUrl}} className="h-10 w-10 rounded-full"/>:<View className="h-10 w-10 items-center justify-center rounded-full bg-card"><Text className="font-semibold text-primary">{(person.name||'?').slice(0,2)}</Text></View>}
+                  {person.avatarUrl?<RemoteImage uri={person.avatarUrl} className="h-10 w-10 rounded-full"/>:<View className="h-10 w-10 items-center justify-center rounded-full bg-card"><Text className="font-semibold text-primary">{(person.name||'?').slice(0,2)}</Text></View>}
                   <Text className="flex-1 text-sm text-foreground">{person.name||'Guest'}</Text><Text className={selected?'text-primary':'text-muted'}>{selected?'Selected':'Add'}</Text>
                 </Pressable>;
               })}

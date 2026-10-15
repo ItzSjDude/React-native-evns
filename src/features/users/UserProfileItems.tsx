@@ -1,5 +1,5 @@
-import React from 'react';
-import {Image, Text, View} from 'react-native';
+import React, {memo} from 'react';
+import {Text, View} from 'react-native';
 import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
@@ -7,6 +7,7 @@ import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
 import IconPhoto from '@tabler/icons-react-native/IconPhoto';
+import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import type {UserEvent, UserGiftSummary, UserParty, UserPost} from './types';
 
@@ -26,7 +27,7 @@ const isRemote = (url?: string | null): url is string => !!url && /^https?:\/\//
 
 export const Avatar = ({name, url, size = 44}: {name: string; url: string | null | undefined; size?: number}) =>
   <View style={{width: size, height: size}} className="items-center justify-center overflow-hidden rounded-full bg-[#4A3A8C]">
-    {isRemote(url) ? <Image source={{uri: url}} accessibilityLabel={`${name}'s avatar`} className="h-full w-full" />
+    {isRemote(url) ? <RemoteImage uri={url} accessibilityLabel={`${name}'s avatar`} fadeDuration={0} className="h-full w-full" />
       : <Text style={{fontSize: Math.round(size * 0.32)}} className="font-extrabold text-[#F0ECFF]">{initialsOf(name)}</Text>}
   </View>;
 
@@ -45,7 +46,7 @@ const PostTile = ({post, index}: {post: UserPost; index: number}) => {
   return <View accessibilityLabel={`Post from ${dateLabel(post.createdAt)}: ${post.body ?? 'photo'}. ${likes} likes`}
     style={surface} className="aspect-square flex-1 overflow-hidden rounded-[20px]">
     {image ? <>
-      <Image source={{uri: image}} className="absolute inset-0 h-full w-full" resizeMode="cover" />
+      <RemoteImage uri={image} fadeDuration={0} className="absolute inset-0 h-full w-full" resizeMode="cover" />
       <View className="absolute bottom-0 left-0 right-0 h-10 bg-black/35" />
     </> : post.body ? <Text numberOfLines={4} style={{color: swatch.fg}} className="p-2.5 text-[12px] font-extrabold leading-[15px]">“{post.body}”</Text>
       : <View className="flex-1 items-center justify-center"><IconPhoto size={28} color={swatch.fg} /></View>}
@@ -56,17 +57,27 @@ const PostTile = ({post, index}: {post: UserPost; index: number}) => {
   </View>;
 };
 
-/** Three-column colourful post wall; the last row is padded so tiles keep equal size. */
-export const PostGrid = ({posts}: {posts: UserPost[]}) => {
-  const rows: UserPost[][] = [];
-  posts.forEach((post, i) => {(rows[Math.floor(i / 3)] ||= []).push(post);});
-  return <View className="gap-2">
-    {rows.map((row, r) => <View key={r} className="flex-row gap-2">
-      {row.map((post, c) => <PostTile key={post.id} post={post} index={r * 3 + c} />)}
-      {Array.from({length: 3 - row.length}, (_, i) => <View key={`pad${i}`} className="flex-1" />)}
-    </View>)}
-  </View>;
+/** One virtualized list row of another user's content tab: a post-grid row, a room-grid row or an event card. */
+export type UserContentRow =
+  | {key: string; kind: 'posts'; posts: UserPost[]; start: number}
+  | {key: string; kind: 'rooms'; parties: UserParty[]; start: number}
+  | {key: string; kind: 'event'; event: UserEvent};
+
+const chunked = <T,>(items: T[], size: number) => {
+  const rows: T[][] = [];
+  items.forEach((item, i) => {(rows[Math.floor(i / size)] ||= []).push(item);});
+  return rows;
 };
+
+/** Three posts per row; the last row is padded so tiles keep equal size. */
+export const postRows = (posts: UserPost[]): UserContentRow[] =>
+  chunked(posts, 3).map((row, r) => ({key: `posts-${row[0].id}`, kind: 'posts', posts: row, start: r * 3}));
+
+/** Two room cards per row (no "host a room" tile: this is someone else's profile). */
+export const roomRows = (parties: UserParty[]): UserContentRow[] =>
+  chunked(parties, 2).map((row, r) => ({key: `rooms-${row[0].id}`, kind: 'rooms', parties: row, start: r * 2}));
+
+export const eventRows = (events: UserEvent[]): UserContentRow[] => events.map(event => ({key: `event-${event.id}`, kind: 'event', event}));
 
 const statusLabel: Record<string, string> = {ACTIVE: 'Live now', SCHEDULED: 'Scheduled', ENDED: 'Ended', CANCELLED: 'Cancelled'};
 
@@ -85,21 +96,26 @@ const RoomCard = ({party, index}: {party: UserParty; index: number}) => {
   </View>;
 };
 
-/** Two-column room cards (no "host a room" tile: this is someone else's profile). */
-export const RoomGrid = ({parties}: {parties: UserParty[]}) => {
-  const rows: UserParty[][] = [];
-  parties.forEach((party, i) => {(rows[Math.floor(i / 2)] ||= []).push(party);});
-  return <View className="gap-2.5">
-    {rows.map((row, r) => <View key={r} className="flex-row gap-2.5">
-      {row.map((party, c) => <RoomCard key={party.id} party={party} index={r * 2 + c} />)}
-      {row.length < 2 && <View className="flex-1" />}
-    </View>)}
-  </View>;
-};
+/** Renders one row of the content list. `first` drops the gap above the first row. */
+export const ContentRowView = memo(function ContentRowView({row, first}: {row: UserContentRow; first: boolean}) {
+  if (row.kind === 'posts') {
+    return <View className={`flex-row gap-2 px-5 ${first ? '' : 'mt-2'}`}>
+      {row.posts.map((post, c) => <PostTile key={post.id} post={post} index={row.start + c} />)}
+      {Array.from({length: 3 - row.posts.length}, (_, i) => <View key={`pad${i}`} className="flex-1" />)}
+    </View>;
+  }
+  if (row.kind === 'rooms') {
+    return <View className={`flex-row gap-2.5 px-5 ${first ? '' : 'mt-2.5'}`}>
+      {row.parties.map((party, c) => <RoomCard key={party.id} party={party} index={row.start + c} />)}
+      {row.parties.length < 2 && <View className="flex-1" />}
+    </View>;
+  }
+  return <View className={`px-5 ${first ? '' : 'mt-3'}`}><EventCard event={row.event} /></View>;
+});
 
-export const EventCard = ({event}: {event: UserEvent}) =>
+const EventCard = ({event}: {event: UserEvent}) =>
   <View className="overflow-hidden rounded-[22px] border border-border bg-card">
-    {isRemote(event.cover_url) && <Image source={{uri: event.cover_url}} className="h-28 w-full bg-background" resizeMode="cover" />}
+    {isRemote(event.cover_url) && <RemoteImage uri={event.cover_url} className="h-28 w-full bg-background" resizeMode="cover" />}
     <View className="p-4">
       <Text numberOfLines={2} className="text-[15px] font-extrabold text-foreground">{event.title}</Text>
       <View className="mt-2 flex-row flex-wrap items-center gap-x-4 gap-y-1">

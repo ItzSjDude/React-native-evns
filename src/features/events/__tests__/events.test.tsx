@@ -1,5 +1,5 @@
 import React from 'react';
-import {FlatList} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import ReactTestRenderer from 'react-test-renderer';
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
 import {getEvent, getEvents, requestEventTicket, setEventInterest} from '../eventsService';
@@ -73,7 +73,7 @@ test('list shows empty and error states', async () => {
   await flush();
   expect(texts(r!)).toContain('No upcoming events');
   page.mockRejectedValue({status: 500, message: 'Boom'});
-  await ReactTestRenderer.act(async () => { r!.root.findByType(FlatList).props.refreshControl.props.onRefresh(); });
+  await ReactTestRenderer.act(async () => { r!.root.findByType(FlashList).props.refreshControl.props.onRefresh(); });
   await flush();
   expect(texts(r!)).toContain('Boom');
   page.mockResolvedValue({data: [event()], meta: {limit: 20, offset: 0, hasMore: false}});

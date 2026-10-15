@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, Text, View} from 'react-native';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, FlatList, Platform, Pressable, Text, View} from 'react-native';
 import BottomSheet from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import FollowButton from './FollowButton';
@@ -22,12 +22,12 @@ export type FollowListSheetProps = {
 type ListState = {items: FollowListUser[]; loading: boolean; error: string | null; unavailable: boolean; hasMore: boolean; offset: number; loaded: boolean};
 const emptyList = (): ListState => ({items: [], loading: false, error: null, unavailable: false, hasMore: false, offset: 0, loaded: false});
 
-const FollowRow = ({user, viewerId, onOpen}: {user: FollowListUser; viewerId: string | null | undefined; onOpen: () => void}) => {
+const FollowRow = memo(function FollowRow({user, viewerId, onOpen}: {user: FollowListUser; viewerId: string | null | undefined; onOpen: (user: FollowListUser) => void}) {
   const self = !!viewerId && viewerId === user.id;
   const following = useIsFollowing(user.id, viewerId, !self);
   const follow = useFollowToggle(user.id, {following});
   return <View className="min-h-[64px] flex-row items-center gap-3 border-b border-sheet py-2">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${user.name}'s profile`} onPress={onOpen} className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-70">
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${user.name}'s profile`} onPress={() => onOpen(user)} className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-70">
       <Avatar name={user.name} url={user.avatarUrl} size={44} />
       <View className="min-w-0 flex-1">
         <Text numberOfLines={1} className="text-[15px] font-bold text-foreground">{self ? 'You' : user.name}</Text>
@@ -37,7 +37,9 @@ const FollowRow = ({user, viewerId, onOpen}: {user: FollowListUser; viewerId: st
     </Pressable>
     {!self && viewerId !== undefined && <FollowButton size="small" name={user.name} following={follow.following} pending={follow.pending} onPress={follow.toggle} />}
   </View>;
-};
+});
+
+const userKey = (user: FollowListUser) => user.id;
 
 /** Paged followers/following list with a follow toggle per row. */
 export default function FollowListSheet({userId, kind, visible, onClose, onOpenUser, ownerName}: FollowListSheetProps) {
@@ -46,6 +48,10 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
   const listRef = useRef(list);
   listRef.current = list;
   const generation = useRef(0);
+  const onOpenUserRef = useRef(onOpenUser);
+  onOpenUserRef.current = onOpenUser;
+  const openUser = useCallback((user: FollowListUser) => onOpenUserRef.current(user), []);
+  const renderUser = useCallback(({item}: {item: FollowListUser}) => <FollowRow user={item} viewerId={viewerId} onOpen={openUser} />, [openUser, viewerId]);
 
   const load = useCallback(async (append: boolean) => {
     const current = listRef.current;
@@ -78,9 +84,10 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
   const title = kind === 'followers' ? 'Followers' : 'Following';
   const subtitle = ownerName ? (kind === 'followers' ? `People following ${ownerName}` : `People ${ownerName} follows`) : null;
 
-  return <BottomSheet visible={visible} onClose={onClose} title={title} subtitle={subtitle} maxHeight={0.86}>
-    {list.items.map(user => <FollowRow key={user.id} user={user} viewerId={viewerId} onOpen={() => onOpenUser(user)} />)}
-
+  return <BottomSheet bare visible={visible} onClose={onClose} title={title} subtitle={subtitle} maxHeight={0.86}>
+    <FlatList data={list.items} keyExtractor={userKey} renderItem={renderUser} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}
+      contentContainerClassName="px-5 pb-3" initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews={Platform.OS === 'android'}
+      ListFooterComponent={<>
     {list.loading && <ActivityIndicator accessibilityLabel={`Loading ${title.toLowerCase()}`} color={Colors.gold} className="my-6" />}
 
     {list.unavailable && <View className="items-center py-10">
@@ -99,5 +106,6 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
     {!list.loading && !list.error && list.hasMore && list.items.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Load more" onPress={() => load(true)} className="items-center p-[15px] active:opacity-70">
       <Text className="text-sm font-extrabold text-gold">Load more</Text>
     </Pressable>}
+      </>} />
   </BottomSheet>;
 }

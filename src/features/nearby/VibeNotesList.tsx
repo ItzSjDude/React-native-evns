@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, Text, View} from 'react-native';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconNote from '@tabler/icons-react-native/IconNote';
@@ -30,13 +30,13 @@ export function postedAgoLabel(createdAt: string, now = Date.now()): string {
 export const noteDistanceLabel = (meters: number) =>
   meters < 1000 ? `${Math.max(10, Math.round(meters / 10) * 10)} m away` : `${(meters / 1000).toFixed(1)} km away`;
 
-type NoteRowProps = {note: VibeNote; own: boolean; expanded: boolean; deleting: boolean; onPress: () => void; onDelete: () => void};
+type NoteRowProps = {note: VibeNote; own: boolean; expanded: boolean; deleting: boolean; onPress: (note: VibeNote) => void; onDelete: (note: VibeNote) => void};
 
-const NoteRow = ({note, own, expanded, deleting, onPress, onDelete}: NoteRowProps) => {
+const NoteRow = memo(({note, own, expanded, deleting, onPress, onDelete}: NoteRowProps) => {
   const text = note.isUnlocked ? note.body : note.preview;
   const meta = [own ? 'You' : note.creator.name, note.distanceMeters === undefined ? null : noteDistanceLabel(note.distanceMeters), postedAgoLabel(note.createdAt), timeLeftLabel(note.expiresAt)].filter(Boolean).join(' · ');
   return <View className="mb-3 flex-row items-start rounded-[20px] bg-card px-4 py-4">
-    <Pressable accessibilityRole="button" accessibilityLabel={note.isUnlocked ? 'Open vibe note' : 'Locked vibe note'} onPress={onPress} className="min-w-0 flex-1 active:opacity-70">
+    <Pressable accessibilityRole="button" accessibilityLabel={note.isUnlocked ? 'Open vibe note' : 'Locked vibe note'} onPress={() => onPress(note)} className="min-w-0 flex-1 active:opacity-70">
       <Text numberOfLines={expanded ? undefined : 3} className="text-[15px] leading-[21px] text-foreground">{text}{!note.isUnlocked && (text?.length ?? 0) >= 80 ? '…' : ''}</Text>
       {!note.isUnlocked && <View className="mt-2 flex-row items-center gap-1">
         <IconLock size={13} color={Colors.muted} />
@@ -44,11 +44,11 @@ const NoteRow = ({note, own, expanded, deleting, onPress, onDelete}: NoteRowProp
       </View>}
       <Text className="mt-2 text-xs text-muted" numberOfLines={1}>{meta}</Text>
     </Pressable>
-    {own && <Pressable accessibilityRole="button" accessibilityLabel="Delete vibe note" disabled={deleting} onPress={onDelete} hitSlop={8} className="ml-3 h-8 w-8 items-center justify-center rounded-full active:bg-border">
+    {own && <Pressable accessibilityRole="button" accessibilityLabel="Delete vibe note" disabled={deleting} onPress={() => onDelete(note)} hitSlop={8} className="ml-3 h-8 w-8 items-center justify-center rounded-full active:bg-border">
       {deleting ? <ActivityIndicator size="small" color={Colors.coral} /> : <IconTrash size={18} color={Colors.coral} />}
     </Pressable>}
   </View>;
-};
+});
 
 type Props = {
   /** Discovery range selected on Explore. */
@@ -91,17 +91,20 @@ export default function VibeNotesList({radiusMeters, reloadKey, showComposeActio
     return () => { requestRef.current++; };
   }, [load, reloadKey]);
 
-  const press = (note: VibeNote) => {
+  const press = useCallback((note: VibeNote) => {
     setExpandedId(current => (current === note.id ? null : note.id));
     // Only notes the server already unlocked can be opened; it 404s the rest. Failure never matters to the UI.
     if (note.isUnlocked && !opened.current.has(note.id)) {
       opened.current.add(note.id);
       openVibeNote(note.id).catch(() => { opened.current.delete(note.id); });
     }
-  };
+  }, []);
 
-  const remove = async (note: VibeNote) => {
-    if (deletingId) return;
+  const deletingRef = useRef(deletingId);
+  deletingRef.current = deletingId;
+  const remove = useCallback(async (note: VibeNote) => {
+    if (deletingRef.current) return;
+    deletingRef.current = note.id;
     setDeletingId(note.id);
     setError(null);
     try {
@@ -110,9 +113,10 @@ export default function VibeNotesList({radiusMeters, reloadKey, showComposeActio
     } catch (cause) {
       setError(nearbyErrorMessage(cause));
     } finally {
+      deletingRef.current = null;
       setDeletingId(null);
     }
-  };
+  }, []);
 
   const visibleNotes = previewLimit && !showAll ? notes?.slice(0, previewLimit) : notes;
   const hasMoreNotes = !!previewLimit && (notes?.length ?? 0) > previewLimit;
@@ -133,7 +137,7 @@ export default function VibeNotesList({radiusMeters, reloadKey, showComposeActio
     </View>
     {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Retry vibe notes" onPress={load} className="mb-3 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
     {visibleNotes?.map(note => <NoteRow key={note.id} note={note} own={!!meId && note.creator.id === meId} expanded={expandedId === note.id} deleting={deletingId === note.id}
-      onPress={() => press(note)} onDelete={() => remove(note)} />)}
+      onPress={press} onDelete={remove} />)}
     {notes?.length === 0 && !error && <View className={previewLimit ? 'rounded-2xl bg-card px-4 py-3' : 'min-h-[190px] items-center justify-center px-4 py-7'}>
       {!previewLimit && <IconNote size={34} color={Colors.muted} strokeWidth={1.5} />}
       <Text className={previewLimit ? 'text-[13px] font-semibold text-foreground' : 'mt-3 text-center text-[16px] font-semibold text-foreground'}>No notes within {Math.round(radiusMeters / 1000)} km yet</Text>

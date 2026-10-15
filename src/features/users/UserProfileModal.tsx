@@ -1,6 +1,7 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
-import {ActivityIndicator, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Modal, Pressable, Share, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import ProfileContentTabs from '../../components/ProfileContentTabs';
 import ProfileIdentity from '../../components/ProfileIdentity';
@@ -22,7 +23,7 @@ import {PlusBadge, useProfileTheme} from '../plus';
 import FollowButton from './FollowButton';
 import FollowListSheet from './FollowListSheet';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
-import {EventCard, GiftPanel, PostGrid, RoomGrid, compact} from './UserProfileItems';
+import {ContentRowView, GiftPanel, compact, eventRows, postRows, roomRows, type UserContentRow} from './UserProfileItems';
 import {
   PUBLIC_PROFILE_ENDPOINT_ENABLED, accessOf, blockUser, getUserContentPage, getUserGiftSummary, getUserProfile,
   messageOf, reportUser, unblockUser,
@@ -50,6 +51,12 @@ const CONTENT_TABS: UserContentTab[] = ['posts', 'parties', 'events'];
 const TAB_LABELS: Record<VisibleTab, string> = {posts: 'Posts', parties: 'Rooms', events: 'Events', gifts: 'Gifts'};
 export const REPORT_REASONS = ['Inappropriate behavior', 'Spam or scam', 'Harassment or hate', 'Impersonation', 'Underage user'];
 
+const noRows: UserContentRow[] = [];
+const rowKey = (row: UserContentRow) => row.key;
+/** Post grids, room grids and event cards have different layouts, so each kind recycles on its own. */
+const rowType = (row: UserContentRow) => row.kind;
+const LIST_CONTENT = {paddingBottom: 48};
+const renderRow = ({item, index}: {item: UserContentRow; index: number}) => <ContentRowView row={item} first={index === 0} />;
 const emptyList = (): ListState => ({items: [], loading: false, loaded: false, error: null, hasMore: false, offset: 0});
 const emptyLists = (): Record<UserContentTab, ListState> => ({posts: emptyList(), parties: emptyList(), events: emptyList()});
 
@@ -251,10 +258,20 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
     : sheet === 'report' ? 'Why are you reporting this account? Reports are private.'
     : sheet === 'reported' ? 'Our team will review this account. Reporting doesn’t block them.' : handle ? `@${handle}` : null;
 
+  // The active content tab as virtualized rows (post/room grid rows, event cards); the gifts tab has no rows.
+  const rows = useMemo(() => {
+    if (!list || !contentTab) return noRows;
+    if (contentTab === 'posts') return postRows(list.items as UserPost[]);
+    if (contentTab === 'parties') return roomRows(list.items as UserParty[]);
+    return eventRows(list.items as UserEvent[]);
+  }, [contentTab, list]);
+
   return <Modal visible={visible} animationType={SLIDE_MODAL_ANIMATION} statusBarTranslucent onRequestClose={onClose}>
     <View className="flex-1 bg-background">
       <ThemedStatusBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
+      <FlashList showsVerticalScrollIndicator={false} contentContainerStyle={LIST_CONTENT}
+        data={showContent ? rows : noRows} keyExtractor={rowKey} getItemType={rowType} renderItem={renderRow}
+        ListHeaderComponent={<>
         <View>
           <Svg width={width} height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
             <Defs>
@@ -319,31 +336,26 @@ export default function UserProfileModal({userId, initial, visible, onClose, onB
 
         {locked && !blocked && <StateCard icon={IconLock} title="This account is private" body={`Follow ${name} to see their posts, rooms and events.`} />}
 
-        {showContent && <>
-          <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: TAB_LABELS[tab]}))} selected={activeTab} onSelect={tab => selectTab(tab)} accentColor={theme?.accent ?? Colors.gold} onAccentColor={theme?.onAccent ?? Colors.goldInk} />
-
-          <View className="px-5 pb-5 pt-3.5">
-            {activeTab === 'gifts' && gifts && <GiftPanel summary={gifts} name={name} />}
-            {contentTab && list && <>
-              {contentTab === 'posts' && !!list.items.length && <PostGrid posts={list.items as UserPost[]} />}
-              {contentTab === 'parties' && !!list.items.length && <RoomGrid parties={list.items as UserParty[]} />}
-              {contentTab === 'events' && <View className="gap-3">{(list.items as UserEvent[]).map(event => <EventCard key={event.id} event={event} />)}</View>}
-              {list.loading && <ActivityIndicator accessibilityLabel={`Loading ${TAB_LABELS[contentTab]}`} color={Colors.gold} className="my-[30px]" />}
-              {!!list.error && <Pressable accessibilityRole="button" accessibilityLabel={`Retry ${TAB_LABELS[contentTab]}`} onPress={() => loadList(contentTab, list.items.length > 0)}
-                className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
-                <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
-              </Pressable>}
-              {list.loaded && !list.loading && !list.error && !list.items.length && <View className="items-center py-12">
-                <Text className="text-[16px] font-extrabold text-foreground">No {TAB_LABELS[contentTab].toLowerCase()} yet</Text>
-              </View>}
-              {!list.loading && !list.error && list.hasMore && list.items.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Load more" onPress={() => loadList(contentTab, true)}
-                className="mt-3 items-center p-[15px] active:opacity-70">
-                <Text className="text-sm font-extrabold text-gold">Load more</Text>
-              </Pressable>}
-            </>}
-          </View>
+        {showContent && <ProfileContentTabs tabs={visibleTabs.map(tab => ({id: tab, label: TAB_LABELS[tab]}))} selected={activeTab} onSelect={tab => selectTab(tab)} accentColor={theme?.accent ?? Colors.gold} onAccentColor={theme?.onAccent ?? Colors.goldInk} />}
+        {showContent && <View className="h-3.5" />}
         </>}
-      </ScrollView>
+        ListFooterComponent={showContent ? <View className="px-5 pb-5">
+          {activeTab === 'gifts' && gifts && <GiftPanel summary={gifts} name={name} />}
+          {contentTab && list && <>
+            {list.loading && <ActivityIndicator accessibilityLabel={`Loading ${TAB_LABELS[contentTab]}`} color={Colors.gold} className="my-[30px]" />}
+            {!!list.error && <Pressable accessibilityRole="button" accessibilityLabel={`Retry ${TAB_LABELS[contentTab]}`} onPress={() => loadList(contentTab, list.items.length > 0)}
+              className="mt-3 rounded-[16px] bg-card p-4 active:opacity-70">
+              <Text className="text-sm text-coral">{list.error} Tap to retry.</Text>
+            </Pressable>}
+            {list.loaded && !list.loading && !list.error && !list.items.length && <View className="items-center py-12">
+              <Text className="text-[16px] font-extrabold text-foreground">No {TAB_LABELS[contentTab].toLowerCase()} yet</Text>
+            </View>}
+            {!list.loading && !list.error && list.hasMore && list.items.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Load more" onPress={() => loadList(contentTab, true)}
+              className="mt-3 items-center p-[15px] active:opacity-70">
+              <Text className="text-sm font-extrabold text-gold">Load more</Text>
+            </Pressable>}
+          </>}
+        </View> : undefined} />
 
       <BottomSheet visible={sheet !== null} onClose={() => setSheet(null)} dismissible={!sheetBusy} title={sheetTitle} subtitle={sheetSubtitle}
         footer={sheet === 'block' ? <>

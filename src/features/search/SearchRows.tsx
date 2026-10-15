@@ -1,9 +1,10 @@
-import React from 'react';
-import {ActivityIndicator, Image, Pressable, Text, View} from 'react-native';
+import React, {memo} from 'react';
+import {ActivityIndicator, Pressable, Text, View} from 'react-native';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
+import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import type {PersonResult, RoomResult} from './types';
 
@@ -22,12 +23,12 @@ export const startsLabel = (value: string | null) => {
 export function SearchAvatar({name, url, size = 44}: {name: string; url: string | null | undefined; size?: number}) {
   return <View style={{width: size, height: size}} className="items-center justify-center overflow-hidden rounded-full bg-purple-tint">
     {isRemote(url)
-      ? <Image source={{uri: url}} className="h-full w-full" accessibilityIgnoresInvertColors />
+      ? <RemoteImage uri={url} fadeDuration={0} className="h-full w-full" accessibilityIgnoresInvertColors />
       : <Text style={{fontSize: size * 0.36}} className="font-bold text-purple-soft">{initialsOf(name)}</Text>}
   </View>;
 }
 
-export function PersonRow({person, onPress}: {person: PersonResult; onPress: (person: PersonResult) => void}) {
+export const PersonRow = memo(function PersonRow({person, onPress}: {person: PersonResult; onPress: (person: PersonResult) => void}) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${person.name}'s profile`} onPress={() => onPress(person)}
     className="flex-row items-center gap-3 px-5 py-2.5 active:bg-white/5">
     <SearchAvatar name={person.name} url={person.avatarUrl} />
@@ -39,7 +40,7 @@ export function PersonRow({person, onPress}: {person: PersonResult; onPress: (pe
       ? <View className="rounded-full border border-gold-line bg-gold-bg px-2.5 py-1"><Text className="text-[11px] font-bold text-gold">Following</Text></View>
       : <IconChevronRight size={18} color={Colors.mutedLight} />}
   </Pressable>;
-}
+});
 
 export function RoomStatusBadge({room}: {room: RoomResult}) {
   if (room.status === 'ACTIVE') {
@@ -54,7 +55,7 @@ export function RoomStatusBadge({room}: {room: RoomResult}) {
   </View>;
 }
 
-export function RoomRow({room, onPress}: {room: RoomResult; onPress: (room: RoomResult) => void}) {
+export const RoomRow = memo(function RoomRow({room, onPress}: {room: RoomResult; onPress: (room: RoomResult) => void}) {
   const title = roomTitleOf(room);
   const KindIcon = room.kind === 'VIDEO' ? IconVideo : IconHeadphones;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open room ${title}`} onPress={() => onPress(room)}
@@ -75,7 +76,7 @@ export function RoomRow({room, onPress}: {room: RoomResult; onPress: (room: Room
     </View>
     <RoomStatusBadge room={room} />
   </Pressable>;
-}
+});
 
 export function SectionHeader({title, onSeeAll}: {title: string; onSeeAll?: () => void}) {
   return <View className="flex-row items-center justify-between px-5 pb-2 pt-5">

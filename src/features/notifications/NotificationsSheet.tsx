@@ -1,5 +1,6 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, ScrollView, Text, View} from 'react-native';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, ScrollView, Text, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
@@ -14,6 +15,7 @@ import {formatNotificationTime} from './notificationTargets';
 import {useNotifications} from './notificationsContext';
 import {useFollowToggle, useIsFollowing, useViewerId} from '../users';
 import type {AppNotification, NotificationDisplayData, NotificationType} from './types';
+import RemoteImage from '../../components/RemoteImage';
 
 export type NotificationsSheetProps = {
   visible: boolean;
@@ -21,6 +23,12 @@ export type NotificationsSheetProps = {
 };
 
 cssInterop(SafeAreaView, {className: 'style'});
+
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = {paddingBottom: 32, paddingTop: 4};
+const notificationKey = (item: AppNotification) => item.id;
+/** Rows differ by trailing control (follow back, action button, thumbnail), so each notification type recycles with its own kind. */
+const notificationType = (item: AppNotification) => item.type;
 
 type Status = 'loading' | 'ready' | 'error';
 
@@ -171,22 +179,13 @@ export default function NotificationsSheet({visible, onClose}: NotificationsShee
         <Text className="mt-1 text-center text-[13px] text-muted">Messages, party invites and nearby activity will show up here.</Text>
       </View>
     );
-  } else {
-    content = (
-      <View>
-        {header}
-        {!!actionError && <Text accessibilityLiveRegion="polite" className="mb-2 px-4 text-[13px] text-coral">{actionError}</Text>}
-        <View>
-          {items.map(item => <NotificationRow key={item.id} item={item} viewerId={viewerId} onPress={() => openItem(item)} />)}
-        </View>
-        {hasMore && (
-          <Pressable accessibilityRole="button" accessibilityLabel={moreError ? 'Retry loading more notifications' : 'Load more notifications'} disabled={loadingMore} onPress={loadMore} className="my-3 items-center py-2 active:opacity-70">
-            {loadingMore ? <ActivityIndicator color={Colors.gold} /> : <Text className={`text-[14px] font-semibold ${moreError ? 'text-coral' : 'text-primary'}`}>{moreError ? "Couldn't load more. Tap to retry" : 'Load more'}</Text>}
-          </Pressable>
-        )}
-      </View>
-    );
   }
+
+  const ready = status !== 'loading' && status !== 'error' && items.length > 0;
+  const openRef = useRef(openItem);
+  openRef.current = openItem;
+  const onOpen = useCallback((item: AppNotification) => openRef.current(item), []);
+  const renderRow = useCallback(({item}: {item: AppNotification}) => <NotificationRow item={item} viewerId={viewerId} onOpen={onOpen} />, [viewerId, onOpen]);
 
   return (
     <SlideInScreen visible={visible} onRequestClose={onClose}>
@@ -199,15 +198,36 @@ export default function NotificationsSheet({visible, onClose}: NotificationsShee
           </Pressable>
           <Text accessibilityRole="header" className="flex-1 text-[20px] font-bold text-foreground">Notifications</Text>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="flex-grow pb-8 pt-1">
-          {content}
-        </ScrollView>
+        {ready ? (
+          <FlashList
+            data={items}
+            keyExtractor={notificationKey}
+            getItemType={notificationType}
+            renderItem={renderRow}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={LIST_CONTENT}
+            ListHeaderComponent={<>
+              {header}
+              {!!actionError && <Text accessibilityLiveRegion="polite" className="mb-2 px-4 text-[13px] text-coral">{actionError}</Text>}
+            </>}
+            ListFooterComponent={hasMore ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={moreError ? 'Retry loading more notifications' : 'Load more notifications'} disabled={loadingMore} onPress={loadMore} className="my-3 items-center py-2 active:opacity-70">
+                {loadingMore ? <ActivityIndicator color={Colors.gold} /> : <Text className={`text-[14px] font-semibold ${moreError ? 'text-coral' : 'text-primary'}`}>{moreError ? "Couldn't load more. Tap to retry" : 'Load more'}</Text>}
+              </Pressable>
+            ) : undefined}
+          />
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="flex-grow pb-8 pt-1">
+            {content}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </SlideInScreen>
   );
 }
 
-function NotificationRow({item, viewerId, onPress}: {item: AppNotification; viewerId: string | null | undefined; onPress: () => void}) {
+const NotificationRow = memo(function NotificationRow({item, viewerId, onOpen}: {item: AppNotification; viewerId: string | null | undefined; onOpen: (item: AppNotification) => void}) {
+  const onPress = () => onOpen(item);
   const unread = !item.readAt;
   const Icon = iconForNotification(item.type);
   const display = item.data as NotificationDisplayData;
@@ -223,7 +243,7 @@ function NotificationRow({item, viewerId, onPress}: {item: AppNotification; view
       className="flex-row items-center gap-3 px-4 py-3 active:bg-white/5">
       {avatar ? (
         <View className="h-11 w-11">
-          <Image source={{uri: avatar}} accessibilityLabel={display.actorName ? `${display.actorName}'s photo` : undefined} className="h-11 w-11 rounded-full bg-card" />
+          <RemoteImage uri={avatar} fadeDuration={0} accessibilityLabel={display.actorName ? `${display.actorName}'s photo` : undefined} className="h-11 w-11 rounded-full bg-card" />
           {/* Type badge on the photo, so the kind of notification still reads at a glance. */}
           <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-primary-dark">
             <Icon size={11} color={Colors.primary} />
@@ -242,8 +262,8 @@ function NotificationRow({item, viewerId, onPress}: {item: AppNotification; view
           <Text className="text-[12px] text-muted">{formatNotificationTime(item.createdAt)}</Text>
         </View>
       </View>
-      {thumbnail ? <Image source={{uri: thumbnail}} accessibilityIgnoresInvertColors className="h-11 w-11 rounded-md bg-card" />
-        : followBack ? <FollowBackButton userId={display.actorId!} viewerId={viewerId} />
+      {thumbnail ? <RemoteImage uri={thumbnail} fadeDuration={0} accessibilityIgnoresInvertColors className="h-11 w-11 rounded-md bg-card" />
+        : followBack ? <FollowBackButton key={display.actorId} userId={display.actorId!} viewerId={viewerId} />
           : action ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`${action}: ${item.title}`} onPress={onPress} hitSlop={6}
               className="h-8 items-center justify-center rounded-lg bg-card px-3.5 active:opacity-70">
@@ -254,7 +274,7 @@ function NotificationRow({item, viewerId, onPress}: {item: AppNotification; view
       <View className="absolute bottom-0 left-4 right-4 h-px bg-border/60" />
     </Pressable>
   );
-}
+});
 
 /** "Follow back" for a USER_FOLLOWED notification; flips to "Following" through the shared follow store. */
 function FollowBackButton({userId, viewerId}: {userId: string; viewerId: string | null | undefined}) {

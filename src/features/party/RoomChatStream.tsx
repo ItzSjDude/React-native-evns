@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, FlatList, Pressable, Text, View } from 'react-native';
 import IconMoodSpark from '@tabler/icons-react-native/IconMoodSpark';
 import IconX from '@tabler/icons-react-native/IconX';
 import { PartyColors } from './partyPresentation';
 import type { PartyChatMessage } from './partyService';
+import RemoteImage from '../../components/RemoteImage';
 
 const QUICK_EMOJIS = ['👏', '❤️', '😂', '🔥'] as const;
 
-const Message = ({ message, mine, reduced, onPress }: { message: PartyChatMessage; mine: boolean; reduced: boolean; onPress?: () => void }) => {
+const Message = memo(({ message, mine, reduced, onPress }: { message: PartyChatMessage; mine: boolean; reduced: boolean; onPress?: (message: PartyChatMessage) => void }) => {
   const entrance = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) { entrance.setValue(1); return; }
@@ -21,13 +22,13 @@ const Message = ({ message, mine, reduced, onPress }: { message: PartyChatMessag
         accessibilityRole="button"
         accessibilityLabel={`${mine ? 'You' : message.name}: ${message.body}. Message options`}
         accessibilityHint="Opens report or delete options"
-        onPress={onPress}
+        onPress={() => onPress?.(message)}
         className="mb-1.5 min-h-8 flex-row items-center gap-2"
         style={{ maxWidth: '70%' }}
       >
         <View className={`h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ${mine ? 'border border-border bg-card' : 'bg-primary-dark'}`}>
           {message.avatarUrl ? (
-            <Image source={{ uri: message.avatarUrl }} className="h-full w-full rounded-full" />
+            <RemoteImage uri={message.avatarUrl} fadeDuration={0} className="h-full w-full rounded-full" />
           ) : (
             <Text className={`text-[10px] font-bold ${mine ? 'text-muted' : 'text-primary'}`}>
               {(message.name || '?').trim().slice(0, 2).toUpperCase()}
@@ -41,7 +42,7 @@ const Message = ({ message, mine, reduced, onPress }: { message: PartyChatMessag
       </Pressable>
     </Animated.View>
   );
-};
+});
 
 export default function RoomChatStream({ messages, identity, onMessagePress, onEmojiPress }: {
   messages: PartyChatMessage[];
@@ -49,7 +50,7 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
   onMessagePress?: (message: PartyChatMessage) => void;
   onEmojiPress?: (emoji: string) => void;
 }) {
-  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const scroll = useRef<FlatList<PartyChatMessage>>(null);
   const atBottom = useRef(true);
   const [unread, setUnread] = useState(false);
   const [reduced, setReduced] = useState(false);
@@ -82,6 +83,9 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
       setUnread(true);
     }
   }, [messages, identity, reduced]);
+
+  const renderMessage = useCallback(({ item }: { item: PartyChatMessage }) =>
+    <Message message={item} mine={item.userId === identity} reduced={reduced} onPress={onMessagePress} />, [identity, reduced, onMessagePress]);
 
   const jump = () => {
     atBottom.current = true;
@@ -122,8 +126,15 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
   return (
     <View className="min-h-[100px] flex-1 px-5">
       <View className="flex-1 overflow-hidden">
-        <ScrollView
+        <FlatList
           ref={scroll}
+          data={messages}
+          keyExtractor={message => message.id}
+          renderItem={renderMessage}
+          ListEmptyComponent={<Text className="pb-4 text-sm leading-5 text-muted">You're in. Say hello to the room 👋</Text>}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={9}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={100}
@@ -137,18 +148,7 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
           onContentSizeChange={() => {
             if (atBottom.current) scroll.current?.scrollToEnd({ animated: !reduced });
           }}
-        >
-          {!messages.length && <Text className="pb-4 text-sm leading-5 text-muted">You're in. Say hello to the room 👋</Text>}
-          {messages.map(message => (
-            <Message
-              key={message.id}
-              message={message}
-              mine={message.userId === identity}
-              reduced={reduced}
-              onPress={() => onMessagePress?.(message)}
-            />
-          ))}
-        </ScrollView>
+        />
         {unread && (
           <Pressable
             accessibilityRole="button"

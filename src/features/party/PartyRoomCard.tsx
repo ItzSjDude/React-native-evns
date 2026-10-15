@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Image, Pressable, Text, View} from 'react-native';
 import IconDotsVertical from '@tabler/icons-react-native/IconDotsVertical';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
@@ -6,16 +6,20 @@ import IconUserFilled from '@tabler/icons-react-native/IconUserFilled';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconVideoFilled from '@tabler/icons-react-native/IconVideoFilled';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
+import RemoteImage from '../../components/RemoteImage';
 import {PartyColors, roomCover, roomTags, roomTitle, startsAt, tagClasses} from './partyPresentation';
 import type {PartyRoom} from './partyService';
 
-export const HostAvatar = ({room, size = 28}: {room: PartyRoom; size?: number}) => room.host.avatarUrl ? (
-  <Image source={{uri: room.host.avatarUrl}} style={{height: size, width: size, borderRadius: size / 2}} />
+export const HostAvatar = ({room, size = 28}: {room: PartyRoom; size?: number}) => {
+  const url = room.host.avatarUrl;
+  return url ? (
+  <RemoteImage uri={url} style={{height: size, width: size, borderRadius: size / 2}} />
 ) : (
   <View style={{height: size, width: size, borderRadius: size / 2}} className="items-center justify-center bg-primary-dark">
     <Text className="text-xs font-semibold text-primary">{(room.host.name || 'H').slice(0, 1).toUpperCase()}</Text>
   </View>
 );
+};
 
 const AvatarStack = ({room}: {room: PartyRoom}) => {
   const shown = Math.min(Math.max(room.participantCount - 1, 0), 2);
@@ -28,13 +32,13 @@ const AvatarStack = ({room}: {room: PartyRoom}) => {
   );
 };
 
-const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => void; onMore: () => void}) => {
+const PartyRoomCard = memo(({room, onOpen, onMore}: {room: PartyRoom; onOpen: (room: PartyRoom) => void; onMore: (room: PartyRoom) => void}) => {
   const video = room.kind === 'VIDEO';
   const scheduled = room.status === 'SCHEDULED';
   const MediaIcon = video ? IconVideoFilled : IconHeadphones;
   const tags = roomTags(room);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + roomTitle(room)} onPress={onOpen} className="mb-2.5 flex-row items-center rounded-[20px] border border-border/60 dark:border-[#282433] bg-card p-2 active:opacity-80">
+    <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + roomTitle(room)} onPress={() => onOpen(room)} className="mb-2.5 flex-row items-center rounded-[20px] border border-border/60 dark:border-[#282433] bg-card p-2 active:opacity-80">
       <View className="h-[104px] w-[104px] shrink-0 overflow-hidden rounded-[14px] bg-primary-dark">
         <Image source={roomCover(room)} resizeMode="cover" className="h-full w-full" />
         <View className={video ? 'absolute left-1.5 top-1.5 flex-row items-center gap-1 rounded-full bg-coral px-2 py-1' : 'absolute left-1.5 top-1.5 flex-row items-center gap-1 rounded-full bg-primary-dark px-2 py-1'}>
@@ -46,7 +50,7 @@ const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => v
         <View className="flex-row items-center">
           <Text className="min-w-0 flex-1 text-[16px] font-bold leading-5 text-foreground" numberOfLines={1}>{roomTitle(room)}</Text>
           <View className="ml-1.5 flex-row items-center gap-1"><IconUsers size={12} color={PartyColors.muted} /><Text className="text-[11px] text-muted">{room.participantCount}</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel={'More options for ' + roomTitle(room)} hitSlop={8} onPress={event => { event.stopPropagation(); onMore(); }} className="-mr-1 ml-1 h-7 w-6 items-center justify-center">
+          <Pressable accessibilityRole="button" accessibilityLabel={'More options for ' + roomTitle(room)} hitSlop={8} onPress={event => { event.stopPropagation(); onMore(room); }} className="-mr-1 ml-1 h-7 w-6 items-center justify-center">
             <IconDotsVertical size={17} color={PartyColors.muted} />
           </Pressable>
         </View>
@@ -56,7 +60,7 @@ const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => v
         </View>
         <View className="mt-auto flex-row items-center justify-between pt-2">
           <AvatarStack room={room} />
-          <Pressable accessibilityRole="button" accessibilityLabel={(scheduled ? 'View ' : 'Join ') + roomTitle(room)} onPress={event => { event.stopPropagation(); onOpen(); }} className="min-h-11 flex-row items-center justify-center gap-1.5 rounded-[14px] bg-gold px-3 active:opacity-70">
+          <Pressable accessibilityRole="button" accessibilityLabel={(scheduled ? 'View ' : 'Join ') + roomTitle(room)} onPress={event => { event.stopPropagation(); onOpen(room); }} className="min-h-11 flex-row items-center justify-center gap-1.5 rounded-[14px] bg-gold px-3 active:opacity-70">
             <MediaIcon size={15} color={PartyColors.ink} />
             <Text className="text-[12px] font-bold text-text-dark">{scheduled ? 'Details' : 'Join'}</Text>
           </Pressable>
@@ -64,6 +68,6 @@ const PartyRoomCard = ({room, onOpen, onMore}: {room: PartyRoom; onOpen: () => v
       </View>
     </Pressable>
   );
-};
+});
 
 export default PartyRoomCard;

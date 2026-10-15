@@ -1,10 +1,11 @@
 import React from 'react';
-import {Image, Text} from 'react-native';
+import {Text} from 'react-native';
+import FastImage from 'react-native-fast-image';
 import ReactTestRenderer from 'react-test-renderer';
 import Onboarding from '../Onboarding';
 import {imagePicker, uploadMedia} from '../../../core/media';
 import {getOnboardingProfile, saveOnboardingProfile} from '../onboarding/onboardingService';
-import {fillProfile as fillProfileWith} from '../__testHelpers__/onboardingTestUtils';
+import {fillAbout} from '../__testHelpers__/onboardingTestUtils';
 
 jest.mock('../../../core/store/hooks', () => ({
   useAppDispatch: () => jest.fn(),
@@ -26,7 +27,7 @@ const profile = {id: 'u1', name: 'Asha Rao', email: 'asha@example.com', handle: 
 beforeEach(() => {
   jest.clearAllMocks();
   (getOnboardingProfile as jest.Mock).mockResolvedValue(profile);
-  saveProfile.mockResolvedValue(profile);
+  saveProfile.mockImplementation(async payload => ({...profile, ...payload}));
 });
 
 const press = async (renderer: ReactTestRenderer.ReactTestRenderer, label: string) => {
@@ -40,16 +41,19 @@ const texts = (renderer: ReactTestRenderer.ReactTestRenderer) =>
 async function renderProfileStep() {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<Onboarding />); });
-  await fillProfileWith(renderer!, press);
   return renderer!;
 }
 
 async function finish(renderer: ReactTestRenderer.ReactTestRenderer) {
-  await press(renderer, 'Next');
+  await press(renderer, 'Continue');
+  await fillAbout(renderer, press);
+  await press(renderer, 'Continue');
+  await press(renderer, 'Developer');
+  await press(renderer, 'Continue');
   await press(renderer, 'Just exploring');
-  await press(renderer, 'Next');
+  await press(renderer, 'Continue');
   await press(renderer, 'Interest music');
-  await press(renderer, 'Finish');
+  await press(renderer, 'Create my profile');
 }
 
 test('uploads the picked photo as an avatar and saves avatarUrl in the PATCH', async () => {
@@ -59,10 +63,10 @@ test('uploads the picked photo as an avatar and saves avatarUrl in the PATCH', a
 
   await press(renderer, 'Add photo');
   expect(upload).toHaveBeenCalledWith(file, 'avatar');
-  expect(renderer.root.findAllByType(Image).some(node => node.props.source?.uri === 'https://cdn.example/avatars/u1/x.jpg')).toBe(true);
+  expect(renderer.root.findAllByType(FastImage).some(node => node.props.source?.uri === 'https://cdn.example/avatars/u1/x.jpg')).toBe(true);
 
   await finish(renderer);
-  expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['music'], avatarUrl: 'https://cdn.example/avatars/u1/x.jpg'});
+  expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['music'], gender: 'male', country: 'India', profession: 'Developer', intent: 'explore', avatarUrl: 'https://cdn.example/avatars/u1/x.jpg'});
 });
 
 test('a photo is mandatory: the upload error shows and Next stays on step 1', async () => {
@@ -73,16 +77,16 @@ test('a photo is mandatory: the upload error shows and Next stays on step 1', as
   await press(renderer, 'Add photo');
   expect(texts(renderer)).toContain('Upload failed. Check your connection and try again.');
 
-  await press(renderer, 'Next');
-  expect(texts(renderer)).toContain('Step 1 of 3');
+  await press(renderer, 'Continue');
+  expect(texts(renderer)).toContain('01/05');
   expect(saveProfile).not.toHaveBeenCalled();
 });
 
 test('a Google avatar already on the profile satisfies the photo requirement', async () => {
   (getOnboardingProfile as jest.Mock).mockResolvedValue({...profile, avatar_url: 'https://lh3.example/a.jpg'});
   const renderer = await renderProfileStep();
-  await press(renderer, 'Next');
-  expect(texts(renderer)).toContain('Step 2 of 3');
+  await press(renderer, 'Continue');
+  expect(texts(renderer)).toContain('02/05');
 });
 
 test('cancelling the picker does not upload', async () => {

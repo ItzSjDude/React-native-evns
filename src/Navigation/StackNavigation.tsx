@@ -4,7 +4,7 @@ import {ConfirmAgeScreen, LoginScreen, OnboardingScreen, UnderageScreen} from '.
 
 export type AuthStackParamList = {
   Login: undefined;
-  Onboarding: undefined;
+  Onboarding: {preview?: boolean} | undefined;
   ConfirmAge: undefined;
   Underage: undefined;
 };

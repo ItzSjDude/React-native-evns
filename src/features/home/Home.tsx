@@ -1,5 +1,6 @@
-import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Pressable, RefreshControl, Share, Text, View} from 'react-native';
+import React, {Fragment, memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, RefreshControl, Share, Text, View} from 'react-native';
+import {FlashList, type FlashListRef} from '@shopify/flash-list';
 import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {cssInterop} from 'nativewind';
@@ -33,8 +34,31 @@ type Viewer = {id: string; name: string; avatarUrl: string | null};
 type LoadMode = 'initial' | 'refresh' | 'more';
 
 const VIEWABILITY = {itemVisiblePercentThreshold: 50};
-/** The part of FlatList's viewability callback this screen reads. */
+/** The part of FlashList's viewability callback this screen reads. */
 type ViewableChange = {viewableItems: {index?: number | null}[]};
+
+type RowHandlers = {
+  like: (post: HomePost) => void; comments: (post: HomePost) => void; remove: (post: HomePost) => void; report: (post: HomePost, reason: string) => void;
+  share: (post: HomePost) => void; save: (postId: string) => void; viewAuthor: (post: HomePost) => void;
+};
+
+const LIST_CONTENT = {paddingBottom: 130};
+const postKey = (item: HomePost) => item.id;
+/** Every 4th row carries a native ad under the post, so it gets its own recycling pool. */
+const postType = (_item: HomePost, index: number) => index % 4 === 3 ? 'postWithAd' : 'post';
+
+/**
+ * Memoized feed row: only re-renders when its own post, saved flag or viewer changes.
+ * FlashList recycles cells, which keeps PostCard's local state (expanded caption, image page, open menu), so the card is keyed by post id
+ * to start fresh whenever a cell is reused for another post.
+ */
+const HomePostRow = memo(({item, index, viewerId, saved, handlers}: {item: HomePost; index: number; viewerId: string | null; saved: boolean; handlers: RowHandlers}) => (
+  <Fragment><PostCard key={item.id} {...toPostCardData(item, viewerId)} onToggleLike={() => handlers.like(item)} onOpenComments={() => handlers.comments(item)} onDelete={() => handlers.remove(item)}
+    onReport={reason => handlers.report(item, reason)} onShare={() => handlers.share(item)}
+    saved={saved} onToggleSave={() => handlers.save(item.id)}
+    headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
+    onPressAuthor={item.authorId && !item.pending ? () => handlers.viewAuthor(item) : undefined} />{index % 4 === 3 && <NativeAdCard />}</Fragment>
+));
 
 const Home = () => {
   const [posts, setPosts] = useState<HomePost[]>([]);
@@ -56,7 +80,7 @@ const Home = () => {
   const scopeRef = useRef<FeedScope>('all');
   const [topIndex, setTopIndex] = useState(0);
   const {saved: savedPosts, toggle: toggleSaved} = useSavedPosts();
-  const listRef = useRef<FlatList<HomePost>>(null);
+  const listRef = useRef<FlashListRef<HomePost>>(null);
   const request = useRef(0);
   const moreInFlight = useRef(false);
   const likesInFlight = useRef(new Set<string>());
@@ -241,6 +265,17 @@ const Home = () => {
     if (first && first.index !== null && first.index !== undefined) setTopIndex(first.index);
   }).current;
 
+  // Latest closures behind a stable object, so memoized rows don't re-render when unrelated state changes.
+  const handlerRef = useRef<RowHandlers>(null as unknown as RowHandlers);
+  handlerRef.current = {
+    like: toggleLike, comments: post => openComments(post), remove: removePost, report, share: sharePost, save: toggleSaved,
+    viewAuthor: post => setViewing({id: post.authorId, initial: {name: post.author, avatarUrl: post.authorAvatarUrl ?? null}}),
+  };
+  const rowHandlers = useMemo<RowHandlers>(() => ({
+    like: post => handlerRef.current.like(post), comments: post => handlerRef.current.comments(post), remove: post => handlerRef.current.remove(post),
+    report: (post, reason) => handlerRef.current.report(post, reason), share: post => handlerRef.current.share(post), save: id => handlerRef.current.save(id),
+    viewAuthor: post => handlerRef.current.viewAuthor(post),
+  }), []);
   const nextPost = () => {
     const index = Math.min(topIndex + 1, posts.length - 1);
     listRef.current?.scrollToIndex({index, animated: true});
@@ -314,23 +349,22 @@ const Home = () => {
   ) : undefined;
 
   const viewerId = viewer?.id ?? null;
+  const renderPost = useCallback(({item, index}: {item: HomePost; index: number}) =>
+    <HomePostRow item={item} index={index} viewerId={viewerId} saved={savedPosts.has(item.id)} handlers={rowHandlers} />, [viewerId, savedPosts, rowHandlers]);
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     {topBar}
     {tab === 'events' && <EventsList onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} />}
     {/* Hidden rather than unmounted under Events, so the feed keeps its posts and scroll and can't refresh or paginate. */}
     <View className={tab === 'events' ? 'hidden' : 'flex-1'}>
-    <FlatList
+    <FlashList
       ref={listRef}
       data={posts}
       extraData={viewerId}
-      keyExtractor={item => item.id}
-      renderItem={({item, index}) => <Fragment><PostCard {...toPostCardData(item, viewerId)} onToggleLike={() => toggleLike(item)} onOpenComments={() => openComments(item)} onDelete={() => removePost(item)}
-        onReport={reason => report(item, reason)} onShare={() => sharePost(item)}
-        saved={savedPosts.has(item.id)} onToggleSave={() => toggleSaved(item.id)}
-        headerAction={item.authorId && !item.pending ? <PostFollowButton authorId={item.authorId} viewerId={viewerId} /> : undefined}
-        onPressAuthor={item.authorId && !item.pending ? () => setViewing({id: item.authorId, initial: {name: item.author, avatarUrl: item.authorAvatarUrl ?? null}}) : undefined} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
+      keyExtractor={postKey}
+      getItemType={postType}
+      renderItem={renderPost}
       showsVerticalScrollIndicator={false}
-      contentContainerClassName="pb-[130px]"
+      contentContainerStyle={LIST_CONTENT}
       ListHeaderComponent={listHeader ?? undefined}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
@@ -339,7 +373,6 @@ const Home = () => {
       onEndReachedThreshold={0.5}
       onViewableItemsChanged={onViewableItemsChanged}
       viewabilityConfig={VIEWABILITY}
-      onScrollToIndexFailed={({index, averageItemLength}) => listRef.current?.scrollToOffset({offset: index * averageItemLength, animated: true})}
     />
     </View>
     {tab !== 'events' && posts.length > 1 && topIndex < posts.length - 1 && (

@@ -5,11 +5,12 @@ import Nearby from '../Nearby';
 import {getDeviceLocation} from '../deviceLocation';
 import {getLocationVisibility, getNearbyPeople, setLocationVisibility, updateMyLocation} from '../nearbyService';
 
-jest.mock('@react-navigation/native', () => ({useIsFocused: () => true, useNavigation: () => ({navigate: jest.fn()})}));
+jest.mock('@react-navigation/native', () => ({useIsFocused: () => true, useNavigation: () => ({navigate: jest.fn()}), useRoute: () => ({params: undefined})}));
 jest.mock('../../events', () => ({EventsList: () => require('react').createElement(require('react-native').Text, null, 'Events catalogue')}));
 jest.mock('../deviceLocation', () => ({getDeviceLocation: jest.fn()}));
 jest.mock('../nearbyService', () => ({
   getLocationVisibility: jest.fn(), getNearbyPeople: jest.fn(), setLocationVisibility: jest.fn(), updateMyLocation: jest.fn(),
+  updateMyLocationFromFix: jest.fn((fix: {lat: number; lng: number}) => require('../nearbyService').updateMyLocation(fix.lat, fix.lng)),
 }));
 jest.mock('../../messages', () => ({DirectConversation: () => null, startDirectConversation: jest.fn()}));
 jest.mock('../../users', () => ({UserProfileModal: () => null}));

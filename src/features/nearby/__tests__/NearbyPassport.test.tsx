@@ -9,13 +9,14 @@ import {createDiscoveryPreset, deleteDiscoveryPreset, listDiscoveryPresets} from
 import {getLocationVisibility, getNearbyPeople, getPassportPeople, updateMyLocation} from '../nearbyService';
 import type {DiscoveryPreset} from '../types';
 
-jest.mock('@react-navigation/native', () => ({useIsFocused: () => true, useNavigation: () => ({navigate: jest.fn()})}));
+jest.mock('@react-navigation/native', () => ({useIsFocused: () => true, useNavigation: () => ({navigate: jest.fn()}), useRoute: () => ({params: undefined})}));
 jest.mock('../../events', () => ({EventsList: () => null}));
 jest.mock('../../messages', () => ({DirectConversation: () => null, startDirectConversation: jest.fn()}));
 jest.mock('../deviceLocation', () => ({getDeviceLocation: jest.fn()}));
 jest.mock('../nearbyService', () => ({
   getLocationVisibility: jest.fn(), getNearbyPeople: jest.fn(), getPassportPeople: jest.fn(),
   setLocationVisibility: jest.fn(), updateMyLocation: jest.fn(),
+  updateMyLocationFromFix: jest.fn((fix: {lat: number; lng: number}) => require('../nearbyService').updateMyLocation(fix.lat, fix.lng)),
 }));
 jest.mock('../discoveryPresetService', () => ({
   NAME_MAX_LENGTH: 40, listDiscoveryPresets: jest.fn(), createDiscoveryPreset: jest.fn(), deleteDiscoveryPreset: jest.fn(),
@@ -76,7 +77,9 @@ test('free users have no other-cities tab, while saved searches remain locked', 
 });
 
 test('a saved other-city search still lists a city without distance or location calls', async () => {
+  // One short page with more to come: FlashList (mocked 900px viewport) requests the next page itself, at the current offset.
   passport.mockResolvedValueOnce({people: [person('a', 'Asha')], hasMore: true});
+  passport.mockResolvedValueOnce({people: [person('b', 'Bilal')], hasMore: false});
   list.mockResolvedValue([preset({id: 'p2', name: 'Mumbai trip', mode: 'PASSPORT', city: 'Mumbai'})]);
   const renderer = await render('plus');
   expect(postLocation).toHaveBeenCalledTimes(1);
@@ -87,9 +90,12 @@ test('a saved other-city search still lists a city without distance or location 
   await press(renderer, 'Saved searches');
   await press(renderer, 'Apply Mumbai trip');
 
-  expect(passport).toHaveBeenLastCalledWith('Mumbai', {}, 0);
+  expect(passport).toHaveBeenNthCalledWith(1, 'Mumbai', {}, 0);
+  expect(passport).toHaveBeenNthCalledWith(2, 'Mumbai', {}, 1);
+  expect(passport).toHaveBeenCalledTimes(2);
   const shown = texts(renderer);
   expect(shown).toContain('Asha');
+  expect(shown).toContain('Bilal');
   expect(shown).toContain('People in Mumbai');
   expect(shown).not.toMatch(/\bkm\b|\d+ m\b|Within|Under|Over/);
   expect(control(renderer, 'View Asha in Mumbai')).toBeTruthy();
@@ -97,11 +103,6 @@ test('a saved other-city search still lists a city without distance or location 
   expect(postLocation).not.toHaveBeenCalled();
   expect(nearby).not.toHaveBeenCalled();
 
-  passport.mockResolvedValueOnce({people: [person('b', 'Bilal')], hasMore: false});
-  const listNode = renderer.root.findAll(node => typeof node.props.onEndReached === 'function')[0];
-  await ReactTestRenderer.act(async () => { listNode.props.onEndReached(); });
-  expect(passport).toHaveBeenLastCalledWith('Mumbai', {}, 1);
-  expect(texts(renderer)).toContain('Bilal');
   await unmount(renderer);
 });
 

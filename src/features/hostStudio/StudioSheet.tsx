@@ -10,6 +10,7 @@ import {markPartyUnavailable} from './availability';
 import {errorMessage, getRunOfShow, isUnavailable, isValidNotes, isValidQuestion, listQuestions, saveRunOfShow, submitQuestion, updateQuestion} from './hostStudioService';
 import {NOTES_MAX, QUESTION_MAX} from './types';
 import type {PartyQuestion, QuestionStatus} from './types';
+import {setActiveInterval} from '../../core/appActiveInterval';
 
 export const QUESTIONS_POLL_MS = 5000;
 
@@ -77,8 +78,7 @@ function QuestionQueue({partyId, onUnavailable}: {partyId: string; onUnavailable
 
   useEffect(() => {
     refresh();
-    const timer = setInterval(refresh, QUESTIONS_POLL_MS);
-    return () => clearInterval(timer);
+    return setActiveInterval(refresh, QUESTIONS_POLL_MS);
   }, [refresh]);
 
   const run = async (work: () => Promise<unknown>) => {

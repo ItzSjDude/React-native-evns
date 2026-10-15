@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
-import {ActivityIndicator, Image, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import IconPhoto from '@tabler/icons-react-native/IconPhoto';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
@@ -11,6 +11,7 @@ import Typography from '../../Constants/Typography';
 import {imagePicker, isPurposeRejected, uploadErrorMessage, uploadMedia, type LocalMediaFile} from '../../core/media';
 import {avatarTint} from './feedTheme';
 import {POST_BODY_MAX_LENGTH, type ApiPostMedia} from './types';
+import RemoteImage from '../../components/RemoteImage';
 
 /** `post.schema.js#create` allows at most 4 media items. */
 export const MAX_POST_PHOTOS = 4;
@@ -45,7 +46,7 @@ const ComposeAvatar = ({name, url, size}: {name: string; url?: string | null; si
   const tint = avatarTint(name);
   const frame = {width: size, height: size, borderRadius: size / 2, backgroundColor: tint.background};
   return url
-    ? <Image source={{uri: url}} accessibilityLabel={`${name}'s avatar`} style={frame} />
+    ? <RemoteImage uri={url} accessibilityLabel={`${name}'s avatar`} style={frame} />
     : <View style={frame} className="items-center justify-center">
       {size >= 24 ? <Text style={{fontSize: size * 0.36, color: tint.text}} className="font-bold">{initialsOf(name)}</Text> : null}
     </View>;
@@ -163,7 +164,7 @@ const ComposePostSheet = ({visible, draft, error, onChangeDraft, onClose, onSubm
                 />
                 {photos.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" className="mt-[10px]" contentContainerClassName="gap-2">
                   {photos.map((photo, index) => <View key={photo.id} className="h-[160px] w-[124px] overflow-hidden rounded-[12px] border border-border bg-card">
-                    <Image accessibilityLabel={`Attached photo ${index + 1}`} source={{uri: photo.file.uri}} className="h-full w-full" />
+                    <RemoteImage accessibilityLabel={`Attached photo ${index + 1}`} uri={photo.file.uri} className="h-full w-full" />
                     {photo.status === 'uploading' ? <View className="absolute inset-0 items-center justify-center bg-black/50"><ActivityIndicator color={Colors.gold} /></View> : null}
                     {photo.status === 'error' ? <Pressable accessibilityRole="button" accessibilityLabel={`Retry photo ${index + 1}`} onPress={() => upload(photo.id, photo.file)}
                       className="absolute inset-0 items-center justify-center bg-coral/40 active:opacity-70">

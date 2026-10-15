@@ -1,7 +1,7 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {
-  ActivityIndicator, FlatList, Image, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, FlatList, Keyboard, KeyboardAvoidingView,
   Modal, Platform, Pressable, Text, TextInput, View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -23,6 +23,8 @@ import {applyRealtimeToMessages, createTypingThrottle, isMessageEvent, mergeMess
 import type {ConversationKind, MessagesRealtimeEvent} from './types';
 import {useMessagesRealtime} from './useMessagesRealtime';
 import {usePresence} from './presence';
+import {setActiveInterval} from '../../core/appActiveInterval';
+import RemoteImage from '../../components/RemoteImage';
 
 type Props = {
   conversationId: string;
@@ -46,6 +48,16 @@ const timeOf = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
 };
+
+/** Memoized chat bubble so a new message or typing tick doesn't re-render the whole history. */
+const MessageBubble = memo(({message, mine}: {message: DirectMessage; mine: boolean}) => (
+  <View className={`mb-4 max-w-[82%] ${mine ? 'self-end items-end' : 'self-start items-start'}`}>
+    <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-gold' : 'rounded-bl-[5px] bg-card'}`}>
+      <Text className={`text-[15px] leading-[21px] ${mine ? 'text-text-dark' : 'text-foreground'}`}>{messageText(message)}</Text>
+    </View>
+    <Text className="mt-1 px-1 text-[11px] text-muted">{timeOf(message.created_at)}</Text>
+  </View>
+));
 
 const DirectConversation = ({
   conversationId, contactId, contactName, contactAvatarUrl, onClose,
@@ -84,6 +96,7 @@ const DirectConversation = ({
   useEffect(() => () => { clearTimeout(typingTimer.current); clearTimeout(readTimer.current); }, []);
 
   const loadMessages = useCallback(async () => {
+    if (viewerId === undefined) return; // wait for the keychain read so the first open fetches once
     setError(null);
     const cached = viewerId ? await loadCachedMessages(viewerId, conversationId) : [];
     if (conversationRef.current !== conversationId || viewerRef.current !== viewerId) return;
@@ -142,8 +155,7 @@ const DirectConversation = ({
 
   useEffect(() => {
     if (connected) return;
-    const timer = setInterval(refresh, pollIntervalMs);
-    return () => clearInterval(timer);
+    return setActiveInterval(refresh, pollIntervalMs);
   }, [connected, pollIntervalMs, refresh]);
 
   const changeDraft = (text: string) => {
@@ -168,6 +180,8 @@ const DirectConversation = ({
     }
   };
 
+  const renderMessage = ({item}: {item: DirectMessage}) => <MessageBubble message={item} mine={isOwnMessage(item, kind, contactId)} />;
+
   const close = () => { Keyboard.dismiss(); onClose(); };
   const reportSpam = () => showDialog('Report spam?', `Report ${contactName} for spam or scam?`, [
     {text: 'Cancel', style: 'cancel'},
@@ -184,7 +198,7 @@ const DirectConversation = ({
             <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={close} className="h-11 w-11 items-center justify-center rounded-full active:bg-card">
               <IconArrowLeft size={24} color={Colors.text} />
             </Pressable>
-            {contactAvatarUrl ? <Image source={{uri: contactAvatarUrl}} className="h-10 w-10 rounded-full" /> : (
+            {contactAvatarUrl ? <RemoteImage uri={contactAvatarUrl} className="h-10 w-10 rounded-full" /> : (
               <View className="h-10 w-10 items-center justify-center rounded-full bg-primary-dark">
                 <Text className="text-sm font-bold text-foreground">{contactName.slice(0, 1).toUpperCase()}</Text>
               </View>
@@ -205,18 +219,10 @@ const DirectConversation = ({
               ref={listRef}
               data={messages}
               keyExtractor={item => item.id}
-              renderItem={({item}) => {
-                const mine = isOwnMessage(item, kind, contactId);
-                const body = messageText(item);
-                return (
-                  <View className={`mb-4 max-w-[82%] ${mine ? 'self-end items-end' : 'self-start items-start'}`}>
-                    <View className={`rounded-[18px] px-4 py-3 ${mine ? 'rounded-br-[5px] bg-gold' : 'rounded-bl-[5px] bg-card'}`}>
-                      <Text className={`text-[15px] leading-[21px] ${mine ? 'text-text-dark' : 'text-foreground'}`}>{body}</Text>
-                    </View>
-                    <Text className="mt-1 px-1 text-[11px] text-muted">{timeOf(item.created_at)}</Text>
-                  </View>
-                );
-              }}
+              renderItem={renderMessage}
+              initialNumToRender={20}
+              maxToRenderPerBatch={12}
+              windowSize={11}
               ListFooterComponent={typing ? <View testID="typing-indicator" className="mb-4 max-w-[82%] self-start rounded-[18px] rounded-bl-[5px] bg-card px-4 py-3"><Text className="text-sm text-muted">{contactName} is typing…</Text></View> : undefined}
               contentContainerClassName="flex-grow justify-end px-5 pb-3 pt-5"
               onContentSizeChange={() => listRef.current?.scrollToEnd({animated: false})}

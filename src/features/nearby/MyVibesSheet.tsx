@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Alert, Pressable, Text, View} from 'react-native';
 import IconNote from '@tabler/icons-react-native/IconNote';
 import IconTrash from '@tabler/icons-react-native/IconTrash';
@@ -10,6 +10,19 @@ import type {MyVibeNote} from './vibeNoteTypes';
 import {postedAgoLabel, timeLeftLabel} from './VibeNotesList';
 
 type Props = {visible: boolean; onClose: () => void};
+
+type MyVibeRowProps = {note: MyVibeNote; deleting: boolean; locked: boolean; onDelete: (note: MyVibeNote) => void};
+
+const MyVibeRow = memo(({note, deleting, locked, onDelete}: MyVibeRowProps) => <View className="mb-3 rounded-2xl bg-card px-4 py-4">
+  <View className="flex-row items-start gap-3">
+    <Text className="min-w-0 flex-1 text-[15px] leading-[21px] text-foreground">{note.body}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Delete your vibe" accessibilityState={{disabled: locked, busy: deleting}}
+      disabled={locked} onPress={() => onDelete(note)} hitSlop={6} className="h-9 w-9 items-center justify-center rounded-full active:bg-border">
+      {deleting ? <ActivityIndicator size="small" color={Colors.coral} /> : <IconTrash size={18} color={Colors.muted} />}
+    </Pressable>
+  </View>
+  <Text className="mt-2 text-[12px] text-muted">{postedAgoLabel(note.createdAt)} · {timeLeftLabel(note.expiresAt)} · Within {note.radiusMeters} m</Text>
+</View>);
 
 /** The author's live notes, regardless of current location or discovery radius. */
 export default function MyVibesSheet({visible, onClose}: Props) {
@@ -48,8 +61,11 @@ export default function MyVibesSheet({visible, onClose}: Props) {
     return () => {requestRef.current++;};
   }, [load, visible]);
 
-  const remove = async (note: MyVibeNote) => {
-    if (deletingId) return;
+  const deletingRef = useRef(deletingId);
+  deletingRef.current = deletingId;
+  const remove = useCallback(async (note: MyVibeNote) => {
+    if (deletingRef.current) return;
+    deletingRef.current = note.id;
     setDeletingId(note.id);
     setError(null);
     try {
@@ -58,29 +74,21 @@ export default function MyVibesSheet({visible, onClose}: Props) {
     } catch (cause) {
       setError(nearbyErrorMessage(cause));
     } finally {
+      deletingRef.current = null;
       setDeletingId(null);
     }
-  };
+  }, []);
 
-  const confirmRemove = (note: MyVibeNote) => Alert.alert('Delete this vibe?', 'It will disappear for everyone.', [
+  const confirmRemove = useCallback((note: MyVibeNote) => Alert.alert('Delete this vibe?', 'It will disappear for everyone.', [
     {text: 'Cancel', style: 'cancel'},
     {text: 'Delete', style: 'destructive', onPress: () => {remove(note);}},
-  ]);
+  ]), [remove]);
 
   return <BottomSheet visible={visible} onClose={onClose} title="Your vibes" subtitle="Notes you’ve dropped that are still live." maxHeight={0.9}>
     {loading && notes.length === 0 ? <View accessibilityRole="progressbar" accessibilityLabel="Loading your vibes" className="min-h-[180px] items-center justify-center">
       <ActivityIndicator color={Colors.primary} />
     </View> : null}
-    {notes.map(note => <View key={note.id} className="mb-3 rounded-2xl bg-card px-4 py-4">
-      <View className="flex-row items-start gap-3">
-        <Text className="min-w-0 flex-1 text-[15px] leading-[21px] text-foreground">{note.body}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Delete your vibe" accessibilityState={{disabled: !!deletingId, busy: deletingId === note.id}}
-          disabled={!!deletingId} onPress={() => confirmRemove(note)} hitSlop={6} className="h-9 w-9 items-center justify-center rounded-full active:bg-border">
-          {deletingId === note.id ? <ActivityIndicator size="small" color={Colors.coral} /> : <IconTrash size={18} color={Colors.muted} />}
-        </Pressable>
-      </View>
-      <Text className="mt-2 text-[12px] text-muted">{postedAgoLabel(note.createdAt)} · {timeLeftLabel(note.expiresAt)} · Within {note.radiusMeters} m</Text>
-    </View>)}
+    {notes.map(note => <MyVibeRow key={note.id} note={note} deleting={deletingId === note.id} locked={!!deletingId} onDelete={confirmRemove} />)}
     {!loading && !error && notes.length === 0 && <View className="min-h-[190px] items-center justify-center px-4 py-7">
       <IconNote size={34} color={Colors.muted} strokeWidth={1.5} />
       <Text className="mt-3 text-center text-[16px] font-semibold text-foreground">No live vibes yet</Text>

@@ -1,5 +1,6 @@
-import React, {Fragment, useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, AppState, FlatList, Image, Pressable, RefreshControl, Text, View} from 'react-native';
+import React, {Fragment, memo, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, AppState, Pressable, RefreshControl, Text, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
@@ -13,16 +14,20 @@ import {getEvents} from './eventsService';
 import type {ApiEvent} from './types';
 import {listMyWorkspaces, OrganizerOnboardingScreen, type Workspace} from '../organizer';
 import {NativeAdCard} from '../ads';
+import RemoteImage from '../../components/RemoteImage';
 
 // Bottom padding clears the floating tab bar, matching the Home feed it replaces.
-const LIST_CONTENT = {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 130, flexGrow: 1};
+const LIST_CONTENT = {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 130};
+const eventKey = (item: ApiEvent) => item.id;
+/** Every 4th row carries a native ad under the event, so it gets its own recycling pool. */
+const eventType = (_item: ApiEvent, index: number) => index % 4 === 3 ? 'eventWithAd' : 'event';
 const Separator = () => <View className="h-3" />;
 
-const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
+const EventRow = memo(({event, onPress}: {event: ApiEvent; onPress: (event: ApiEvent) => void}) => {
   const cover = event.cover_url && /^https?:\/\//i.test(event.cover_url) ? event.cover_url : null;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Open event ${event.title}`} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open event ${event.title}`} onPress={() => onPress(event)}
     className="overflow-hidden rounded-[22px] border border-border bg-card">
-    {!!cover && <Image source={{uri: cover}} className="h-36 w-full bg-background" resizeMode="cover" />}
+    {!!cover && <RemoteImage uri={cover} fadeDuration={0} className="h-36 w-full bg-background" resizeMode="cover" />}
     <View className="p-4">
       <View className="flex-row items-start justify-between gap-3">
         <Text numberOfLines={2} className="flex-1 text-[16px] font-extrabold text-foreground">{event.title}</Text>
@@ -36,7 +41,7 @@ const EventRow = ({event, onPress}: {event: ApiEvent; onPress: () => void}) => {
       </View>
     </View>
   </Pressable>;
-};
+});
 
 /** The events list, embedded under Home's tab row. Loads its first page when mounted. */
 type EventsListProps = {onOpenEventChat?: (conversationId?: string) => void};
@@ -120,15 +125,15 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
   const loadMore = () => { if (hasMore && !busy.current && !error) load(events.length, 'more'); };
 
   const empty = loading
-    ? <View className="flex-1 items-center justify-center"><ActivityIndicator accessibilityLabel="Loading events" color={Colors.gold} /></View>
+    ? <View className="items-center justify-center py-16"><ActivityIndicator accessibilityLabel="Loading events" color={Colors.gold} /></View>
     : error
-      ? <View className="flex-1 items-center justify-center px-6">
+      ? <View className="items-center justify-center px-6 py-16">
         <Text accessibilityRole="alert" className="text-center text-[14px] text-coral">{error}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={() => load(0, 'initial')} className="mt-3 rounded-full bg-gold px-5 py-2.5">
           <Text className="text-[13px] font-extrabold text-gold-ink">Retry</Text>
         </Pressable>
       </View>
-      : <View className="flex-1 items-center justify-center px-6">
+      : <View className="items-center justify-center px-6 py-16">
         <Text className="text-[34px]">🎟️</Text>
         <Text className="mt-2 text-[16px] font-extrabold text-foreground">No upcoming events</Text>
         <Text className="mt-1 text-center text-[13px] text-muted">Pull down to check again.</Text>
@@ -149,12 +154,17 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
     </Pressable>
   </View>;
 
+  const openEvent = useCallback((event: ApiEvent) => { setSelected(event); setSheetOpen(true); }, []);
+  const renderEvent = useCallback(({item, index}: {item: ApiEvent; index: number}) =>
+    <Fragment><EventRow event={item} onPress={openEvent} />{index % 4 === 3 && <NativeAdCard />}</Fragment>, [openEvent]);
+
   return <>
-    <FlatList
+    <FlashList
       data={events}
-      keyExtractor={item => item.id}
+      keyExtractor={eventKey}
+      getItemType={eventType}
       ListHeaderComponent={listHeader}
-      renderItem={({item, index}) => <Fragment><EventRow event={item} onPress={() => { setSelected(item); setSheetOpen(true); }} />{index % 4 === 3 && <NativeAdCard />}</Fragment>}
+      renderItem={renderEvent}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={LIST_CONTENT}
       showsVerticalScrollIndicator={false}

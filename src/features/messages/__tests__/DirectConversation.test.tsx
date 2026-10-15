@@ -131,9 +131,9 @@ test('shows typing for about 4s and sends throttled typing frames while composin
   await act(() => socket().onEvent({type: 'typing', conversationId: 'c1', userId: 'u2'}));
   expect(renderer.root.findAllByProps({testID: 'typing-indicator'}).length).toBeGreaterThan(0);
   await act(() => { jest.advanceTimersByTime(3000); });
-  expect(texts(renderer)).toContain('typing…');
+  expect(texts(renderer)).toContain('Ananya is typing…');
   await act(() => { jest.advanceTimersByTime(1000); });
-  expect(texts(renderer)).not.toContain('typing…');
+  expect(texts(renderer)).not.toContain('Ananya is typing…');
 
   const input = renderer.root.findByProps({accessibilityLabel: 'Message Ananya'});
   const frames = sockets[0].send;

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Keyboard, Pressable, ScrollView, Text, TextInput, type TextInputInstance, View} from 'react-native';
 import SlideInScreen from '../../components/SlideInScreen';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
@@ -48,9 +48,11 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
     setProfile(null);
   }, [visible]);
 
-  const commit = () => {if (search.typedQuery) remember(search.typedQuery);};
-  const openPerson = (person: PersonResult) => {commit(); Keyboard.dismiss(); setProfile(person);};
-  const openRoom = (room: RoomResult) => {commit(); Keyboard.dismiss(); onOpenParty?.(room.id, room);};
+  const typedQuery = search.typedQuery;
+  const commit = useCallback(() => {if (typedQuery) remember(typedQuery);}, [remember, typedQuery]);
+  // Stable so the memoized result rows don't re-render on every keystroke of the parent.
+  const openPerson = useCallback((person: PersonResult) => {commit(); Keyboard.dismiss(); setProfile(person);}, [commit]);
+  const openRoom = useCallback((room: RoomResult) => {commit(); Keyboard.dismiss(); onOpenParty?.(room.id, room);}, [commit, onOpenParty]);
   const close = () => {Keyboard.dismiss(); onClose();};
 
   const people = <SectionBody section={search.people} query={search.query} kind="people" onRetry={search.retry}
