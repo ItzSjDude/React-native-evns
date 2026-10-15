@@ -1,6 +1,6 @@
 import React, {memo} from 'react';
 import {Pressable, Text, View} from 'react-native';
-import {Avatar} from '../users';
+import PersonRow from '../../components/PersonRow';
 import {goalLabel} from './networkingPresentation';
 import type {ConnectionState, NetworkingAttendee} from './types';
 
@@ -14,12 +14,9 @@ type Props = {
   onOpenProfile: (attendee: NetworkingAttendee) => void;
 };
 
-const Chip = ({label}: {label: string}) =>
-  <View className="rounded-full bg-primary-dark px-2.5 py-1"><Text className="text-[11px] font-semibold text-purple-soft">{label}</Text></View>;
-
 const Action = ({label, onPress, disabled, primary}: {label: string; onPress: () => void; disabled?: boolean; primary?: boolean}) =>
   <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress}
-    className={`h-9 items-center justify-center rounded-full px-4 active:opacity-70 ${primary ? 'bg-gold' : 'bg-card'} ${disabled ? 'opacity-50' : ''}`}>
+    className={`min-h-11 items-center justify-center rounded-full px-4 active:opacity-70 ${primary ? 'bg-gold' : 'border border-border bg-card'} ${disabled ? 'opacity-50' : ''}`}>
     <Text className={`text-[13px] font-bold ${primary ? 'text-text-dark' : 'text-foreground'}`}>{label}</Text>
   </Pressable>;
 
@@ -29,18 +26,9 @@ const AttendeeCard = memo(function AttendeeCard({attendee, state, busy, onConnec
   const connect = () => onConnect(attendee);
   const disconnect = () => onDisconnect(attendee);
   const openProfile = () => onOpenProfile(attendee);
-  return <View className="mb-3 rounded-2xl border border-border bg-card/60 p-4">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${name}'s profile`} onPress={openProfile} className="flex-row items-center gap-3 active:opacity-70">
-      <Avatar name={name} url={attendee.avatarUrl} size={44} />
-      <View className="min-w-0 flex-1">
-        <Text numberOfLines={1} className="text-[15px] font-bold text-foreground">{name}</Text>
-        {!!attendee.intro && <Text numberOfLines={3} className="mt-0.5 text-[13px] leading-5 text-text-body">{attendee.intro}</Text>}
-      </View>
-    </Pressable>
-    {(attendee.goals.length > 0 || attendee.interests.length > 0) && <View className="mt-3 flex-row flex-wrap gap-1.5">
-      {attendee.goals.map(goal => <Chip key={goal} label={goalLabel(goal)} />)}
-      {attendee.interests.map(interest => <Chip key={`i-${interest}`} label={interest} />)}
-    </View>}
+  const chipLabels = [...attendee.goals.map(goalLabel), ...attendee.interests];
+  return <PersonRow variant="card" name={name} avatarUrl={attendee.avatarUrl} bio={attendee.intro} bioLines={3} interests={chipLabels} maxChips={8}
+    accessibilityLabel={`Open ${name}'s profile`} onPress={openProfile} footer={
     <View className="mt-3 flex-row flex-wrap items-center gap-2">
       {state === 'none' && <Action primary label={`Connect with ${name}`} disabled={busy} onPress={connect} />}
       {state === 'incoming' && <>
@@ -57,8 +45,7 @@ const AttendeeCard = memo(function AttendeeCard({attendee, state, busy, onConnec
       </>}
       <View className="flex-1" />
       <Action label={`Report or block ${name}`} onPress={openProfile} />
-    </View>
-  </View>;
+    </View>} />;
 });
 
 export default AttendeeCard;

@@ -79,13 +79,13 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
             placeholder="Search people and rooms" placeholderTextColor={Colors.muted} maxLength={SEARCH_MAX_LENGTH}
             returnKeyType="search" autoCapitalize="none" autoCorrect={false} onSubmitEditing={commit}
             selectionColor={Colors.primary} className="h-full flex-1 text-[15px] text-foreground" />
-          {input ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8}
+          {input ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={{top: 8, bottom: 8, left: 4, right: 4}}
             onPress={() => {setInput(''); inputRef.current?.focus();}}
-            className="h-6 w-6 items-center justify-center rounded-full bg-white/10 active:opacity-60">
-            <IconX size={14} color={Colors.text} />
+            className="h-11 w-11 items-center justify-center active:opacity-60">
+            <View className="h-6 w-6 items-center justify-center rounded-full bg-white/10"><IconX size={14} color={Colors.text} /></View>
           </Pressable> : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={close} hitSlop={8} className="active:opacity-60">
+        <Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={close} hitSlop={8} className="min-h-11 justify-center active:opacity-60">
           <Text className="text-[15px] font-semibold text-primary">Cancel</Text>
         </Pressable>
       </View>
@@ -96,7 +96,7 @@ export default function SearchScreen({visible, onClose, onOpenParty}: SearchScre
         {TABS.map(item => {
           const active = item.key === tab;
           return <Pressable key={item.key} accessibilityRole="tab" accessibilityLabel={`${item.label} results`} accessibilityState={{selected: active}}
-            onPress={() => setTab(item.key)} className={`flex-1 items-center rounded-full py-2 ${active ? 'bg-gold' : 'active:bg-white/5'}`}>
+            onPress={() => setTab(item.key)} className={`flex-1 items-center min-h-11 justify-center rounded-full py-2 ${active ? 'bg-gold' : 'active:bg-white/5'}`}>
             <Text className={`text-[13px] font-bold ${active ? 'text-icon-dark' : 'text-muted'}`}>{item.label}</Text>
           </Pressable>;
         })}

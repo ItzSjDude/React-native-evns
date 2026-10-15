@@ -60,7 +60,7 @@ export default function PresetsBar({current, onApply}: Props) {
 
   if (!enabled) return null;
   if (!isPlus) {
-    return <Pressable accessibilityRole="button" accessibilityLabel="Saved searches, requires Hiva Plus" onPress={() => openPaywall('passport')} hitSlop={6} className="min-h-10 flex-row items-center gap-1.5 px-2 active:opacity-70">
+    return <Pressable accessibilityRole="button" accessibilityLabel="Saved searches, requires Hiva Plus" onPress={() => openPaywall('passport')} hitSlop={6} className="min-h-11 flex-row items-center gap-1.5 px-2 active:opacity-70">
       <IconBookmark size={17} color={Colors.muted} />
       <Text className="text-[13px] font-semibold text-muted">Saved</Text>
       <IconLock size={12} color={Colors.muted} />
@@ -110,7 +110,7 @@ export default function PresetsBar({current, onApply}: Props) {
   };
 
   return <View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Saved searches" onPress={() => {setError(null); setSheet('list');}} hitSlop={6} className="min-h-10 flex-row items-center gap-1.5 px-2 active:opacity-70">
+    <Pressable accessibilityRole="button" accessibilityLabel="Saved searches" onPress={() => {setError(null); setSheet('list');}} hitSlop={6} className="min-h-11 flex-row items-center gap-1.5 px-2 active:opacity-70">
       <IconBookmark size={17} color={Colors.primary} />
       <Text className="text-[13px] font-semibold text-primary">Saved</Text>
     </Pressable>
@@ -129,10 +129,10 @@ export default function PresetsBar({current, onApply}: Props) {
           : <Text className="mt-5 text-[13px] text-muted">No saved searches yet.</Text>}
         {presets.map(preset => <SheetRow key={preset.id} icon={IconBookmark} label={preset.name} description={describe(preset)}
           accessibilityLabel={`Apply ${preset.name}`} onPress={() => {setSheet('closed'); onApply(preset);}}
-          accessory={<Pressable accessibilityRole="button" accessibilityLabel={`Delete ${preset.name}`} onPress={() => {setError(null); setPendingDelete(preset); setSheet('delete');}} hitSlop={8} className="h-9 w-9 items-center justify-center rounded-full">
+          accessory={<Pressable accessibilityRole="button" accessibilityLabel={`Delete ${preset.name}`} onPress={() => {setError(null); setPendingDelete(preset); setSheet('delete');}} hitSlop={8} className="h-11 w-11 items-center justify-center rounded-full">
             <IconTrash size={17} color={Colors.muted} />
           </Pressable>} />)}
-        {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Retry saved searches" onPress={load} className="mt-3 min-h-9 justify-center"><Text className="text-[13px] text-coral">{error} Tap to retry.</Text></Pressable>}
+        {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Retry saved searches" onPress={load} className="mt-3 min-h-11 justify-center"><Text className="text-[13px] text-coral">{error} Tap to retry.</Text></Pressable>}
       </>}
       {sheet === 'save' && <>
         <TextInput accessibilityLabel="Search name" value={name} onChangeText={setName} maxLength={NAME_MAX_LENGTH} placeholder="Give it a name"
