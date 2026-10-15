@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import Onboarding from '../Onboarding';
 import {completeOnboarding} from '../authSlice';
 import {getOnboardingProfile, saveOnboardingProfile} from '../onboarding/onboardingService';
+import * as crashlytics from '@react-native-firebase/crashlytics';
 import {fillAbout as fillAboutWith} from '../__testHelpers__/onboardingTestUtils';
 
 const mockDispatch = jest.fn();
@@ -117,6 +118,30 @@ test('saves the profile with one PATCH and completes onboarding', async () => {
   expect(saveProfile).toHaveBeenCalledTimes(1);
   expect(saveProfile).toHaveBeenCalledWith({name: 'Asha Rao', handle: 'asha_rao', interests: ['music', 'tech'], gender: 'male', country: 'India', profession: 'Developer', intent: 'join_parties'});
   expect(mockDispatch).toHaveBeenCalledWith(completeOnboarding());
+});
+
+test('an API that does not echo the new fields shows a specific message and records context only', async () => {
+  const dev = (globalThis as unknown as {__DEV__: boolean});
+  const wasDev = dev.__DEV__;
+  dev.__DEV__ = false;
+  // An old API accepts the PATCH but returns the profile without gender/country/profession/intent.
+  saveProfile.mockImplementation(async payload => ({...profile, name: payload.name, handle: payload.handle, interests: payload.interests}));
+  try {
+    const renderer = await render();
+    await toWork(renderer);
+    await press(renderer, 'Continue');
+    await press(renderer, 'Join live audio parties');
+    await press(renderer, 'Continue');
+    await press(renderer, 'Interest music');
+    await press(renderer, 'Create my profile');
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(texts(renderer)).toContain('server update is still pending');
+    expect(texts(renderer)).not.toContain('Could not save your profile.');
+    const logged = JSON.stringify([(crashlytics.log as jest.Mock).mock.calls, (crashlytics.recordError as jest.Mock).mock.calls.map(([, error]) => error.message)]);
+    expect(crashlytics.recordError).toHaveBeenCalledTimes(1);
+    for (const value of ['Asha Rao', 'asha_rao', 'Developer', 'India', 'join_parties', 'asha@example.com']) expect(logged).not.toContain(value);
+  } finally { dev.__DEV__ = wasDev; }
 });
 
 test('a taken handle returns to step 1 with a field error', async () => {

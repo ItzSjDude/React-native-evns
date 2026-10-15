@@ -16,6 +16,11 @@ jest.mock('@react-native-async-storage/async-storage', () => {
       storage.clear();
       return Promise.resolve();
     }),
+    getAllKeys: jest.fn(() => Promise.resolve([...storage.keys()])),
+    removeMany: jest.fn(keys => {
+      keys.forEach(key => storage.delete(key));
+      return Promise.resolve();
+    }),
   };
 });
 
@@ -36,6 +41,7 @@ jest.mock('@notifee/react-native', () => ({
     getInitialNotification: jest.fn().mockResolvedValue(null),
     onForegroundEvent: jest.fn(() => jest.fn()),
     onBackgroundEvent: jest.fn(),
+    setBadgeCount: jest.fn().mockResolvedValue(undefined),
   },
   AndroidImportance: {DEFAULT: 3},
   AuthorizationStatus: {NOT_DETERMINED: -1, DENIED: 0, AUTHORIZED: 1, PROVISIONAL: 2},

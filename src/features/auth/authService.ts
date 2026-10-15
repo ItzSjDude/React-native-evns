@@ -2,6 +2,7 @@ import {Platform} from 'react-native';
 import {GoogleSignin, isSuccessResponse} from '@react-native-google-signin/google-signin';
 import {getAuth, getIdToken, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut} from '@react-native-firebase/auth';
 import {apiRequest} from '../../core/api/apiClient';
+import {claimLocalDataOwner} from '../../core/localData';
 import {ageInfoOf, fetchMe, userOf} from './age/ageService';
 import {clearSession, getSessionVersion, loadSession, saveSession} from './session';
 import type {AuthMeResponse, AuthSession} from './types';
@@ -23,6 +24,7 @@ export async function signInWithGoogle(): Promise<AuthSession | null> {
   const firebaseIdToken = await getIdToken(user, true);
   const session = await exchangeFirebaseToken(firebaseIdToken);
   await saveSession(session);
+  await claimLocalDataOwner(session.user.id);
   return withAgeInfo(session);
 }
 
@@ -79,8 +81,10 @@ export async function restoreBackendSession(): Promise<AuthSession | null> {
     const firebaseIdToken = await getIdToken(user, true);
     const session = await exchangeFirebaseToken(firebaseIdToken);
     await saveSession(session);
+    await claimLocalDataOwner(session.user.id);
     return withAgeInfo(session);
   }
+  await claimLocalDataOwner(stored.user.id);
   const version = getSessionVersion();
   try {
     const current = await fetchMe();

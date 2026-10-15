@@ -1,1 +1,1 @@
-export {recordError, setCrashUser, startCrashReporting} from './crashReporting';
+export {recordError, redactPii, setCrashUser, startCrashReporting} from './crashReporting';

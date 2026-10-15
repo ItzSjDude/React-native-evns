@@ -1,4 +1,5 @@
 import {AppState, Linking, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform} from 'react-native';
+import {registerLocalDataWiper} from '../../core/localData';
 import {getDeviceLocation} from './deviceLocation';
 import {updateMyLocation} from './nearbyService';
 import type {DeviceLocationFix} from './deviceLocation';
@@ -51,6 +52,11 @@ export async function replaceVibeNoteRegions(rows: VibeNoteGeofenceCandidate[]):
 export async function clearVibeNoteRegions(): Promise<void> {
   await native?.clearRegions();
 }
+
+// Logout/account change: stop monitoring the previous user's note regions and drop entries not yet reported.
+registerLocalDataWiper(async () => {
+  await Promise.allSettled([clearVibeNoteRegions(), native?.clearPendingEntries?.()]);
+});
 
 async function handleEntry(entry: PendingEntry): Promise<void> {
   const enteredNoteIds = Array.isArray(entry.enteredNoteIds)

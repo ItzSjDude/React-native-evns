@@ -1,3 +1,4 @@
+import {registerLocalDataWiper} from '../../core/localData';
 import {isLimitReached, isPlusRequired} from './limits';
 import {loadCachedSubscription, saveCachedSubscription} from './plusCache';
 import {getSubscription} from './plusService';
@@ -112,3 +113,5 @@ export function resetPlus() {
   state = INITIAL;
   listeners.forEach(listener => listener());
 }
+
+registerLocalDataWiper(resetPlus);

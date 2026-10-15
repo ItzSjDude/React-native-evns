@@ -39,3 +39,12 @@ test('uncaught JS errors are recorded and then passed to the original handler', 
   expect(mocked.recordError).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({message: 'fatal'}));
   expect(previousHandler).toHaveBeenCalledWith(expect.objectContaining({message: 'fatal'}), true);
 });
+
+test('redacts emails and phone numbers from the error message and the context', () => {
+  g.__DEV__ = false;
+  recordError(new Error('No account for neha@gmail.com or +91 98765 43210'), 'lookup 98765-43210 failed');
+  expect(mocked.log).toHaveBeenCalledWith(expect.anything(), 'lookup [number] failed');
+  expect(mocked.recordError).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({message: 'No account for [email] or [number]'}));
+  recordError('call me on 9876543210');
+  expect(mocked.recordError).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({message: 'call me on [number]'}));
+});
