@@ -3,7 +3,6 @@ import {ActivityIndicator, AppState, Pressable, RefreshControl, Text, View} from
 import {FlashList} from '@shopify/flash-list';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
-import IconTicket from '@tabler/icons-react-native/IconTicket';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconBuildingStore from '@tabler/icons-react-native/IconBuildingStore';
 import {Colors} from '../../Constants/Colors';
@@ -146,7 +145,6 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
         title={!workspacesLoaded ? 'Checking organiser access…' : approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending' : 'Become an organiser'}
         subtitle={!workspacesLoaded ? 'Loading your organisations' : approvedWorkspaces.length ? 'Create an event for your organisation' : reviewPending ? 'Your document is under review. Tap to refresh.' : 'Set up your organisation and create an event'} />
     </View>
-    <GradientBanner icon={IconTicket} title="My tickets" subtitle="Your event passes and QR codes" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}} />
   </View>;
 
   const openEvent = useCallback((event: ApiEvent) => { setSelected(event); setSheetOpen(true); }, []);

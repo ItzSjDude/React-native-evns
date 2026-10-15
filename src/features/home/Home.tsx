@@ -18,12 +18,13 @@ import {FeedColors} from './feedTheme';
 import {useSavedPosts} from './savedPosts';
 import {UserProfileModal, type UserPreview} from '../users';
 import {SearchScreen} from '../search';
-import {EventDetailSheet, EventsList} from '../events';
+import {EventDetailSheet, EventsList, MyTicketsSheet} from '../events';
 import {NotificationsBell, useNotificationNavigator} from '../notifications';
 import {useNavigation} from '@react-navigation/native';
 import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '../party';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconArrowDown from '@tabler/icons-react-native/IconArrowDown';
+import IconTicket from '@tabler/icons-react-native/IconTicket';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import type {ApiPostMedia, HomePost} from './types';
 import {NativeAdCard} from '../ads';
@@ -72,6 +73,7 @@ const Home = () => {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [commentsPost, setCommentsPost] = useState<HomePost | null>(null);
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [ticketsOpen, setTicketsOpen] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState('');
   const [composeError, setComposeError] = useState<string | null>(null);
@@ -306,7 +308,7 @@ const Home = () => {
           </Pressable>
         </View>
       </View>
-      <View accessibilityRole="tablist" className="flex-row gap-[26px] border-b border-feed-line px-[19px]">
+      <View accessibilityRole="tablist" className="flex-row items-center gap-[26px] border-b border-feed-line px-[19px]">
         {([['all', 'For you'], ['events', 'Events']] as const).map(([key, label]) => {
           const selected = tab === key;
           return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => key === 'events' ? setTab(key) : changeScope(key)} className="pb-3 pt-2 active:opacity-70">
@@ -314,6 +316,11 @@ const Home = () => {
             {selected && <View className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-feed-accent" />}
           </Pressable>;
         })}
+        <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={() => setTicketsOpen(true)} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+          className="ml-auto h-12 flex-row items-center gap-1.5 active:opacity-70">
+          <IconTicket size={18} color={FeedColors.accent} />
+          <Text className="font-body-semibold text-[14px] text-feed-accent">My tickets</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -353,6 +360,7 @@ const Home = () => {
     <HomePostRow item={item} index={index} viewerId={viewerId} saved={savedPosts.has(item.id)} handlers={rowHandlers} />, [viewerId, savedPosts, rowHandlers]);
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     {topBar}
+    <MyTicketsSheet visible={ticketsOpen} onClose={() => setTicketsOpen(false)} />
     {tab === 'events' && <EventsList onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} />}
     {/* Hidden rather than unmounted under Events, so the feed keeps its posts and scroll and can't refresh or paginate. */}
     <View className={tab === 'events' ? 'hidden' : 'flex-1'}>
