@@ -52,7 +52,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      # The runner image already ships an Android SDK ($ANDROID_HOME). Accept its licenses so AGP can auto-install the
+      # compileSdk / build-tools / NDK it needs. (android-actions/setup-android failed here: its sdkmanager call left
+      # 7 of 8 licenses unaccepted.)
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: true
