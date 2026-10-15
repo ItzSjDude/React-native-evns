@@ -18,3 +18,7 @@ echo "  storeFile=$FILE"
 echo "  storePassword=<the store password you typed>"
 echo "  keyAlias=$ALIAS"
 echo "  keyPassword=<the key password you typed>"
+echo
+echo "Then build the Play bundle with:  (cd android && ./gradlew :app:bundleRelease -PhivaRequireReleaseKey=true)"
+echo "Also record the SHA-1/SHA-256 below in Firebase (Google sign-in) and Play Console app signing as needed:"
+keytool -list -v -keystore "$FILE" -alias "$ALIAS" | grep -E "SHA1|SHA256" || true

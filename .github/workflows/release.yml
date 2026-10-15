@@ -1,0 +1,99 @@
+name: Release (signed AAB)
+
+# Manual only. Builds a Play-uploadable AAB signed with the upload key and attaches it as a workflow artifact.
+# It does NOT publish to Google Play; upload the AAB in the Play Console (or add a deploy step deliberately).
+#
+# Required repository secrets (create them yourself; never commit them):
+#   HIVA_KEYSTORE_BASE64   base64 of the upload .jks   (base64 -i hiva-release.jks | pbcopy)
+#   HIVA_KEYSTORE_PASSWORD, HIVA_KEY_ALIAS, HIVA_KEY_PASSWORD
+# Optional repository variable: HIVA_LINK_HOST (bare DNS host for https app links; defaults to links.invalid)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Android versionCode (must be higher than the last upload)
+        required: true
+      version_name:
+        description: versionName
+        required: true
+        default: 1.0.0
+      minify:
+        description: Enable R8 + resource shrinking (only after a device smoke test of a minified build)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HIVA_VERSION_CODE: ${{ inputs.version_code }}
+      HIVA_VERSION_NAME: ${{ inputs.version_name }}
+      HIVA_LINK_HOST: ${{ vars.HIVA_LINK_HOST || 'links.invalid' }}
+      # Fail instead of falling back to the debug key.
+      HIVA_REQUIRE_RELEASE_KEY: 'true'
+      HIVA_MINIFY: ${{ inputs.minify }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      # The runner image already ships an Android SDK ($ANDROID_HOME). Accept its licenses so AGP can auto-install the
+      # compileSdk / build-tools / NDK it needs. (android-actions/setup-android failed here: its sdkmanager call left
+      # 7 of 8 licenses unaccepted.)
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Restore upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.HIVA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.HIVA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.HIVA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.HIVA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${KEYSTORE_B64:?HIVA_KEYSTORE_BASE64 secret is not set}"
+          ks="$RUNNER_TEMP/hiva-release.jks"
+          echo "$KEYSTORE_B64" | base64 -d > "$ks"
+          chmod 600 "$ks"
+          {
+            echo "storeFile=$ks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/keystore.properties
+          chmod 600 android/keystore.properties
+      - name: bundleRelease
+        working-directory: android
+        run: ./gradlew :app:bundleRelease -PhivaRequireReleaseKey=true --stacktrace
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/keystore.properties "$RUNNER_TEMP/hiva-release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping
+          path: android/app/build/outputs/mapping/release/
+          if-no-files-found: ignore
+          retention-days: 90

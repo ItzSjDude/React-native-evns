@@ -57,9 +57,23 @@ react {
 }
 
 /**
- * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ * R8 minify + resource shrinking for release builds. DEFAULT OFF: the keep rules in proguard-rules.pro are
+ * build-verified but NOT runtime-verified on a device, so only turn this on for a release candidate you will
+ * smoke-test (LiveKit join, Razorpay checkout, FCM, AdMob, Play Billing, fast-image).
+ *   ./gradlew :app:assembleRelease -PhivaMinify=true        (or env HIVA_MINIFY=true)
  */
-def enableProguardInReleaseBuilds = false
+def hivaFlag = { String prop, String env ->
+    (project.findProperty(prop) ?: System.getenv(env) ?: 'false').toString().trim().toLowerCase() == 'true'
+}
+def enableProguardInReleaseBuilds = hivaFlag('hivaMinify', 'HIVA_MINIFY')
+
+/**
+ * When true, producing a release artifact (assembleRelease/bundleRelease/packageRelease) FAILS unless
+ * android/keystore.properties exists and is complete, instead of silently signing with the debug key.
+ * Off locally; on in the CI release workflow.
+ *   ./gradlew :app:bundleRelease -PhivaRequireReleaseKey=true   (or env HIVA_REQUIRE_RELEASE_KEY=true)
+ */
+def requireReleaseKey = hivaFlag('hivaRequireReleaseKey', 'HIVA_REQUIRE_RELEASE_KEY')
 
 def hivaLinkHost = (System.getenv('HIVA_LINK_HOST') ?: project.findProperty('HIVA_LINK_HOST') ?: 'links.invalid').trim().toLowerCase()
 if (!(hivaLinkHost ==~ /(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}/)) {
@@ -132,8 +146,32 @@ android {
                 signingConfig signingConfigs.debug
             }
             minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
+    }
+}
+
+// Fail (not warn) when a Play-bound release is requested without a real upload key. Checked at task-graph time so
+// debug builds, `clean`, lint, etc. keep working even with the flag on.
+gradle.taskGraph.whenReady { graph ->
+    if (!requireReleaseKey) return
+    def producesRelease = graph.allTasks.any {
+        it.project == project && it.name ==~ /(assemble|bundle|package|sign|validateSigning).*Release.*/
+    }
+    if (!producesRelease) return
+    def missing = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll {
+        !(keystoreProperties[it] ?: '').toString().trim()
+    }
+    if (!keystorePropertiesFile.exists()) {
+        throw new GradleException("hivaRequireReleaseKey is set but ${keystorePropertiesFile} does not exist. " +
+            'Refusing to build a release signed with the debug key. See android/keystore.properties.example.')
+    }
+    if (missing) {
+        throw new GradleException("hivaRequireReleaseKey is set but keystore.properties is missing values for: ${missing.join(', ')}")
+    }
+    if (!file(keystoreProperties['storeFile']).exists()) {
+        throw new GradleException("hivaRequireReleaseKey is set but storeFile does not exist: ${file(keystoreProperties['storeFile'])}")
     }
 }
 
