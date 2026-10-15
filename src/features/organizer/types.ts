@@ -46,6 +46,16 @@ export type OrganizerEventSummary = Omit<OrganizerDashboardSummary, 'events' | '
   ticketTypes: Array<{label: string; priceMinor: number; currency: string; sold: number; capacity: number}>;
 };
 
+/** `GET /workspaces/:id/payout-account` (OWNER/ADMIN). Masked: only the last four digits come back. Not deployed everywhere yet (API 404). */
+export type PayoutAccountStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type OrganizerPayoutAccount = {
+  status: PayoutAccountStatus;
+  accountSuffix: string | null;
+  payoutSchedule: 'AFTER_EACH_EVENT' | 'EVERY_MONDAY' | null;
+  rejectionReason: string | null;
+  updatedAt: string | null;
+};
+
 export type OrganizerAttendee = {id: string; displayName: string; ticketLabel: string; orderReference: string; ticketStatus: 'PAID' | 'FREE' | 'REFUNDED' | 'CANCELLED'; checkedInAt: string | null; amountMinor: number; currency: string};
 export type OrganizerAttendeePage = {items: OrganizerAttendee[]; hasMore: boolean; offset: number};
 export type OrganizerPayouts = {next: {amountMinor: number; currency: string; releaseAt: string; maskedAccount: string} | null; history: Array<{id: string; eventTitle: string; amountMinor: number; currency: string; status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED'; releaseAt: string; paidAt: string | null}>};

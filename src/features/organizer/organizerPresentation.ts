@@ -1,4 +1,4 @@
-import type {ApiCreditLedgerEntry, ApiCreditPurchase} from './types';
+import type {ApiCreditLedgerEntry, ApiCreditPurchase, OrganizerPayoutAccount} from './types';
 
 export const messageOf = (error: unknown) => (error as {message?: string} | null)?.message || 'Please try again.';
 
@@ -20,4 +20,26 @@ export const LEDGER_REASON_LABELS: Record<ApiCreditLedgerEntry['reason'], string
 
 export const PURCHASE_STATUS_LABELS: Record<ApiCreditPurchase['status'], string> = {
   PENDING: 'Pending', PAID: 'Paid', FAILED: 'Failed', REFUNDED: 'Refunded',
+};
+
+/** Status line for the payout badge. `null` when the status is unknown, so nothing alarming is shown. */
+export const payoutStatusCopy = (account: OrganizerPayoutAccount | null): {tone: 'neutral' | 'success' | 'danger'; title: string} | null => {
+  if (!account) return null;
+  switch (account.status) {
+    case 'PENDING': return {tone: 'neutral', title: 'Payout details under review'};
+    case 'VERIFIED': return {tone: 'success', title: 'Payout verified'};
+    case 'REJECTED': return {tone: 'danger', title: account.rejectionReason ? `Payout rejected: ${account.rejectionReason}. Update your details and resubmit.` : 'Payout rejected. Update your details and resubmit.'};
+    default: return {tone: 'neutral', title: 'Add your bank details to receive payouts'};
+  }
+};
+
+/**
+ * Why paid tickets are locked, or `null` when they are open or the status is unknown.
+ * Free events are never locked by payout status.
+ */
+export const paidTicketLockMessage = (account: OrganizerPayoutAccount | null): string | null => {
+  if (!account || account.status === 'VERIFIED') return null;
+  if (account.status === 'PENDING') return 'Paid events need a verified payout account. Your payout details are under review, so you can save this event as free for now.';
+  if (account.status === 'REJECTED') return 'Paid events need a verified payout account. Update your payout details and resubmit to unlock them.';
+  return 'Paid events need a verified payout account. Add your bank details in the Payouts step to unlock them.';
 };
