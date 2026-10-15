@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   RefreshControl,
@@ -15,12 +14,12 @@ import { Colors } from '../../Constants/Colors';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import IconAlertTriangle from '@tabler/icons-react-native/IconAlertTriangle';
 import IconBallFootball from '@tabler/icons-react-native/IconBallFootball';
 import IconBook from '@tabler/icons-react-native/IconBook';
 import IconCoffee from '@tabler/icons-react-native/IconCoffee';
 import IconDeviceGamepad2 from '@tabler/icons-react-native/IconDeviceGamepad2';
 import IconFlame from '@tabler/icons-react-native/IconFlame';
-import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconInfoCircle from '@tabler/icons-react-native/IconInfoCircle';
 import IconLayoutGridFilled from '@tabler/icons-react-native/IconLayoutGridFilled';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
@@ -33,15 +32,18 @@ import IconShare from '@tabler/icons-react-native/IconShare';
 import IconUserHeart from '@tabler/icons-react-native/IconUserHeart';
 import IconX from '@tabler/icons-react-native/IconX';
 import PartyRoomCard from './PartyRoomCard';
+import { PartyListSkeleton, PartyRoomCardSkeleton, PartySectionHeader, PartyStateView } from './PartyBits';
 import PartyCreateSheet from './PartyCreateSheet';
 import PartyRoomPreview from './PartyRoomPreview';
 import { usePartySession } from './PartySessionProvider';
 import { partyShareMessage } from './partyLinks';
 import {
   PartyColors,
+  buildPartyListItems,
   partyCategories,
   roomTitle,
   type PartyCategory,
+  type PartyListItem,
 } from './partyPresentation';
 import {
   getPartyDiscoveryPage,
@@ -53,7 +55,8 @@ import {
 
 // FlashList only honours padding on the content container.
 const LIST_CONTENT = { paddingHorizontal: 16, paddingBottom: 110 };
-const roomKey = (item: PartyRoom) => item.id;
+const itemKey = (item: PartyListItem) => item.key;
+const itemType = (item: PartyListItem) => item.type;
 
 const categoryIcons = {
   all: IconLayoutGridFilled,
@@ -91,7 +94,9 @@ const Party = () => {
     promptActiveParty,
   } = usePartySession();
   const [menuRoom, setMenuRoom] = useState<PartyRoom | null>(null);
-  const renderRoom = useCallback(({ item }: { item: PartyRoom }) => <PartyRoomCard room={item} onOpen={setSelectedRoom} onMore={setMenuRoom} />, []);
+  const renderItem = useCallback(({ item }: { item: PartyListItem }) => item.type === 'header'
+    ? <PartySectionHeader title={item.title} count={item.count} />
+    : <PartyRoomCard room={item.room} onOpen={setSelectedRoom} onMore={setMenuRoom} />, []);
   const request = useRef(0);
   const moreInFlight = useRef(false);
 
@@ -188,6 +193,14 @@ const Party = () => {
           .includes(query),
       )
     : rooms;
+  const items = useMemo(() => buildPartyListItems(visibleRooms), [visibleRooms]);
+  const activeFilters = (category !== 'all' ? 1 : 0) + (filter !== 'all' ? 1 : 0);
+  const clearFilters = () => {
+    setSearch('');
+    setSearchOpen(false);
+    setFilter('all');
+    changeCategory('all');
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -206,7 +219,7 @@ const Party = () => {
               accessibilityRole="button"
               accessibilityLabel="Search parties"
               onPress={() => setSearchOpen(value => !value)}
-              className="h-10 w-10 items-center justify-center rounded-full bg-card active:opacity-70"
+              className="h-11 w-11 items-center justify-center rounded-full bg-card active:opacity-70"
             >
               <IconSearch size={23} color={PartyColors.text} />
             </Pressable>
@@ -215,7 +228,7 @@ const Party = () => {
               accessibilityLabel="Open create party"
               onPress={() => setCreateOpen(true)}
               hitSlop={{top: 8, bottom: 8}}
-              className="-mr-6 h-8 w-[120px] flex-row items-center justify-center gap-1.5 rounded-l-full bg-gold pl-4 pr-5 active:opacity-70"
+              className="-mr-6 h-11 w-[120px] flex-row items-center justify-center gap-1.5 rounded-l-full bg-gold pl-4 pr-5 active:opacity-70"
             >
               <IconPlus size={21} color={PartyColors.ink} />
               <Text className="text-[13px] font-bold text-text-dark">
@@ -224,7 +237,7 @@ const Party = () => {
             </Pressable>
           </View>
         </View>
-        <Text numberOfLines={1} className="mt-1 text-sm text-muted">
+        <Text className="mt-1 text-sm text-muted">
           Join live audio parties and meet new people
         </Text>
         {searchOpen && (
@@ -246,7 +259,7 @@ const Party = () => {
                 setSearch('');
                 setSearchOpen(false);
               }}
-              className="h-10 w-8 items-center justify-center"
+              className="h-11 w-11 items-center justify-center"
             >
               <IconX size={18} color={PartyColors.muted} />
             </Pressable>
@@ -270,11 +283,11 @@ const Party = () => {
               accessibilityState={{ selected: filter === value }}
               // Optional filter: tapping the selected pill clears it back to all rooms.
               onPress={() => setFilter(filter === value ? 'all' : value)}
-              hitSlop={{ top: 6, bottom: 6 }}
+              hitSlop={{ top: 4, bottom: 4 }}
               className={
                 filter === value
-                  ? 'h-8 flex-row items-center gap-1.5 rounded-md bg-gold px-3.5'
-                  : 'h-8 flex-row items-center gap-1.5 rounded-md bg-card px-3.5'
+                  ? 'h-10 flex-row items-center gap-1.5 rounded-xl bg-gold px-3.5'
+                  : 'h-10 flex-row items-center gap-1.5 rounded-xl bg-card px-3.5'
               }
             >
               <FilterIcon
@@ -309,11 +322,11 @@ const Party = () => {
                   accessibilityLabel={option.label + ' parties'}
                   accessibilityState={{ selected: active }}
                   onPress={() => changeCategory(option.key)}
-                  hitSlop={{ top: 6, bottom: 6 }}
+                  hitSlop={{ top: 4, bottom: 4 }}
                   className={
                     active
-                      ? 'h-8 flex-row items-center gap-1.5 rounded-xl bg-gold px-3'
-                      : 'h-8 flex-row items-center gap-1.5 rounded-xl bg-card px-3'
+                      ? 'h-10 flex-row items-center gap-1.5 rounded-xl bg-gold px-3.5'
+                      : 'h-10 flex-row items-center gap-1.5 rounded-xl bg-card px-3.5'
                   }
                 >
                   <CategoryIcon
@@ -323,8 +336,8 @@ const Party = () => {
                   <Text
                     className={
                       active
-                        ? 'text-[12px] font-bold text-text-dark'
-                        : 'text-[12px] font-medium text-foreground'
+                        ? 'text-[13px] font-bold text-text-dark'
+                        : 'text-[13px] font-medium text-foreground'
                     }
                   >
                     {option.label}
@@ -332,13 +345,26 @@ const Party = () => {
                 </Pressable>
               );
             })}
+            {activeFilters > 0 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={'Clear ' + activeFilters + (activeFilters === 1 ? ' filter' : ' filters')}
+                onPress={clearFilters}
+                hitSlop={{ top: 4, bottom: 4 }}
+                className="h-10 flex-row items-center gap-1.5 rounded-xl border border-border px-3.5 active:opacity-70"
+              >
+                <IconX size={15} color={PartyColors.muted} />
+                <Text className="text-[13px] font-medium text-muted">Clear · {activeFilters}</Text>
+              </Pressable>
+            )}
           </ScrollView>
         </View>
       </View>
       <FlashList
-        data={visibleRooms}
-        keyExtractor={roomKey}
-        renderItem={renderRoom}
+        data={loading && !items.length ? [] : items}
+        keyExtractor={itemKey}
+        getItemType={itemType}
+        renderItem={renderItem}
         contentContainerStyle={LIST_CONTENT}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -365,43 +391,51 @@ const Party = () => {
         }}
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
-          error ? (
+          error && items.length ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Retry party rooms"
               onPress={() => load(category)}
-              className="mb-3 rounded-[16px] bg-card p-4"
+              className="mb-3 min-h-12 flex-row items-center gap-2 rounded-[16px] bg-coral/15 px-4 py-3"
             >
-              <Text className="text-sm text-coral">{error} Tap to retry.</Text>
+              <IconAlertTriangle size={18} color={PartyColors.coral} />
+              <Text accessibilityRole="alert" className="min-w-0 flex-1 text-sm text-coral">{error}</Text>
+              <Text className="text-sm font-bold text-foreground">Retry</Text>
             </Pressable>
           ) : undefined
         }
         ListEmptyComponent={
           loading ? (
-            <View className="items-center pt-16">
-              <ActivityIndicator color={Colors.gold} />
-            </View>
-          ) : !error ? (
-            <View className="items-center px-6 pt-16">
-              <IconHeadphones
-                size={44}
-                color={PartyColors.muted}
-                strokeWidth={1.5}
-              />
-              <Text className="mt-4 text-center text-base font-semibold text-foreground">
-                {query ? 'No parties match your search' : 'No parties here yet'}
-              </Text>
-              <Text className="mt-2 text-center text-sm leading-5 text-muted">
-                {query
-                  ? 'Try another name or topic.'
-                  : 'Try another category or create your own.'}
-              </Text>
-            </View>
-          ) : undefined
+            <PartyListSkeleton />
+          ) : error ? (
+            <PartyStateView
+              kind="error"
+              title="Couldn't load parties"
+              message={error}
+              actions={[{ label: 'Try again', accessibilityLabel: 'Retry party rooms', icon: 'refresh', primary: true, onPress: () => load(category) }]}
+            />
+          ) : query ? (
+            <PartyStateView
+              kind="search"
+              title="No parties match your search"
+              message="Try another name or topic, or clear the search."
+              actions={[{ label: 'Clear search', onPress: () => { setSearch(''); setSearchOpen(false); }, primary: true }]}
+            />
+          ) : (
+            <PartyStateView
+              kind="empty"
+              title={activeFilters ? 'No parties match these filters' : 'No parties live right now'}
+              message={activeFilters ? 'Try another category or clear your filters to see everything.' : 'Be the first to start one. Pick a topic and friends can join in seconds.'}
+              actions={[
+                { label: 'Start a party', accessibilityLabel: 'Start a party', icon: 'plus', primary: !activeFilters, onPress: () => setCreateOpen(true) },
+                ...(activeFilters ? [{ label: 'Clear filters', onPress: clearFilters, primary: true }] : []),
+              ]}
+            />
+          )
         }
         ListFooterComponent={
           loadingMore ? (
-            <ActivityIndicator className="my-4" color={Colors.gold} />
+            <PartyRoomCardSkeleton />
           ) : undefined
         }
       />
@@ -453,6 +487,7 @@ const Party = () => {
               </Text>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Room details"
                 onPress={() => {
                   setSelectedRoom(menuRoom);
                   setMenuRoom(null);
@@ -466,6 +501,7 @@ const Party = () => {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Share party"
                 onPress={() => {
                   const room = menuRoom;
                   setMenuRoom(null);
@@ -482,10 +518,11 @@ const Party = () => {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 onPress={() => setMenuRoom(null)}
-                className="h-11 items-center justify-center"
+                className="h-12 items-center justify-center"
               >
-                <Text className="text-sm text-muted">Cancel</Text>
+                <Text className="text-[15px] font-medium text-muted">Cancel</Text>
               </Pressable>
             </SafeAreaView>
           </View>

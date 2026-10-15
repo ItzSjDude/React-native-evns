@@ -1,15 +1,35 @@
-import React, {memo} from 'react';
-import {Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import React, {memo, useEffect, useState} from 'react';
+import {AccessibilityInfo, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming} from 'react-native-reanimated';
 import {useIsSpeaking} from '@livekit/react-native';
 import type {Participant} from 'livekit-client';
 import IconCrown from '@tabler/icons-react-native/IconCrown';
 import IconMicrophoneOff from '@tabler/icons-react-native/IconMicrophoneOff';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
+import IconStarFilled from '@tabler/icons-react-native/IconStarFilled';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import RemoteImage from '../../components/RemoteImage';
-import {PartyColors} from './partyPresentation';
+import {PartyColors, initialsOf} from './partyPresentation';
 import type {PartyParticipant} from './partyService';
+
+/** Pulsing halo behind a speaking avatar. Runs on the UI thread; static when reduce-motion is on. */
+const SpeakingRing = memo(({size}: {size: number}) => {
+  const pulse = useSharedValue(0);
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled?.().then(value => { if (!cancelled) setReduced(value); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (reduced) { cancelAnimation(pulse); pulse.value = 0; return; }
+    pulse.value = withRepeat(withSequence(withTiming(1, {duration: 650}), withTiming(0, {duration: 650})), -1);
+    return () => cancelAnimation(pulse);
+  }, [pulse, reduced]);
+  const style = useAnimatedStyle(() => ({opacity: reduced ? 0.6 : 0.35 + pulse.value * 0.55, transform: [{scale: reduced ? 1.12 : 1.04 + pulse.value * 0.14}]}));
+  return <Animated.View pointerEvents="none" style={[{width: size + 8, height: size + 8, borderRadius: (size + 8) / 2}, style]} className="absolute border-[3px] border-glow-green" />;
+});
 
 type SeatProps = {
   person?: PartyParticipant;
@@ -27,18 +47,19 @@ const Seat = memo(({person, live, index, size, speaking, locked, localIdentity, 
   const mine = person?.userId === localIdentity;
   return (
     <Pressable onPress={() => onSeatPress(person, index)} accessibilityRole="button"
-      accessibilityLabel={person ? `${person.name || 'Guest'}, ${mine ? 'you, ' : ''}${speaking ? 'speaking' : muted ? 'muted' : 'on stage'}` : locked ? `Locked seat ${index + 1}` : `Request speaker seat ${index + 1}`}
+      accessibilityLabel={person ? `${person.name || 'Guest'}, ${mine ? 'you, ' : ''}${person.role === 'HOST' ? 'host, ' : person.role === 'CO_HOST' ? 'co-host, ' : ''}${speaking ? 'speaking' : muted ? 'muted' : 'on stage'}` : locked ? `Locked seat ${index + 1}` : `Request speaker seat ${index + 1}`}
       className="items-center active:opacity-70">
-      <View style={{width: size, height: size}} className={`items-center justify-center rounded-full border-2 ${speaking ? 'border-solid border-primary bg-primary-dark' : person ? 'border-solid border-border bg-card' : 'border-dashed border-border bg-card/50'}`}>
-        {speaking && <View pointerEvents="none" className="absolute -inset-1.5 rounded-full border border-primary/40" />}
+      <View style={{width: size, height: size}} className={`items-center justify-center rounded-full border-2 ${speaking ? 'border-solid border-glow-green bg-primary-dark' : person ? 'border-solid border-border bg-card' : 'border-dashed border-border bg-card/50'}`}>
+        {speaking && <SpeakingRing size={size} />}
         {person?.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} style={{width: size - 6, height: size - 6}} className="rounded-full" />
-          : person ? <Text className="text-lg font-bold text-foreground">{(person.name || '?').trim().slice(0, 2).toUpperCase()}</Text>
+          : person ? <Text className="text-lg font-bold text-foreground">{initialsOf(person.name)}</Text>
             : locked ? <IconLock size={22} color={PartyColors.muted} /> : <IconPlus size={22} color={PartyColors.muted} />}
         {person && muted && <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-card"><IconMicrophoneOff size={11} color={PartyColors.coral} /></View>}
+        {person?.role === 'CO_HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-primary-dark border border-primary/50"><IconStarFilled size={11} color={PartyColors.accent} /></View>}
         {person?.role === 'HOST' && <View className="absolute -top-2.5 h-5 w-5 items-center justify-center rounded-full bg-gold"><IconCrown size={12} color={PartyColors.ink} /></View>}
       </View>
       <Text className="mt-1.5 w-[78px] text-center text-xs font-semibold text-foreground" numberOfLines={1}>{person ? mine ? 'You' : person.name || 'Guest' : `Seat ${index + 1}`}</Text>
-      <Text className={`mt-0.5 text-xs ${speaking ? 'text-primary' : 'text-muted'}`}>{person ? speaking ? 'Speaking' : person.role === 'HOST' ? 'Host' : person.role === 'CO_HOST' ? 'Co-host' : 'Speaker' : locked ? 'Locked' : 'Open'}</Text>
+      <Text className={`mt-0.5 text-xs ${speaking ? 'font-semibold text-glow-emerald dark:text-glow-green' : 'text-muted'}`}>{person ? speaking ? 'Speaking' : person.role === 'HOST' ? 'Host' : person.role === 'CO_HOST' ? 'Co-host' : 'Speaker' : locked ? 'Locked' : 'Open'}</Text>
     </Pressable>
   );
 });
