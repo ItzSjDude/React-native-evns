@@ -3,7 +3,6 @@ import {ActivityIndicator, Modal, Pressable, RefreshControl, Share, StyleSheet, 
 import {FlashList} from '@shopify/flash-list';
 import ThemedStatusBar from '../../components/ThemedStatusBar';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
 import {cssInterop} from 'nativewind';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
@@ -16,12 +15,12 @@ import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import IconWaveSine from '@tabler/icons-react-native/IconWaveSine';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconGift from '@tabler/icons-react-native/IconGift';
-import IconSparkles from '@tabler/icons-react-native/IconSparkles';
 import {useAppDispatch} from '../../core/store/hooks';
 import {clearSession, logoutFromApi, OnboardingScreen} from '../auth';
 import {usePartySession} from '../party';
 import {PlusBadge, usePlus, useOwnProfileTheme} from '../plus';
 import {Colors} from '../../Constants/Colors';
+import GradientBanner from '../../components/GradientBanner';
 import ProfileContentTabs from '../../components/ProfileContentTabs';
 import ProfileIdentity from '../../components/ProfileIdentity';
 import {publishMyAvatarUrl} from './myAvatar';
@@ -34,7 +33,6 @@ import {listMyWorkspaces, OrganizerDashboardScreen, OrganizerOnboardingScreen, t
 import {CreatorOnboardingScreen} from '../creator';
 import type {GiftSummary, ProfileEvent, ProfileItem, ProfileParty, ProfilePost, ProfileTab, ProfileUpdate, UserProfile, UserSettings} from './types';
 
-cssInterop(LinearGradient, {className: 'style'});
 cssInterop(SafeAreaView, {className: 'style'});
 
 type ListState = {items: ProfileItem[]; loading: boolean; loaded: boolean; error: string | null; hasMore: boolean; offset: number};
@@ -308,19 +306,10 @@ const Profile = () => {
                 <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground dark:text-[#F4F2FA]">Organiser dashboard</Text><Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted dark:text-[#9C97B8]">Events, attendees, check-in and payouts</Text></View>
                 <IconChevronRight size={18} color={Colors.muted} />
               </Pressable>}
-              <Pressable accessibilityRole="button" accessibilityLabel="Become a creator and earn from gifts" onPress={() => setCreatorOnboardingOpen(true)}
-                className="mx-5 mt-3 overflow-hidden rounded-[16px] active:opacity-90">
-                <LinearGradient colors={['#6D5DF6', '#A855F7', '#FF5D8F']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} className="flex-row items-center gap-3 px-3.5 py-2.5">
-                  <View pointerEvents="none" className="absolute -right-5 -top-7 h-20 w-20 rounded-full bg-white/15" />
-                  <View pointerEvents="none" className="absolute right-12 top-2"><IconSparkles size={12} color="#FFFFFFB3" /></View>
-                  <View className="h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/25"><IconGift size={18} color="#FFFFFF" /></View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[14px] font-extrabold text-white">Become a creator</Text>
-                    <Text numberOfLines={1} className="text-[11.5px] text-white/85">Set up your profile and earn from gifts</Text>
-                  </View>
-                  <IconChevronRight size={18} color="#FFFFFF" />
-                </LinearGradient>
-              </Pressable>
+              <View className="mx-5 mt-3">
+                <GradientBanner icon={IconGift} title="Become a creator" subtitle="Set up your profile and earn from gifts" accessibilityLabel="Become a creator and earn from gifts"
+                  onPress={() => setCreatorOnboardingOpen(true)} />
+              </View>
             </> : null}
           </SafeAreaView>
         </View>

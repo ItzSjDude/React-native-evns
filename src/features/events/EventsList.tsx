@@ -15,6 +15,7 @@ import type {ApiEvent} from './types';
 import {listMyWorkspaces, OrganizerOnboardingScreen, type Workspace} from '../organizer';
 import {NativeAdCard} from '../ads';
 import RemoteImage from '../../components/RemoteImage';
+import GradientBanner from '../../components/GradientBanner';
 
 // Bottom padding clears the floating tab bar, matching the Home feed it replaces.
 const LIST_CONTENT = {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 130};
@@ -140,18 +141,12 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
       </View>;
 
   const listHeader = <View className="mb-3">
-    <Pressable accessibilityRole="button" accessibilityLabel={approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending, refresh status' : 'Become an organiser'} accessibilityState={{disabled: !workspacesLoaded}} disabled={!workspacesLoaded} onPress={approvedWorkspaces.length ? openOrganizerFlow : reviewPending ? refreshWorkspaces : openOrganizerFlow}
-      className="mb-3 min-h-[92px] flex-row items-center rounded-[20px] border border-gold/40 bg-card px-4 active:opacity-75">
-      <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-gold/15"><IconBuildingStore size={23} color={Colors.gold} /></View>
-      <View className="flex-1"><Text className="text-[15px] font-extrabold text-foreground">{!workspacesLoaded ? 'Checking organiser access…' : approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending' : 'Become an organiser'}</Text><Text className="mt-1 text-[12px] text-muted">{!workspacesLoaded ? 'Loading your organisations' : approvedWorkspaces.length ? 'Create an event for your organisation' : reviewPending ? 'Your document is under review. Tap to refresh.' : 'Set up your organisation and create an event'}</Text></View>
-      <Text className="text-[22px] font-medium text-muted">›</Text>
-    </Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}}
-      className="min-h-[76px] flex-row items-center rounded-[20px] border border-gold/40 bg-card px-4 active:opacity-75">
-      <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-gold/15"><IconTicket size={23} color={Colors.gold} /></View>
-      <View className="flex-1"><Text className="text-[15px] font-extrabold text-foreground">My tickets</Text><Text className="mt-0.5 text-[12px] text-muted">Your event passes and QR codes</Text></View>
-      <Text className="text-[22px] font-medium text-muted">›</Text>
-    </Pressable>
+    <View className="mb-3">
+      <GradientBanner icon={IconBuildingStore} accessibilityLabel={approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending, refresh status' : 'Become an organiser'} accessibilityState={{disabled: !workspacesLoaded}} disabled={!workspacesLoaded} onPress={approvedWorkspaces.length ? openOrganizerFlow : reviewPending ? refreshWorkspaces : openOrganizerFlow}
+        title={!workspacesLoaded ? 'Checking organiser access…' : approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending' : 'Become an organiser'}
+        subtitle={!workspacesLoaded ? 'Loading your organisations' : approvedWorkspaces.length ? 'Create an event for your organisation' : reviewPending ? 'Your document is under review. Tap to refresh.' : 'Set up your organisation and create an event'} />
+    </View>
+    <GradientBanner icon={IconTicket} title="My tickets" subtitle="Your event passes and QR codes" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}} />
   </View>;
 
   const openEvent = useCallback((event: ApiEvent) => { setSelected(event); setSheetOpen(true); }, []);
