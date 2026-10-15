@@ -7,7 +7,7 @@ import type {OrganizerEvent, Workspace} from '../types';
 
 jest.mock('../organizerService', () => ({
   listMyWorkspaces: jest.fn(), getOrganizerDashboard: jest.fn(), listOrganizerEvents: jest.fn(), getOrganizerEventStats: jest.fn(),
-  listOrganizerAttendees: jest.fn(), checkInOrganizerTicket: jest.fn(), isRouteNotDeployed: (e: {status?: number}) => e?.status === 404,
+  listOrganizerAttendees: jest.fn(), getPayoutAccountStatus: jest.fn(), checkInOrganizerTicket: jest.fn(), isRouteNotDeployed: (e: {status?: number}) => e?.status === 404,
 }));
 const m = svc as unknown as Record<string, jest.Mock>;
 
@@ -23,6 +23,7 @@ const mount = async () => {await act(async () => {tree = create(<OrganizerDashbo
 beforeEach(() => {
   Object.values(m).forEach(fn => 'mockReset' in fn && fn.mockReset());
   m.listMyWorkspaces.mockResolvedValue([workspace]);
+  m.getPayoutAccountStatus.mockResolvedValue(null);
   m.getOrganizerDashboard.mockResolvedValue({ticketsSold: 3, checkedIn: 1, events: [event]});
   m.listOrganizerEvents.mockResolvedValue({items: [event], hasMore: false, offset: 0});
   m.getOrganizerEventStats.mockResolvedValue({ticketsSold: 3, checkedIn: 1, interested: 0, cancelled: 0});

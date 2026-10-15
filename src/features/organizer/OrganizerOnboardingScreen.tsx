@@ -13,8 +13,10 @@ import {loadSession} from '../auth';
 import {imagePicker} from '../../core/media/imagePicker';
 import {uploadMedia} from '../../core/media/uploadMedia';
 import type {LocalMediaFile} from '../../core/media/types';
-import type {OrganizerOnboardingDraft, Workspace} from './types';
-import {createOrganizerEvent, createOrganizerWorkspace, listMyWorkspaces, saveOrganizerPayoutAccount, submitOrganizerVerification, updateOrganizerWorkspace} from './organizerService';
+import type {OrganizerOnboardingDraft, OrganizerPayoutAccount, Workspace} from './types';
+import {createOrganizerEvent, createOrganizerWorkspace, getPayoutAccountStatus, listMyWorkspaces, saveOrganizerPayoutAccount, submitOrganizerVerification, updateOrganizerWorkspace} from './organizerService';
+import {paidTicketLockMessage} from './organizerPresentation';
+import PayoutStatusBadge from './PayoutStatusBadge';
 import RemoteImage from '../../components/RemoteImage';
 
 const STORE_PREFIX = '@hiva/organizer-onboarding/';
@@ -72,6 +74,7 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
   const [error, setError] = useState<string | null>(null);
   const [complete, setComplete] = useState(false);
   const [picking, setPicking] = useState<'date' | 'time' | null>(null);
+  const [payoutAccount, setPayoutAccount] = useState<OrganizerPayoutAccount | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -106,6 +109,18 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
   }, [draft, draftLoaded, step, storageKey]);
 
   const update = (patch: Partial<OrganizerOnboardingDraft>) => setDraft(current => ({...current, ...patch}));
+
+  // Payout status is only relevant once a workspace exists, on the payouts step and the event step.
+  useEffect(() => {
+    if (!draft.workspaceId || step < 2) return;
+    let alive = true;
+    setPayoutAccount(null);
+    getPayoutAccountStatus(draft.workspaceId).then(account => {if (alive) setPayoutAccount(account);}).catch(() => {if (alive) setPayoutAccount(null);});
+    return () => {alive = false;};
+  }, [draft.workspaceId, step]);
+  const paidLockMessage = paidTicketLockMessage(payoutAccount);
+  // A saved PAID draft cannot stay PAID while payouts are not verified; free events are never affected.
+  useEffect(() => {if (paidLockMessage && draft.ticketType === 'PAID') update({ticketType: 'FREE'});}, [paidLockMessage, draft.ticketType]);
   const openPicker = (kind: 'date' | 'time') => {
     const fallback = new Date();
     const value = kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate) ? new Date(`${draft.eventDate}T12:00:00`) : kind === 'time' && /^\d{2}:\d{2}$/.test(draft.eventTime) ? new Date(`2020-01-01T${draft.eventTime}:00`) : fallback;
@@ -234,6 +249,7 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
           <Info text="We review documents within 2 working days. Free events can go live while you wait." />
         </>}
         {step === 2 && <>
+          {!!draft.workspaceId && <View className="mb-4"><PayoutStatusBadge account={payoutAccount} /></View>}
           <Field label="Account holder name" value={draft.accountHolder} onChangeText={accountHolder => update({accountHolder})} placeholder="As shown on bank account" />
           <Field label="Account number" value={draft.accountNumber} onChangeText={accountNumber => update({accountNumber: accountNumber.replace(/\D/g, '').slice(0, 18)})} keyboardType="number-pad" placeholder="Enter account number" />
           <Field label="IFSC code" value={draft.ifsc} onChangeText={ifsc => update({ifsc})} placeholder="e.g. HDFC0001234" maxLength={11} autoCapitalize="characters" autoCorrect={false} />
@@ -258,8 +274,8 @@ const OrganizerOnboardingScreen = ({onClose, mode = 'onboarding', workspaces = N
           <View className="flex-row gap-3"><View className="mb-4 flex-1"><Text className="mb-1.5 text-[12px] font-bold text-foreground">Date</Text><Pressable accessibilityRole="button" onPress={() => openPicker('date')} className="h-[48px] justify-center rounded-[14px] border border-border bg-card px-3.5"><Text className={`text-[14px] ${draft.eventDate ? 'text-foreground' : 'text-muted'}`}>{draft.eventDate || 'Choose date'}</Text></Pressable></View><View className="mb-4 w-[112px]"><Text className="mb-1.5 text-[12px] font-bold text-foreground">Starts</Text><Pressable accessibilityRole="button" onPress={() => openPicker('time')} className="h-[48px] justify-center rounded-[14px] border border-border bg-card px-3.5"><Text className={`text-[14px] ${draft.eventTime ? 'text-foreground' : 'text-muted'}`}>{draft.eventTime || 'Choose time'}</Text></Pressable></View></View>
           {Platform.OS === 'ios' && picking && <DateTimePicker value={picking === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate) ? new Date(`${draft.eventDate}T12:00:00`) : picking === 'time' && /^\d{2}:\d{2}$/.test(draft.eventTime) ? new Date(`2020-01-01T${draft.eventTime}:00`) : new Date()} mode={picking} display="spinner" is24Hour onChange={(event, date) => {if (event.type === 'set' && date) update(picking === 'date' ? {eventDate: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`} : {eventTime: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`}); if (event.type === 'dismissed') setPicking(null);}} />}
           <Field label="Venue" value={draft.venue} onChangeText={venue => update({venue})} placeholder="Bandra Studio, Bandra West" />
-          <View className="mb-4 flex-row items-end gap-3"><View className="flex-1"><Text className="mb-1.5 text-[12px] font-bold text-foreground">Tickets</Text><View className="flex-row rounded-[13px] border border-border bg-card p-1">{(['FREE', 'PAID'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{selected: draft.ticketType === value}} onPress={() => update({ticketType: value})} className={`flex-1 items-center rounded-[10px] py-3 ${draft.ticketType === value ? 'bg-gold' : ''}`}><Text className={`text-[12px] font-bold ${draft.ticketType === value ? 'text-gold-ink' : 'text-foreground'}`}>{value === 'FREE' ? 'Free' : 'Paid'}</Text></Pressable>)}</View></View><View className="w-[112px]"><Field label="Capacity" value={draft.capacity} onChangeText={capacity => update({capacity: capacity.replace(/\D/g, '').slice(0, 6)})} keyboardType="number-pad" /></View></View>
-          {draft.ticketType === 'PAID' && <Info text="Paid tickets unlock after your organisation is verified. This event will be saved as a draft." />}
+          <View className="mb-4 flex-row items-end gap-3"><View className="flex-1"><Text className="mb-1.5 text-[12px] font-bold text-foreground">Tickets</Text><View className="flex-row rounded-[13px] border border-border bg-card p-1">{(['FREE', 'PAID'] as const).map(value => {const locked = value === 'PAID' && !!paidLockMessage; return <Pressable key={value} accessibilityRole="radio" accessibilityState={{selected: draft.ticketType === value, disabled: locked}} disabled={locked} onPress={() => update({ticketType: value})} className={`flex-1 items-center rounded-[10px] py-3 ${draft.ticketType === value ? 'bg-gold' : ''} ${locked ? 'opacity-50' : ''}`}><Text className={`text-[12px] font-bold ${draft.ticketType === value ? 'text-gold-ink' : 'text-foreground'}`}>{value === 'FREE' ? 'Free' : 'Paid'}</Text></Pressable>;})}</View></View><View className="w-[112px]"><Field label="Capacity" value={draft.capacity} onChangeText={capacity => update({capacity: capacity.replace(/\D/g, '').slice(0, 6)})} keyboardType="number-pad" /></View></View>
+          {paidLockMessage ? <Info text={paidLockMessage} /> : draft.ticketType === 'PAID' && <Info text="Paid tickets unlock after your organisation is verified. This event will be saved as a draft." />}
         </>}
         {!!error && <Text accessibilityRole="alert" className="mb-3 text-[12px] font-semibold text-coral">{error}</Text>}
       </ScrollView>

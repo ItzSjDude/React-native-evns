@@ -7,9 +7,10 @@ import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
-import {checkInOrganizerTicket, getOrganizerDashboard, getOrganizerEventStats, isRouteNotDeployed, listMyWorkspaces, listOrganizerAttendees, listOrganizerEvents} from './organizerService';
+import {checkInOrganizerTicket, getOrganizerDashboard, getOrganizerEventStats, getPayoutAccountStatus, isRouteNotDeployed, listMyWorkspaces, listOrganizerAttendees, listOrganizerEvents} from './organizerService';
+import PayoutStatusBadge from './PayoutStatusBadge';
 import {checkInMessage, messageOf} from './organizerPresentation';
-import type {OrganizerAttendee, OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventStats, Workspace} from './types';
+import type {OrganizerAttendee, OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventStats, OrganizerPayoutAccount, Workspace} from './types';
 
 type Section = 'Overview' | 'Events' | 'Event detail' | 'Attendees' | 'Check-in';
 const sections: Section[] = ['Overview', 'Events', 'Event detail', 'Attendees', 'Check-in'];
@@ -37,6 +38,7 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
   const [eventStats, setEventStats] = useState<OrganizerEventStats | null>(null);
   const [attendeesUnavailable, setAttendeesUnavailable] = useState(false);
   const [attendees, setAttendees] = useState<OrganizerAttendeePage | null>(null);
+  const [payoutAccount, setPayoutAccount] = useState<OrganizerPayoutAccount | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -57,7 +59,11 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
     const request = ++requestId.current;
     setLoading(true); setError(null);
     try {
-      if (section === 'Overview') setDashboard(await getOrganizerDashboard(id));
+      if (section === 'Overview') {
+        // Payout status is advisory here (null when unknown or unavailable); it must never block the dashboard.
+        const [summary, account] = await Promise.all([getOrganizerDashboard(id), getPayoutAccountStatus(id).catch(() => null)]);
+        setDashboard(summary); setPayoutAccount(account);
+      }
       else if (section === 'Events') setEvents((await listOrganizerEvents(id, eventFilter)).items);
       else if (section === 'Event detail') {
         if (!selectedEventId) throw new Error('Choose an event to view its details.');
@@ -147,7 +153,7 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
         <View className="flex-1"><Text accessibilityRole="header" className="font-display text-[22px] text-foreground">Dashboard</Text><Text numberOfLines={1} className="text-[12px] text-muted">{selectedWorkspace?.name ?? 'Organiser tools'}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh dashboard" onPress={() => {if (section === 'Overview') loadWorkspaces(); load();}} className="h-11 w-11 items-center justify-center rounded-[14px] border border-border bg-card active:opacity-70"><IconRefresh size={18} color={Colors.text} /></Pressable>
       </View>
-      {workspaces.length > 1 && <ScrollView horizontal style={compactHorizontalScroll} showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-2 px-4 py-2">{workspaces.map(workspace => <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{selected: workspace.id === selectedId}} onPress={() => {setSelectedId(workspace.id); setSelectedEventId(null); setEvents([]); setEventStats(null); setAttendeesUnavailable(false); setCheckInNotice(null);}} hitSlop={6} className={`h-8 justify-center rounded-full px-3 ${workspace.id === selectedId ? 'bg-gold' : 'border border-border bg-card'}`}><Text className={`text-[12px] font-bold ${workspace.id === selectedId ? 'text-gold-ink' : 'text-foreground'}`}>{workspace.name}</Text></Pressable>)}</ScrollView>}
+      {workspaces.length > 1 && <ScrollView horizontal style={compactHorizontalScroll} showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-2 px-4 py-2">{workspaces.map(workspace => <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{selected: workspace.id === selectedId}} onPress={() => {setSelectedId(workspace.id); setSelectedEventId(null); setEvents([]); setPayoutAccount(null); setEventStats(null); setAttendeesUnavailable(false); setCheckInNotice(null);}} hitSlop={6} className={`h-8 justify-center rounded-full px-3 ${workspace.id === selectedId ? 'bg-gold' : 'border border-border bg-card'}`}><Text className={`text-[12px] font-bold ${workspace.id === selectedId ? 'text-gold-ink' : 'text-foreground'}`}>{workspace.name}</Text></Pressable>)}</ScrollView>}
       <ScrollView horizontal style={compactHorizontalScroll} showsHorizontalScrollIndicator={false} contentContainerClassName="items-center gap-2 border-b border-border/60 px-4 py-2">{sections.map(item => {const disabled = item === 'Event detail' && !selectedEventId; return <Pressable key={item} accessibilityRole="tab" accessibilityState={{selected: section === item, disabled}} disabled={disabled} onPress={() => openSection(item)} hitSlop={6} className={`h-8 justify-center rounded-full px-3 ${section === item ? 'bg-primary-dark/30' : 'bg-card'} ${disabled ? 'opacity-40' : ''}`}><Text className={`text-[12px] font-semibold ${section === item ? 'text-primary' : 'text-muted'}`}>{item}</Text></Pressable>;})}</ScrollView>
 
       {loading && <View className="py-8"><ActivityIndicator accessibilityLabel={`Loading ${section.toLowerCase()}`} color={Colors.gold} /></View>}
@@ -155,6 +161,7 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
 
       {!loading && !error && section === 'Overview' && dashboard && <ScrollView contentContainerClassName="gap-3 px-4 py-4 pb-10">
         <Card><Text className="text-[12px] font-semibold text-muted">Organisation status</Text><Text className="mt-1 text-[16px] font-extrabold text-foreground">{verificationMessage}</Text><Text className="mt-1 text-[12px] leading-5 text-muted">{selectedWorkspace?.verificationStatus === 'APPROVED' ? 'Your organiser tools and event controls are available.' : 'You can manage your workspace here. Paid event publishing remains locked until approval.'}</Text></Card>
+        <PayoutStatusBadge account={payoutAccount} />
         <View className="flex-row gap-3"><Card><Label>Tickets sold (next 5 events)</Label><Text className="mt-1 text-[20px] font-extrabold text-foreground">{dashboard.ticketsSold.toLocaleString()}</Text></Card><Card><Label>Checked in</Label><Text className="mt-1 text-[20px] font-extrabold text-foreground">{dashboard.checkedIn.toLocaleString()}</Text></Card></View>
         <Pressable accessibilityRole="button" accessibilityState={{disabled: !canHostEvent}} disabled={!canHostEvent} onPress={() => onHostEvent(workspaces)} className={`h-12 items-center justify-center rounded-full ${canHostEvent ? 'bg-gold' : 'bg-card'}`}><Text className={`text-[14px] font-extrabold ${canHostEvent ? 'text-gold-ink' : 'text-muted'}`}>{canHostEvent ? 'Create event' : 'Event hosting unlocks after verification'}</Text></Pressable>
         <Text className="mt-1 text-[15px] font-bold text-foreground">Upcoming events</Text>

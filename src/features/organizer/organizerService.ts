@@ -1,5 +1,5 @@
 import {apiRequestPage, apiRequest} from '../../core/api/apiClient';
-import type {ApiCreditOverview, ApiCreditPurchase, ApiEventStats, ApiOrganizerAttendee, ApiOrganizerEvent, ApiVerifyResponse, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, OrganizerAttendeeFilter, OrganizerAttendeePage, OrganizerCheckIn, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventFilter, OrganizerEventStats, OrganizerEventStatus, Workspace} from './types';
+import type {ApiCreditOverview, ApiCreditPurchase, ApiEventStats, ApiOrganizerAttendee, ApiOrganizerEvent, ApiVerifyResponse, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, OrganizerAttendeeFilter, OrganizerAttendeePage, OrganizerCheckIn, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventFilter, OrganizerEventStats, OrganizerEventStatus, OrganizerPayoutAccount, Workspace} from './types';
 import type {OrganizerOnboardingDraft} from './types';
 
 export const LEDGER_PAGE_SIZE = 20;
@@ -102,6 +102,17 @@ export const saveOrganizerPayoutAccount = (workspaceId: string, draft: Organizer
       ifsc: draft.ifsc.trim().toUpperCase(), payoutSchedule: draft.payoutSchedule,
     }),
   });
+
+/**
+ * Masked payout account status for the organiser. Resolves `null` ("unknown") when the route is not
+ * deployed yet (404), so callers show nothing and keep the existing behaviour. Other failures reject.
+ */
+export const getPayoutAccountStatus = (workspaceId: string): Promise<OrganizerPayoutAccount | null> =>
+  apiRequest<OrganizerPayoutAccount>(`/workspaces/${encodeURIComponent(workspaceId)}/payout-account`, {auth: 'required'})
+    .catch((error: unknown) => {
+      if ((error as {status?: number} | null)?.status === 404) return null;
+      throw error;
+    });
 
 /** Creates the workspace's first event as a draft; paid publishing remains verification-gated. */
 export const createOrganizerEvent = (workspaceId: string, draft: OrganizerOnboardingDraft) =>

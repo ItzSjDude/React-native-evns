@@ -87,6 +87,16 @@ export type ApiOrganizerAttendee = {
   checkedInAt: string | null;
 };
 
+/** `GET /workspaces/:id/payout-account` (OWNER/ADMIN). Masked: only the last four digits come back. Not deployed everywhere yet (API 404). */
+export type PayoutAccountStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type OrganizerPayoutAccount = {
+  status: PayoutAccountStatus;
+  accountSuffix: string | null;
+  payoutSchedule: 'AFTER_EACH_EVENT' | 'EVERY_MONDAY' | null;
+  rejectionReason: string | null;
+  updatedAt: string | null;
+};
+
 export type OrganizerAttendee = {id: string; displayName: string; ticketLabel: string | null; status: OrganizerAttendeeStatus; checkedInAt: string | null};
 export type OrganizerAttendeePage = {items: OrganizerAttendee[]; hasMore: boolean; offset: number};
 

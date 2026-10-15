@@ -1,5 +1,5 @@
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
-import {checkInOrganizerTicket, getCreditOverview, getOrganizerDashboard, getOrganizerEventStats, isRouteNotDeployed, listCreditPacks, listMyWorkspaces, listOrganizerAttendees, listOrganizerEvents, startCreditPackPurchase} from '../organizerService';
+import {checkInOrganizerTicket, getCreditOverview, getOrganizerDashboard, getOrganizerEventStats, isRouteNotDeployed, listCreditPacks, listMyWorkspaces, listOrganizerAttendees, getPayoutAccountStatus, listOrganizerEvents, startCreditPackPurchase} from '../organizerService';
 import type {ApiCreditOverview, ApiWorkspace} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
@@ -141,4 +141,30 @@ test.each(['ALREADY_USED', 'INVALID', 'WRONG_EVENT', 'CANCELLED', 'EXPIRED'] as 
 test('checkInOrganizerTicket treats an unknown verdict as UNKNOWN, never success', async () => {
   (apiRequest as jest.Mock).mockResolvedValueOnce({ok: true, result: 'WHATEVER'});
   await expect(checkInOrganizerTicket('w1', 'e1', 'ABCD')).resolves.toMatchObject({ok: false, result: 'UNKNOWN'});
+});
+
+describe('getPayoutAccountStatus', () => {
+  test('reads the masked payout account route for the workspace', async () => {
+    const account = {status: 'PENDING', accountSuffix: '1234', payoutSchedule: 'EVERY_MONDAY', rejectionReason: null, updatedAt: '2026-01-01T00:00:00Z'};
+    (apiRequest as jest.Mock).mockResolvedValueOnce(account);
+    await expect(getPayoutAccountStatus('w 2')).resolves.toEqual(account);
+    expect(apiRequest).toHaveBeenCalledWith('/workspaces/w%202/payout-account', {auth: 'required'});
+  });
+
+  test.each(['PENDING', 'VERIFIED', 'REJECTED', 'NOT_SUBMITTED'] as const)('passes through %s and its rejection reason', async status => {
+    const rejectionReason = status === 'REJECTED' ? 'Account holder name does not match' : null;
+    (apiRequest as jest.Mock).mockResolvedValueOnce({status, accountSuffix: null, payoutSchedule: null, rejectionReason, updatedAt: null});
+    await expect(getPayoutAccountStatus('w1')).resolves.toMatchObject({status, rejectionReason});
+  });
+
+  test('treats a 404 (API not deployed yet) as unknown instead of an error', async () => {
+    (apiRequest as jest.Mock).mockRejectedValueOnce({status: 404, message: 'Not found'});
+    await expect(getPayoutAccountStatus('w1')).resolves.toBeNull();
+  });
+
+  test('still surfaces other failures so the caller can decide', async () => {
+    const failure = {status: 500, message: 'Something went wrong'};
+    (apiRequest as jest.Mock).mockRejectedValueOnce(failure);
+    await expect(getPayoutAccountStatus('w1')).rejects.toEqual(failure);
+  });
 });
