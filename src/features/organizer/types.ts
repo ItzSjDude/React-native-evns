@@ -28,27 +28,89 @@ export type Workspace = {
   memberCount: number | null;
 };
 
+/** Event statuses the backend actually stores (`event.schema.js`). */
+export type OrganizerEventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
+/** App-side list filter; mapped to a backend status in `organizerService`. */
+export type OrganizerEventFilter = 'UPCOMING' | 'PAST' | 'DRAFT';
+
+/** Raw row of `GET /workspaces/:id/events` (only the fields the dashboard reads). */
+export type ApiOrganizerEvent = {
+  id: string;
+  title: string;
+  starts_at: string;
+  venue: string | null;
+  cover_url: string | null;
+  status: OrganizerEventStatus;
+  capacity: number | string | null;
+  tickets_issued: number | string | null;
+};
+
+/** `GET /workspaces/:id/events/:eid/stats`; counts may arrive as numeric strings. */
+export type ApiEventStats = {
+  interested: number | string;
+  issued: number | string;
+  checked_in: number | string;
+  cancelled: number | string;
+  conversations: number | string;
+};
+
+export type OrganizerEvent = {
+  id: string;
+  title: string;
+  startsAt: string;
+  venue: string;
+  status: OrganizerEventStatus;
+  coverUrl: string | null;
+  ticketsSold: number;
+  capacity: number | null;
+};
+
+export type OrganizerEventStats = {ticketsSold: number; checkedIn: number; interested: number; cancelled: number};
+
+/** Counts only: the backend has no revenue or payout data, so none is modelled here. */
 export type OrganizerDashboardSummary = {
   ticketsSold: number;
-  grossRevenueMinor: number;
-  currency: string;
   checkedIn: number;
-  nextPayoutMinor: number | null;
-  nextPayoutAt: string | null;
-  verificationStatus: WorkspaceVerificationStatus;
-  events: Array<{id: string; title: string; startsAt: string; venue: string; status: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'CANCELLED' | 'ENDED' | 'SOLD_OUT'; coverUrl: string | null; ticketsSold: number; capacity: number}>;
-  actionItems: Array<{type: 'REFUND_REQUEST' | 'CHECKIN_STAFF' | 'VERIFICATION'; eventId?: string; eventTitle?: string; count?: number}>;
+  events: OrganizerEvent[];
 };
 
-export type OrganizerEvent = OrganizerDashboardSummary['events'][number];
-export type OrganizerEventSummary = Omit<OrganizerDashboardSummary, 'events' | 'actionItems' | 'verificationStatus' | 'nextPayoutMinor' | 'nextPayoutAt'> & {
-  event: OrganizerEvent;
-  ticketTypes: Array<{label: string; priceMinor: number; currency: string; sold: number; capacity: number}>;
+export type OrganizerAttendeeStatus = 'ISSUED' | 'CHECKED_IN' | 'CANCELLED' | 'EXPIRED';
+export type OrganizerAttendeeFilter = 'ALL' | 'CHECKED_IN' | 'NOT_CHECKED_IN';
+
+/** Raw row of `GET /workspaces/:wid/events/:eid/attendees`. Never carries email, phone or ticket code. */
+export type ApiOrganizerAttendee = {
+  ticketId: string;
+  displayName: string;
+  ticketLabel?: string | null;
+  status: OrganizerAttendeeStatus;
+  issuedAt?: string | null;
+  checkedInAt: string | null;
 };
 
-export type OrganizerAttendee = {id: string; displayName: string; ticketLabel: string; orderReference: string; ticketStatus: 'PAID' | 'FREE' | 'REFUNDED' | 'CANCELLED'; checkedInAt: string | null; amountMinor: number; currency: string};
+/** `GET /workspaces/:id/payout-account` (OWNER/ADMIN). Masked: only the last four digits come back. Not deployed everywhere yet (API 404). */
+export type PayoutAccountStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type OrganizerPayoutAccount = {
+  status: PayoutAccountStatus;
+  accountSuffix: string | null;
+  payoutSchedule: 'AFTER_EACH_EVENT' | 'EVERY_MONDAY' | null;
+  rejectionReason: string | null;
+  updatedAt: string | null;
+};
+
+export type OrganizerAttendee = {id: string; displayName: string; ticketLabel: string | null; status: OrganizerAttendeeStatus; checkedInAt: string | null};
 export type OrganizerAttendeePage = {items: OrganizerAttendee[]; hasMore: boolean; offset: number};
-export type OrganizerPayouts = {next: {amountMinor: number; currency: string; releaseAt: string; maskedAccount: string} | null; history: Array<{id: string; eventTitle: string; amountMinor: number; currency: string; status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED'; releaseAt: string; paidAt: string | null}>};
+
+export type CheckInResultCode = 'SUCCESS' | 'ALREADY_USED' | 'INVALID' | 'WRONG_EVENT' | 'CANCELLED' | 'EXPIRED';
+
+/** Subset of the `POST /workspaces/:id/tickets/verify` body the app keeps. Door verdicts arrive as HTTP 200. */
+export type ApiVerifyResponse = {
+  ok: boolean;
+  result: CheckInResultCode;
+  message?: string;
+  ticket?: {attendee_name?: string | null; checked_in_at?: string | null} | null;
+};
+
+export type OrganizerCheckIn = {ok: boolean; result: CheckInResultCode | 'UNKNOWN'; message: string; attendeeName: string | null; checkedInAt: string | null};
 
 /** Draft captured by the organiser onboarding wizard before the backend accepts each step. */
 export type OrganizerOnboardingDraft = {

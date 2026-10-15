@@ -23,15 +23,15 @@
     },
     {
       "route": "GET /me/vibe-note-alerts",
-      "reason": "Nearby vibe-note geofence alerts: backend chose server-side matching on POST /me/location + PATCH /me/settings (F-04.4). Entry point hidden by the capability probe (F-04.6); remove when F-04.4 lands."
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
     },
     {
       "route": "PUT /me/vibe-note-alerts",
-      "reason": "Nearby vibe-note geofence alerts: backend chose server-side matching on POST /me/location + PATCH /me/settings (F-04.4). Entry point hidden by the capability probe (F-04.6); remove when F-04.4 lands."
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
     },
     {
       "route": "GET /vibe-notes/geofence-candidates",
-      "reason": "Nearby vibe-note geofence alerts: backend chose server-side matching on POST /me/location + PATCH /me/settings (F-04.4). Entry point hidden by the capability probe (F-04.6); remove when F-04.4 lands."
+      "reason": "Nearby unchanged by owner decision; backend route pending (vibe-note geofence alerts, F-04.4). Remove this entry when the backend route ships."
     },
     {
       "route": "GET /creators/me/onboarding",

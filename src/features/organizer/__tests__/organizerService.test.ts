@@ -1,5 +1,5 @@
 import {apiRequest, apiRequestPage} from '../../../core/api/apiClient';
-import {getCreditOverview, listCreditPacks, listMyWorkspaces, startCreditPackPurchase} from '../organizerService';
+import {checkInOrganizerTicket, getCreditOverview, getOrganizerDashboard, getOrganizerEventStats, isRouteNotDeployed, listCreditPacks, listMyWorkspaces, listOrganizerAttendees, getPayoutAccountStatus, listOrganizerEvents, startCreditPackPurchase} from '../organizerService';
 import type {ApiCreditOverview, ApiWorkspace} from '../types';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
@@ -69,5 +69,102 @@ test('startCreditPackPurchase sends only pack key and idempotency key, then maps
   });
   expect(apiRequest).toHaveBeenCalledWith('/workspaces/w1/credits/purchases', {
     auth: 'required', method: 'POST', body: JSON.stringify({packKey: 'tickets_100', idempotencyKey: 'credit-pack:test:unique-key'}),
+  });
+});
+
+const evRow = (id: string, startsAt: string, extra: Record<string, unknown> = {}) => ({id, title: id, starts_at: startsAt, venue: 'Hall', cover_url: null, status: 'PUBLISHED', capacity: '100', tickets_issued: '7', ...extra});
+const meta = {limit: 20, offset: 0, hasMore: false};
+
+test.each([['UPCOMING', 'PUBLISHED'], ['PAST', 'COMPLETED'], ['DRAFT', 'DRAFT']] as const)('listOrganizerEvents maps %s to backend status %s', async (filter, status) => {
+  (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [], meta});
+  await listOrganizerEvents('w 1', filter, 20);
+  expect(apiRequestPage).toHaveBeenCalledWith(`/workspaces/w%201/events?status=${status}&limit=20&offset=20`, {auth: 'required'});
+});
+
+test('listOrganizerEvents maps rows, drops past published events and sorts upcoming ascending', async () => {
+  const now = Date.parse('2026-06-01T00:00:00Z');
+  (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [evRow('late', '2026-08-01T00:00:00Z'), evRow('old', '2026-01-01T00:00:00Z'), evRow('soon', '2026-07-01T00:00:00Z', {capacity: null})], meta: {limit: 20, offset: 0, hasMore: true}});
+  const page = await listOrganizerEvents('w1', 'UPCOMING', 0, now);
+  expect(page.items.map(e => e.id)).toEqual(['soon', 'late']);
+  expect(page.items[0]).toEqual({id: 'soon', title: 'soon', startsAt: '2026-07-01T00:00:00Z', venue: 'Hall', status: 'PUBLISHED', coverUrl: null, ticketsSold: 7, capacity: null});
+  expect(page.hasMore).toBe(true);
+});
+
+test('getOrganizerEventStats reads the stats route and sums issued + checked_in', async () => {
+  (apiRequest as jest.Mock).mockResolvedValueOnce({interested: '4', issued: '3', checked_in: 2, cancelled: '1', conversations: 0});
+  await expect(getOrganizerEventStats('w1', 'e/1')).resolves.toEqual({ticketsSold: 5, checkedIn: 2, interested: 4, cancelled: 1});
+  expect(apiRequest).toHaveBeenCalledWith('/workspaces/w1/events/e%2F1/stats', {auth: 'required'});
+});
+
+test('getOrganizerDashboard totals the next 5 upcoming events and never calls payouts or the dropped routes', async () => {
+  const future = (n: number) => evRow(`e${n}`, new Date(Date.now() + n * 86400000).toISOString());
+  (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [1, 2, 3, 4, 5, 6, 7].map(future), meta});
+  (apiRequest as jest.Mock).mockResolvedValue({interested: 0, issued: 1, checked_in: 1, cancelled: 0, conversations: 0});
+  const summary = await getOrganizerDashboard('w1');
+  expect(summary.events).toHaveLength(5);
+  expect(summary).toMatchObject({ticketsSold: 10, checkedIn: 5});
+  expect(Object.keys(summary).sort()).toEqual(['checkedIn', 'events', 'ticketsSold']);
+  const paths = [...(apiRequest as jest.Mock).mock.calls, ...(apiRequestPage as jest.Mock).mock.calls].map(c => c[0] as string);
+  expect(paths.every(p => !/payouts|organizer-dashboard|organizer-summary|check-ins/.test(p))).toBe(true);
+  expect((apiRequest as jest.Mock)).toHaveBeenCalledTimes(5);
+});
+
+test('listOrganizerAttendees uses the new route with q/status paging and maps rows without email', async () => {
+  (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [{ticketId: 't1', displayName: 'Ravi K.', status: 'ISSUED', issuedAt: 'x', checkedInAt: null}], meta: {limit: 20, offset: 0, hasMore: false}});
+  const page = await listOrganizerAttendees('w1', 'e1', {search: ' ra ', status: 'NOT_CHECKED_IN', offset: 0});
+  expect(apiRequestPage).toHaveBeenCalledWith('/workspaces/w1/events/e1/attendees?limit=20&offset=0&status=NOT_CHECKED_IN&q=ra', {auth: 'required'});
+  expect(page.items).toEqual([{id: 't1', displayName: 'Ravi K.', ticketLabel: null, status: 'ISSUED', checkedInAt: null}]);
+  expect(JSON.stringify(page)).not.toMatch(/email/i);
+});
+
+test('listOrganizerAttendees omits a too-short q and surfaces 404 so callers can hide the list', async () => {
+  (apiRequestPage as jest.Mock).mockRejectedValueOnce({status: 404, message: 'Not found'});
+  const failure = await listOrganizerAttendees('w1', 'e1', {search: 'a'}).catch(e => e);
+  expect(apiRequestPage).toHaveBeenCalledWith('/workspaces/w1/events/e1/attendees?limit=20&offset=0&status=ALL', {auth: 'required'});
+  expect(isRouteNotDeployed(failure)).toBe(true);
+  expect(isRouteNotDeployed({status: 500})).toBe(false);
+});
+
+test('checkInOrganizerTicket posts code + eventId to tickets/verify and keeps no email', async () => {
+  (apiRequest as jest.Mock).mockResolvedValueOnce({ok: true, result: 'SUCCESS', message: 'Welcome', ticket: {attendee_name: 'Neha', attendee_email: 'n@x.in', checked_in_at: 't'}});
+  const result = await checkInOrganizerTicket('w1', 'e1', ' gthr-7k2m-9qx4 ');
+  expect(apiRequest).toHaveBeenCalledWith('/workspaces/w1/tickets/verify', {auth: 'required', method: 'POST', body: JSON.stringify({code: 'GTHR-7K2M-9QX4', eventId: 'e1'})});
+  expect(result).toEqual({ok: true, result: 'SUCCESS', message: 'Welcome', attendeeName: 'Neha', checkedInAt: 't'});
+  expect(JSON.stringify(result)).not.toMatch(/email|n@x/i);
+});
+
+test.each(['ALREADY_USED', 'INVALID', 'WRONG_EVENT', 'CANCELLED', 'EXPIRED'] as const)('checkInOrganizerTicket reports refusal %s as not ok', async code => {
+  (apiRequest as jest.Mock).mockResolvedValueOnce({ok: false, result: code, message: 'm'});
+  await expect(checkInOrganizerTicket('w1', 'e1', 'ABCD')).resolves.toMatchObject({ok: false, result: code});
+});
+
+test('checkInOrganizerTicket treats an unknown verdict as UNKNOWN, never success', async () => {
+  (apiRequest as jest.Mock).mockResolvedValueOnce({ok: true, result: 'WHATEVER'});
+  await expect(checkInOrganizerTicket('w1', 'e1', 'ABCD')).resolves.toMatchObject({ok: false, result: 'UNKNOWN'});
+});
+
+describe('getPayoutAccountStatus', () => {
+  test('reads the masked payout account route for the workspace', async () => {
+    const account = {status: 'PENDING', accountSuffix: '1234', payoutSchedule: 'EVERY_MONDAY', rejectionReason: null, updatedAt: '2026-01-01T00:00:00Z'};
+    (apiRequest as jest.Mock).mockResolvedValueOnce(account);
+    await expect(getPayoutAccountStatus('w 2')).resolves.toEqual(account);
+    expect(apiRequest).toHaveBeenCalledWith('/workspaces/w%202/payout-account', {auth: 'required'});
+  });
+
+  test.each(['PENDING', 'VERIFIED', 'REJECTED', 'NOT_SUBMITTED'] as const)('passes through %s and its rejection reason', async status => {
+    const rejectionReason = status === 'REJECTED' ? 'Account holder name does not match' : null;
+    (apiRequest as jest.Mock).mockResolvedValueOnce({status, accountSuffix: null, payoutSchedule: null, rejectionReason, updatedAt: null});
+    await expect(getPayoutAccountStatus('w1')).resolves.toMatchObject({status, rejectionReason});
+  });
+
+  test('treats a 404 (API not deployed yet) as unknown instead of an error', async () => {
+    (apiRequest as jest.Mock).mockRejectedValueOnce({status: 404, message: 'Not found'});
+    await expect(getPayoutAccountStatus('w1')).resolves.toBeNull();
+  });
+
+  test('still surfaces other failures so the caller can decide', async () => {
+    const failure = {status: 500, message: 'Something went wrong'};
+    (apiRequest as jest.Mock).mockRejectedValueOnce(failure);
+    await expect(getPayoutAccountStatus('w1')).rejects.toEqual(failure);
   });
 });

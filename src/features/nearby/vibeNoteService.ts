@@ -1,5 +1,4 @@
 import {apiRequest, apiRequestPage} from '../../core/api/apiClient';
-import {createCapabilityProbe} from '../../core/api/capability';
 import type {CreatedVibeNote, MyVibeNote, NewVibeNote, VibeNote, VibeNoteAlertPreference, VibeNoteGeofenceCandidate} from './vibeNoteTypes';
 
 const json = (method: string, body?: unknown) => ({auth: 'required' as const, method, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
@@ -23,9 +22,6 @@ export const deleteVibeNote = (noteId: string) => apiRequest<void>(`/vibe-notes/
 
 export const getVibeNoteAlertPreference = () =>
   apiRequest<VibeNoteAlertPreference>('/me/vibe-note-alerts', {auth: 'required'});
-
-/** Cached per session: false once `/me/vibe-note-alerts` 404s (F-04.6). */
-export const vibeAlertsCapability = createCapabilityProbe(getVibeNoteAlertPreference);
 
 export const setVibeNoteAlertPreference = (enabled: boolean) =>
   apiRequest<VibeNoteAlertPreference>('/me/vibe-note-alerts', json('PUT', {enabled}));
