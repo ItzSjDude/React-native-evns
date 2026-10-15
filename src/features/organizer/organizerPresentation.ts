@@ -22,6 +22,19 @@ export const PURCHASE_STATUS_LABELS: Record<ApiCreditPurchase['status'], string>
   PENDING: 'Pending', PAID: 'Paid', FAILED: 'Failed', REFUNDED: 'Refunded',
 };
 
+/** Clear, fixed wording for each door verdict; the server message is used only where it adds detail. */
+export const checkInMessage = (check: {ok: boolean; result: string; message: string; attendeeName: string | null}) => {
+  switch (check.result) {
+    case 'SUCCESS': return check.attendeeName ? `${check.attendeeName} checked in` : 'Checked in';
+    case 'ALREADY_USED': return check.message || 'This ticket was already checked in.';
+    case 'WRONG_EVENT': return check.message || 'This ticket is for a different event.';
+    case 'CANCELLED': return 'This ticket was cancelled or refunded.';
+    case 'EXPIRED': return 'This ticket has expired.';
+    case 'INVALID': return 'Ticket not recognised. Check the code and try again.';
+    default: return 'Could not verify this ticket. Please try again.';
+  }
+};
+
 /** Status line for the payout badge. `null` when the status is unknown, so nothing alarming is shown. */
 export const payoutStatusCopy = (account: OrganizerPayoutAccount | null): {tone: 'neutral' | 'success' | 'danger'; title: string} | null => {
   if (!account) return null;

@@ -1,5 +1,5 @@
 import {apiRequestPage, apiRequest} from '../../core/api/apiClient';
-import type {ApiCreditOverview, ApiCreditPurchase, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventSummary, OrganizerPayoutAccount, OrganizerPayouts, Workspace} from './types';
+import type {ApiCreditOverview, ApiCreditPurchase, ApiEventStats, ApiOrganizerAttendee, ApiOrganizerEvent, ApiVerifyResponse, ApiWorkspace, CreditCheckout, CreditOverview, CreditPack, OrganizerAttendeeFilter, OrganizerAttendeePage, OrganizerCheckIn, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventFilter, OrganizerEventStats, OrganizerEventStatus, OrganizerPayoutAccount, Workspace} from './types';
 import type {OrganizerOnboardingDraft} from './types';
 
 export const LEDGER_PAGE_SIZE = 20;
@@ -124,26 +124,65 @@ export const createOrganizerEvent = (workspaceId: string, draft: OrganizerOnboar
     }),
   });
 
-/** Owner/admin dashboard data; backend contract is documented in ORGANIZER_DASHBOARD_API_CONTRACT.md. */
-export const getOrganizerDashboard = (workspaceId: string) =>
-  apiRequest<OrganizerDashboardSummary>(`/workspaces/${encodeURIComponent(workspaceId)}/organizer-dashboard`, {auth: 'required'});
+const DASHBOARD_EVENT_CAP = 5;
+const EVENTS_PAGE_SIZE = 20;
+const FILTER_STATUS: Record<OrganizerEventFilter, OrganizerEventStatus> = {UPCOMING: 'PUBLISHED', PAST: 'COMPLETED', DRAFT: 'DRAFT'};
+const count = (value: number | string | null | undefined) => Number(value) || 0;
 
-export const listOrganizerEvents = (workspaceId: string, status: 'UPCOMING' | 'PAST' | 'DRAFT' = 'UPCOMING', offset = 0) =>
-  apiRequest<{items: OrganizerEvent[]; hasMore: boolean; offset: number}>(`/workspaces/${encodeURIComponent(workspaceId)}/events?status=${status}&limit=20&offset=${offset}`, {auth: 'required'});
+const toOrganizerEvent = (row: ApiOrganizerEvent): OrganizerEvent => ({
+  id: row.id, title: row.title, startsAt: row.starts_at, venue: row.venue ?? '', status: row.status, coverUrl: row.cover_url ?? null,
+  ticketsSold: count(row.tickets_issued), capacity: row.capacity == null ? null : Number(row.capacity) || 0,
+});
 
-export const getOrganizerEventSummary = (workspaceId: string, eventId: string) =>
-  apiRequest<OrganizerEventSummary>(`/workspaces/${encodeURIComponent(workspaceId)}/events/${encodeURIComponent(eventId)}/organizer-summary`, {auth: 'required'});
+/** The backend only accepts DRAFT|PUBLISHED|CANCELLED|COMPLETED, so UPCOMING/PAST are mapped here. */
+export async function listOrganizerEvents(workspaceId: string, filter: OrganizerEventFilter = 'UPCOMING', offset = 0, now = Date.now()) {
+  const page = await apiRequestPage<ApiOrganizerEvent[]>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/events?status=${FILTER_STATUS[filter]}&limit=${EVENTS_PAGE_SIZE}&offset=${offset}`,
+    {auth: 'required'},
+  );
+  let items = page.data.map(toOrganizerEvent);
+  if (filter === 'UPCOMING') items = items.filter(event => Date.parse(event.startsAt) >= now).sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+  return {items, hasMore: page.meta.hasMore, offset: page.meta.offset};
+}
 
-export const listOrganizerAttendees = (workspaceId: string, eventId: string, input: {limit?: number; offset?: number; search?: string; status?: 'ALL' | 'CHECKED_IN' | 'NOT_CHECKED_IN'}) => {
+export async function getOrganizerEventStats(workspaceId: string, eventId: string): Promise<OrganizerEventStats> {
+  const stats = await apiRequest<ApiEventStats>(`/workspaces/${encodeURIComponent(workspaceId)}/events/${encodeURIComponent(eventId)}/stats`, {auth: 'required'});
+  return {ticketsSold: count(stats.issued) + count(stats.checked_in), checkedIn: count(stats.checked_in), interested: count(stats.interested), cancelled: count(stats.cancelled)};
+}
+
+/** Overview composed client-side: totals over the next few upcoming events. No money figures exist server-side. */
+export async function getOrganizerDashboard(workspaceId: string): Promise<OrganizerDashboardSummary> {
+  const {items} = await listOrganizerEvents(workspaceId, 'UPCOMING');
+  const events = items.slice(0, DASHBOARD_EVENT_CAP);
+  const stats = await Promise.all(events.map(event => getOrganizerEventStats(workspaceId, event.id)));
+  return {events, ticketsSold: stats.reduce((sum, row) => sum + row.ticketsSold, 0), checkedIn: stats.reduce((sum, row) => sum + row.checkedIn, 0)};
+}
+
+/**
+ * Attendee list (OWNER/ADMIN). Rejects with the ApiError as-is; a 404 means the route is not deployed
+ * yet and callers should hide the list rather than show an error.
+ */
+export async function listOrganizerAttendees(workspaceId: string, eventId: string, input: {limit?: number; offset?: number; search?: string; status?: OrganizerAttendeeFilter} = {}): Promise<OrganizerAttendeePage> {
   const query = new URLSearchParams({limit: String(input.limit ?? 20), offset: String(input.offset ?? 0), status: input.status ?? 'ALL'});
-  if (input.search?.trim()) query.set('search', input.search.trim());
-  return apiRequest<OrganizerAttendeePage>(`/workspaces/${encodeURIComponent(workspaceId)}/events/${encodeURIComponent(eventId)}/attendees?${query}`, {auth: 'required'});
-};
+  const q = input.search?.trim();
+  if (q && q.length >= 2) query.set('q', q);
+  const page = await apiRequestPage<ApiOrganizerAttendee[]>(`/workspaces/${encodeURIComponent(workspaceId)}/events/${encodeURIComponent(eventId)}/attendees?${query}`, {auth: 'required'});
+  return {
+    items: page.data.map(row => ({id: row.ticketId, displayName: row.displayName, ticketLabel: row.ticketLabel ?? null, status: row.status, checkedInAt: row.checkedInAt ?? null})),
+    hasMore: page.meta.hasMore, offset: page.meta.offset,
+  };
+}
 
-export const checkInOrganizerTicket = (workspaceId: string, eventId: string, ticketCode: string, idempotencyKey: string) =>
-  apiRequest<{status: 'CHECKED_IN'; attendeeName: string; ticketLabel: string; checkedInAt: string}>(`/workspaces/${encodeURIComponent(workspaceId)}/events/${encodeURIComponent(eventId)}/check-ins`, {
-    auth: 'required', method: 'POST', body: JSON.stringify({ticketCode, idempotencyKey}),
+export const isRouteNotDeployed = (error: unknown) => (error as {status?: number} | null)?.status === 404;
+
+/** Check in a manually typed ticket code through `tickets/verify`. The ticket's email is never read. */
+export async function checkInOrganizerTicket(workspaceId: string, eventId: string, ticketCode: string): Promise<OrganizerCheckIn> {
+  const data = await apiRequest<ApiVerifyResponse>(`/workspaces/${encodeURIComponent(workspaceId)}/tickets/verify`, {
+    auth: 'required', method: 'POST', body: JSON.stringify({code: ticketCode.trim().toUpperCase(), eventId}),
   });
-
-export const getOrganizerPayouts = (workspaceId: string) =>
-  apiRequest<OrganizerPayouts>(`/workspaces/${encodeURIComponent(workspaceId)}/payouts`, {auth: 'required'});
+  const known = ['SUCCESS', 'ALREADY_USED', 'INVALID', 'WRONG_EVENT', 'CANCELLED', 'EXPIRED'].includes(data?.result);
+  return {
+    ok: data?.ok === true && data.result === 'SUCCESS', result: known ? data.result : 'UNKNOWN', message: data?.message ?? '',
+    attendeeName: data?.ticket?.attendee_name ?? null, checkedInAt: data?.ticket?.checked_in_at ?? null,
+  };
+}
