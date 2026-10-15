@@ -28,7 +28,7 @@ const benefits = (reason?: PaywallReason, details?: LimitReachedDetails): {icon:
     {icon: IconMessageCircle, title: `${plusAllowance('dmStarts', of('dmStarts'))} new chats a day`, note: `Up from ${freeAllowance('dmStarts', of('dmStarts'))} on free`},
     {icon: IconNote, title: `${plusAllowance('vibeNotes', of('vibeNotes'))} vibe notes valid for ${hoursLabel(plusAllowance('vibeNoteLifetime', of('vibeNoteLifetime')))}`,
       note: `Up from ${freeAllowance('vibeNotes', of('vibeNotes'))} valid for ${hoursLabel(freeAllowance('vibeNoteLifetime', of('vibeNoteLifetime')))}`},
-    {icon: IconAdjustmentsHorizontal, title: 'Advanced Filters', note: 'Filter by City, languages, age range, active now, similar interests, and more'},
+    {icon: IconAdjustmentsHorizontal, title: 'Advanced Filters', note: 'Filter by city, language, interest and who is active now'},
     {icon: IconPin, title: 'Pin & folder organization', note: 'Pin up to 5 chats and sort into folders'},
     {icon: IconRosetteDiscountCheck, title: 'Optional plus badge', note: 'Stand out on your profile'},
   ];
@@ -38,8 +38,14 @@ const benefits = (reason?: PaywallReason, details?: LimitReachedDetails): {icon:
 const pickDefault = (options: PlanOption[]) =>
   (options.find(option => periodsPerYear(option.regular.billingPeriod) === 12) ?? options[0])?.basePlanId ?? null;
 
-// ponytail: temporary. Shown when Play can't load real plans (simulators, no billing) so the layout is visible; not purchasable.
-const STATIC_PLANS = [{id: 'weekly', price: '$4.99/wk'}, {id: 'monthly', price: '$12.99/mo'}, {id: 'yearly', price: '$79.99/yr'}];
+/** Play can hang on a bad connection; after this we show the failure with Retry instead of loading forever. */
+const LOAD_TIMEOUT_MS = 10_000;
+const SKELETON_CARDS = [0, 1, 2];
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => new Promise<T>((resolve, reject) => {
+  const timer = setTimeout(() => reject({code: 'service-timeout'}), ms);
+  promise.then(value => {clearTimeout(timer); resolve(value);}, error => {clearTimeout(timer); reject(error);});
+});
+const IOS_NOTICE = 'Hiva Plus purchases aren’t available on this device yet.';
 const PLAN_TAGS: Record<string, string> = {monthly: 'Best Value', yearly: 'Popular'};
 const PERIOD_SHORT: Record<string, string> = {P1W: 'wk', P1M: 'mo', P1Y: 'yr'};
 const shortPeriod = (period: string) => PERIOD_SHORT[period] ?? periodLabel(period);
@@ -68,14 +74,20 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
   const productId = plans[0]?.productId ?? DEFAULT_PRODUCT_ID;
   const productIds = [...new Set(plans.map(plan => plan.productId))];
 
+  /** Billing is Android-only (`connectBilling`); elsewhere there is nothing to load or buy. */
+  const billingSupported = Platform.OS === 'android';
+  const latestLoad = useRef(0);
   const fetchOptions = useCallback(async () => {
+    const id = ++latestLoad.current;
     setLoad({state: 'loading'});
     try {
-      const options = await loadPlanOptions(getPlusState().subscription?.plans ?? DEFAULT_PLANS);
+      const options = await withTimeout(loadPlanOptions(getPlusState().subscription?.plans ?? DEFAULT_PLANS), LOAD_TIMEOUT_MS);
+      if (id !== latestLoad.current) return;
       if (!options.length) {setLoad({state: 'error', message: 'Plans aren’t available right now. Please try again later.', unavailable: false}); return;}
       setLoad({state: 'ready', options});
       setSelected(current => (current && options.some(option => option.basePlanId === current) ? current : pickDefault(options)));
     } catch (error) {
+      if (id !== latestLoad.current) return;
       const mapped = toBillingError(error);
       setLoad({state: 'error', message: mapped.message, unavailable: mapped.kind === 'unavailable'});
     }
@@ -84,22 +96,21 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
   useEffect(() => {
     if (!visible) return;
     setNotice(null);
-    fetchOptions();
-  }, [fetchOptions, visible]);
+    if (billingSupported) fetchOptions();
+    return () => {latestLoad.current += 1;};
+  }, [billingSupported, fetchOptions, visible]);
 
   const options = load.state === 'ready' ? load.options : [];
   const choice = options.find(option => option.basePlanId === selected) ?? null;
-  const isStatic = load.state !== 'ready';
-  const cards = isStatic
-    ? STATIC_PLANS.map(plan => ({id: plan.id, price: plan.price, label: `${planTitle(plan.id)}, ${plan.price}`}))
-    : options.map(option => ({
-      id: option.basePlanId, price: `${option.regular.formattedPrice}/${shortPeriod(option.regular.billingPeriod)}`,
-      label: `${planTitle(option.basePlanId)}, ${option.regular.formattedPrice} per ${periodLabel(option.regular.billingPeriod)}${option.intro ? `, ${introLabel(option.intro)}` : ''}`,
-    }));
-  const activeId = selected ?? (isStatic ? 'monthly' : null);
+  const failed = billingSupported && load.state === 'error';
+  /** Prices only ever come from Play: nothing is drawn until `ready`. */
+  const cards = options.map(option => ({
+    id: option.basePlanId, price: `${option.regular.formattedPrice}/${shortPeriod(option.regular.billingPeriod)}`,
+    label: `${planTitle(option.basePlanId)}, ${option.regular.formattedPrice} per ${periodLabel(option.regular.billingPeriod)}${option.intro ? `, ${introLabel(option.intro)}` : ''}`,
+  }));
+  const activeId = selected;
 
   const buy = async () => {
-    if (isStatic) {fetchOptions(); return;}
     if (!choice || busy) return;
     setBusy('buy'); setNotice(null);
     try {
@@ -124,7 +135,7 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
     } finally {setBusy(null);}
   };
 
-  const canBuy = (!!choice || isStatic) && busy === null;
+  const canBuy = billingSupported && !!choice && busy === null;
 
   return <BottomSheet visible={visible} onClose={onClose} dismissible={busy === null} maxHeight={0.94}
     header={<View className="items-center pb-4 pt-1">
@@ -135,6 +146,14 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
     footer={<View className="gap-3 pt-3">
       <View className="gap-3">
         <Text className="text-[15px] font-semibold text-foreground">Select a Plan</Text>
+        {billingSupported && load.state === 'loading' && <View accessible accessibilityLabel="Loading prices" accessibilityState={{busy: true}} className="flex-row gap-2.5">
+          {SKELETON_CARDS.map(key => <View key={key} testID="price-skeleton" className="h-[80px] min-w-0 flex-1 rounded-[20px] border-[1.5px] border-border bg-card opacity-60" />)}
+        </View>}
+        {!billingSupported && <Text className="text-[13px] leading-[18px] text-muted">{IOS_NOTICE}</Text>}
+        {failed && load.state === 'error' && <View accessibilityRole="alert" className="gap-1 rounded-[16px] border border-border bg-card px-3 py-3">
+          <Text className="text-[14px] font-semibold text-foreground">Prices unavailable</Text>
+          <Text className="text-[13px] leading-[18px] text-muted">{load.message}</Text>
+        </View>}
         {cards.length > 0 && <View accessibilityRole="radiogroup" className="flex-row gap-2.5">
           {cards.map(card => {
             const active = card.id === activeId;
@@ -156,14 +175,20 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
       {!!notice && <Text accessibilityRole={notice.tone === 'error' ? 'alert' : undefined}
         className={`text-center text-[13px] font-semibold ${notice.tone === 'error' ? 'text-coral' : notice.tone === 'success' ? 'text-glow-green' : 'text-purple-soft'}`}>{notice.text}</Text>}
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Upgrade to Hiva Plus" accessibilityState={{disabled: !canBuy, busy: busy === 'buy'}} disabled={!canBuy} onPress={buy}
-        className={`mt-2 overflow-hidden rounded-full active:opacity-80 ${canBuy || busy === 'buy' ? '' : 'opacity-50'}`}>
-        <LinearGradient colors={['#5B4FE8', '#B06CF2']} start={{x: 0, y: 0.5}} end={{x: 1, y: 0.5}} style={styles.cta}>
-          {busy === 'buy' ? <ActivityIndicator color={Colors.white} /> : <Text className="text-[15px] font-bold text-white">Upgrade to Hiva Plus</Text>}
-        </LinearGradient>
-      </Pressable>
+      {billingSupported && (failed
+        ? <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={fetchOptions} className="mt-2 overflow-hidden rounded-full active:opacity-80">
+          <LinearGradient colors={['#5B4FE8', '#B06CF2']} start={{x: 0, y: 0.5}} end={{x: 1, y: 0.5}} style={styles.cta}>
+            <Text className="text-[15px] font-bold text-white">Retry</Text>
+          </LinearGradient>
+        </Pressable>
+        : <Pressable accessibilityRole="button" accessibilityLabel="Upgrade to Hiva Plus" accessibilityState={{disabled: !canBuy, busy: busy === 'buy'}} disabled={!canBuy} onPress={buy}
+          className={`mt-2 overflow-hidden rounded-full active:opacity-80 ${canBuy || busy === 'buy' ? '' : 'opacity-50'}`}>
+          <LinearGradient colors={['#5B4FE8', '#B06CF2']} start={{x: 0, y: 0.5}} end={{x: 1, y: 0.5}} style={styles.cta}>
+            {busy === 'buy' ? <ActivityIndicator color={Colors.white} /> : <Text className="text-[15px] font-bold text-white">Upgrade to Hiva Plus</Text>}
+          </LinearGradient>
+        </Pressable>)}
 
-      <View className="items-center">
+      {billingSupported && <View className="items-center">
         {!(load.state === 'error' && load.unavailable) && <Pressable accessibilityRole="button" accessibilityLabel="Restore purchases" accessibilityState={{disabled: busy !== null, busy: busy === 'restore'}} disabled={busy !== null} onPress={restore}
           className={`min-h-[32px] items-center justify-center active:opacity-70 ${busy !== null ? 'opacity-50' : ''}`}>
           <Text className="text-[13px] font-semibold text-muted">{busy === 'restore' ? 'Restoring…' : 'Restore purchases'}</Text>
@@ -172,7 +197,7 @@ export default function PaywallSheet({visible, onClose, reason, details}: Paywal
         <Pressable accessibilityRole="link" accessibilityLabel="Manage subscriptions in Google Play" hitSlop={6} onPress={() => {Linking.openURL(manageSubscriptionUrl(productId)).catch(() => {});}} className="items-center py-1 active:opacity-70">
           <Text className="text-[11px] font-bold text-purple-soft underline">Manage subscriptions in Google Play</Text>
         </Pressable>
-      </View>
+      </View>}
     </View>}>
     <View className="gap-4 pb-2 pt-1">
       {benefits(reason, details).map(({icon: Icon, title, note}) => <View key={title} className="flex-row items-center gap-4">

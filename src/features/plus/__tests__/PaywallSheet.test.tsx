@@ -61,7 +61,8 @@ test('shows Play prices and the intro offer', async () => {
 test('the filter benefit is listed', async () => {
   const text = allText(await render({reason: 'filters'}));
   expect(text).toContain('Advanced Filters');
-  expect(text).toContain('Filter by City, languages, age range, active now, similar interests, and more');
+  expect(text).toContain('Filter by city, language, interest and who is active now');
+  expect(text).not.toMatch(/age range|similar interests/i);
 });
 
 test('without a reason it shows the default copy and every benefit', async () => {
@@ -113,13 +114,94 @@ test('restore links an existing subscription', async () => {
   expect(allText(renderer)).toContain('Hiva Plus restored.');
 });
 
-test('a device without Play Billing shows static plans and Upgrade buys nothing', async () => {
-  (Iap.initConnection as jest.Mock).mockRejectedValueOnce({code: 'billing-unavailable', message: 'nope'});
-  const renderer = await render();
-  const text = allText(renderer);
-  expect(text).toContain('$12.99/mo');
-  expect(text).not.toContain('available');
-  expect(['Weekly', 'Monthly', 'Yearly'].every(plan => renderer.root.findAll(node => node.props.accessibilityRole === 'radio' && String(node.props.accessibilityLabel).startsWith(plan)).length > 0)).toBe(true);
-  await press(renderer, 'Upgrade to Hiva Plus');
-  expect(Iap.requestPurchase).not.toHaveBeenCalled();
+const radios = (renderer: ReactTestRenderer.ReactTestRenderer) => renderer.root.findAll(node => node.props.accessibilityRole === 'radio');
+const button = (renderer: ReactTestRenderer.ReactTestRenderer, label: string) =>
+  renderer.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function')[0];
+const skeletons = (renderer: ReactTestRenderer.ReactTestRenderer) => renderer.root.findAll(node => typeof node.type === 'string' && node.props.testID === 'price-skeleton');
+
+describe('price states', () => {
+  test('while Play loads it shows skeletons, no prices, and a disabled Upgrade', async () => {
+    (Iap.fetchProducts as jest.Mock).mockReturnValue(new Promise(() => {}));
+    const renderer = await render();
+    const text = allText(renderer);
+    expect(skeletons(renderer)).toHaveLength(3);
+    expect(radios(renderer)).toHaveLength(0);
+    expect(text).not.toMatch(/[$₹]/);
+    expect(button(renderer, 'Upgrade to Hiva Plus').props.disabled).toBe(true);
+    expect(button(renderer, 'Retry')).toBeUndefined();
+    await press(renderer, 'Upgrade to Hiva Plus');
+    expect(Iap.fetchProducts).toHaveBeenCalledTimes(1);
+    expect(Iap.requestPurchase).not.toHaveBeenCalled();
+  });
+
+  test('ready shows only Play prices and enables Upgrade', async () => {
+    const renderer = await render();
+    expect(skeletons(renderer)).toHaveLength(0);
+    expect(button(renderer, 'Upgrade to Hiva Plus').props.disabled).toBe(false);
+    expect(button(renderer, 'Retry')).toBeUndefined();
+    expect(allText(renderer)).not.toContain('$');
+    expect(allText(renderer)).not.toContain('Prices unavailable');
+  });
+
+  test('a device without Play Billing says prices are unavailable, has no invented prices, and Upgrade buys nothing', async () => {
+    (Iap.initConnection as jest.Mock).mockRejectedValueOnce({code: 'billing-unavailable', message: 'nope'});
+    const renderer = await render();
+    const text = allText(renderer);
+    expect(text).toContain('Prices unavailable');
+    expect(text).toContain('Purchases aren’t available on this device');
+    expect(text).not.toMatch(/\$\d/);
+    expect(radios(renderer)).toHaveLength(0);
+    expect(text).toContain('Renews automatically. Cancel anytime in Google Play.');
+    expect(text).toContain('Manage subscriptions in Google Play');
+    expect(button(renderer, 'Upgrade to Hiva Plus')).toBeUndefined();
+    expect(button(renderer, 'Retry')).toBeDefined();
+    expect(Iap.requestPurchase).not.toHaveBeenCalled();
+  });
+
+  test('offline surfaces the error and Retry reloads, then prices appear', async () => {
+    (Iap.fetchProducts as jest.Mock).mockRejectedValueOnce({code: 'network-error', message: 'offline'});
+    const renderer = await render();
+    expect(allText(renderer)).toContain('Prices unavailable');
+    expect(allText(renderer)).toContain('Couldn’t reach Google Play. Check your connection and try again.');
+    expect(radios(renderer)).toHaveLength(0);
+    expect(allText(renderer)).toContain('Restore purchases');
+    await press(renderer, 'Retry');
+    expect(Iap.fetchProducts).toHaveBeenCalledTimes(2);
+    expect(allText(renderer)).toContain('₹99/mo');
+    expect(allText(renderer)).not.toContain('Prices unavailable');
+    expect(button(renderer, 'Retry')).toBeUndefined();
+  });
+
+  test('Play returning no matching plans is a failure, not an empty list', async () => {
+    (Iap.fetchProducts as jest.Mock).mockResolvedValue([]);
+    const renderer = await render();
+    expect(allText(renderer)).toContain('Prices unavailable');
+    expect(allText(renderer)).toContain('Plans aren’t available right now. Please try again later.');
+    expect(button(renderer, 'Retry')).toBeDefined();
+  });
+
+  test('a load that hangs fails after 10 seconds with Retry', async () => {
+    jest.useFakeTimers();
+    try {
+      (Iap.fetchProducts as jest.Mock).mockReturnValue(new Promise(() => {}));
+      const renderer = await render();
+      expect(skeletons(renderer)).toHaveLength(3);
+      await ReactTestRenderer.act(async () => {jest.advanceTimersByTime(10_000);});
+      expect(skeletons(renderer)).toHaveLength(0);
+      expect(allText(renderer)).toContain('Prices unavailable');
+      expect(button(renderer, 'Retry')).toBeDefined();
+    } finally {jest.useRealTimers();}
+  });
+
+  test('on iOS it explains purchases are unavailable and offers no purchase controls', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    const renderer = await render();
+    const text = allText(renderer);
+    expect(text).toContain('Hiva Plus purchases aren’t available on this device yet.');
+    expect(Iap.fetchProducts).not.toHaveBeenCalled();
+    expect(text).not.toMatch(/[$₹]/);
+    expect(text).not.toContain('Google Play');
+    for (const label of ['Upgrade to Hiva Plus', 'Retry', 'Restore purchases', 'Manage subscriptions in Google Play']) expect(button(renderer, label)).toBeUndefined();
+    expect(text).toContain('40 new chats a day');
+  });
 });
