@@ -160,3 +160,10 @@ describe('formatNotificationTime', () => {
     expect(formatNotificationTime(iso, now)).toBe('');
   });
 });
+
+describe('organiser sales notifications', () => {
+  test.each(['PURCHASE_REQUESTED', 'PAYMENT_MARKED_PAID'] as const)('%s targets the sales thread, not the event', type => {
+    const target = resolveNotificationTarget(type, {conversationId: 'conv-1', eventId: 'e1'});
+    expect(target).toMatchObject({kind: 'conversation', id: 'conv-1', type});
+  });
+});

@@ -140,3 +140,12 @@ test('TicketBubble without a ticket id cannot open anything', () => {
   expect(texts(renderer)).toContain('Ticket details are loading.');
   expect(hostButtons(renderer)).toHaveLength(0);
 });
+
+test('organiser side sees the amount and a state line, never payee details or actions', () => {
+  const {renderer} = render({attendee: false, organiser: true, card: card({status: 'PAID_CLAIMED'})});
+  const out = texts(renderer).join('|');
+  expect(out).toContain('Buyer says they have paid');
+  expect(out).not.toContain('neon@okhdfc');
+  expect(out).not.toContain('not shown in direct chats');
+  expect(hostButtons(renderer)).toHaveLength(0);
+});

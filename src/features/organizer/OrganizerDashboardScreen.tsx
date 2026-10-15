@@ -8,12 +8,13 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {checkInOrganizerTicket, getOrganizerDashboard, getOrganizerEventStats, getPayoutAccountStatus, isRouteNotDeployed, listMyWorkspaces, listOrganizerAttendees, listOrganizerEvents} from './organizerService';
+import OrganizerSalesInbox from './OrganizerSalesInbox';
 import PayoutStatusBadge from './PayoutStatusBadge';
 import {checkInMessage, messageOf} from './organizerPresentation';
 import type {OrganizerAttendee, OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventStats, OrganizerPayoutAccount, Workspace} from './types';
 
-type Section = 'Overview' | 'Events' | 'Event detail' | 'Attendees' | 'Check-in';
-const sections: Section[] = ['Overview', 'Events', 'Event detail', 'Attendees', 'Check-in'];
+type Section = 'Overview' | 'Events' | 'Event detail' | 'Attendees' | 'Check-in' | 'Sales';
+const sections: Section[] = ['Overview', 'Events', 'Event detail', 'Attendees', 'Check-in', 'Sales'];
 const eventFilters = [{label: 'Upcoming', value: 'UPCOMING'}, {label: 'Past', value: 'PAST'}, {label: 'Drafts', value: 'DRAFT'}] as const;
 const compactHorizontalScroll = {flexGrow: 0};
 const Card = ({children}: {children: React.ReactNode}) => <View className="rounded-[20px] border border-border bg-card p-4">{children}</View>;
@@ -193,6 +194,8 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
         <Card><Label>Checked in</Label><Text className="mt-1 text-[24px] font-extrabold text-foreground">{eventStats?.checkedIn ?? '—'} <Text className="text-[14px] font-semibold text-muted">/ {eventStats ? eventStats.ticketsSold : '—'}</Text></Text><View className="mt-3 h-2 overflow-hidden rounded-full bg-background"><View className="h-full rounded-full bg-gold" style={{width: `${Math.min(100, eventStats?.ticketsSold ? eventStats.checkedIn / eventStats.ticketsSold * 100 : 0)}%`}} /></View></Card>
         <Card><Text className="text-[15px] font-bold text-foreground">Enter ticket code</Text><Text className="mt-1 text-[12px] leading-5 text-muted">Scan support can be added with the backend/native scanner integration. Manual entry is available now.</Text><TextInput accessibilityLabel="Ticket QR code or ticket code" value={ticketCode} onChangeText={value => {setTicketCode(value); setCheckInNotice(null);}} autoCapitalize="characters" placeholder="Ticket code" placeholderTextColor={Colors.muted} className="mt-3 h-12 rounded-[14px] border border-border bg-background px-3 text-[15px] text-foreground" /><Pressable accessibilityRole="button" accessibilityState={{disabled: !ticketCode.trim() || checkInBusy, busy: checkInBusy}} disabled={!ticketCode.trim() || checkInBusy} onPress={runCheckIn} className="mt-3 h-11 items-center justify-center rounded-full bg-gold">{checkInBusy ? <ActivityIndicator size="small" color={Colors.goldInk} /> : <Text className="font-extrabold text-gold-ink">Check in ticket</Text>}</Pressable>{!!checkInNotice && <Text accessibilityRole="alert" className="mt-3 text-[13px] text-foreground">{checkInNotice}</Text>}</Card>
       </ScrollView>}
+
+      {section === 'Sales' && selectedId && !error && <OrganizerSalesInbox workspaceId={selectedId} onAccessRevoked={() => {onAccessRevokedRef.current?.(); onCloseRef.current();}} />}
 
     </SafeAreaView>
   </Modal>;

@@ -7,7 +7,7 @@ import type {OrganizerEvent, Workspace} from '../types';
 
 jest.mock('../organizerService', () => ({
   listMyWorkspaces: jest.fn(), getOrganizerDashboard: jest.fn(), listOrganizerEvents: jest.fn(), getOrganizerEventStats: jest.fn(),
-  listOrganizerAttendees: jest.fn(), getPayoutAccountStatus: jest.fn(), checkInOrganizerTicket: jest.fn(), isRouteNotDeployed: (e: {status?: number}) => e?.status === 404,
+  listOrganizerAttendees: jest.fn(), getPayoutAccountStatus: jest.fn(), checkInOrganizerTicket: jest.fn(), listSalesThreads: jest.fn(), isRouteNotDeployed: (e: {status?: number}) => e?.status === 404,
 }));
 const m = svc as unknown as Record<string, jest.Mock>;
 
@@ -24,6 +24,7 @@ beforeEach(() => {
   Object.values(m).forEach(fn => 'mockReset' in fn && fn.mockReset());
   m.listMyWorkspaces.mockResolvedValue([workspace]);
   m.getPayoutAccountStatus.mockResolvedValue(null);
+  m.listSalesThreads.mockResolvedValue({items: [], hasMore: false, offset: 0});
   m.getOrganizerDashboard.mockResolvedValue({ticketsSold: 3, checkedIn: 1, events: [event]});
   m.listOrganizerEvents.mockResolvedValue({items: [event], hasMore: false, offset: 0});
   m.getOrganizerEventStats.mockResolvedValue({ticketsSold: 3, checkedIn: 1, interested: 0, cancelled: 0});
@@ -57,4 +58,10 @@ test('manual check-in goes through the service and maps a refusal to a clear mes
   await act(async () => {await submit.props.onPress();}); await flush();
   expect(m.checkInOrganizerTicket).toHaveBeenCalledWith('w1', 'e1', 'gthr-1');
   expect(text()).toContain('cancelled or refunded');
+});
+
+test('the Sales tab hosts the sales inbox for the selected workspace', async () => {
+  await mount();
+  await act(async () => {tab('Sales').props.onPress();}); await flush();
+  expect(m.listSalesThreads).toHaveBeenCalledWith('w1');
 });

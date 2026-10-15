@@ -43,6 +43,9 @@ export type ApiOrganizerEvent = {
   status: OrganizerEventStatus;
   capacity: number | string | null;
   tickets_issued: number | string | null;
+  is_paid?: boolean;
+  price_minor?: number | string | null;
+  currency?: string | null;
 };
 
 /** `GET /workspaces/:id/events/:eid/stats`; counts may arrive as numeric strings. */
@@ -203,3 +206,61 @@ export type CreditCheckout = {
 };
 
 export type CreditPurchaseStart = {purchase: ApiCreditPurchase; checkout: CreditCheckout};
+
+/** Row of `GET /workspaces/:id/conversations` (conversation.repository `listForWorkspace`). `last_message` is not returned today. */
+export type ApiSalesThread = {
+  id: string;
+  status: 'OPEN' | 'CLOSED';
+  event_id: string | null;
+  event_title: string | null;
+  event_starts_at: string | null;
+  user_id: string | null;
+  attendee_name: string | null;
+  attendee_avatar_url: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  unread_count: number | string;
+  last_message?: {body: string | null; type: string} | null;
+};
+
+export type SalesThread = {
+  id: string;
+  status: 'OPEN' | 'CLOSED';
+  eventId: string | null;
+  eventTitle: string;
+  buyerName: string;
+  buyerAvatarUrl: string | null;
+  unreadCount: number;
+  lastActivityAt: string;
+  lastMessagePreview: string | null;
+};
+
+export type SalesThreadPage = {items: SalesThread[]; hasMore: boolean; offset: number};
+
+export type SalesPaymentMethod = 'UPI' | 'BANK' | 'CASH' | 'LINK';
+
+/** What the organiser types into the share form. The amount is never typed: it comes from the event. */
+export type SharePaymentForm = {
+  method: SalesPaymentMethod;
+  payeeName: string;
+  upiId: string;
+  accountNumber: string;
+  ifsc: string;
+  paymentLink: string;
+  note: string;
+};
+
+/** Body of `POST /conversations/:cid/payment-cards`. Sensitive: never log it. */
+export type SharePaymentBody = {
+  amountMinor: number;
+  currency: string;
+  method: SalesPaymentMethod;
+  payeeName?: string;
+  upiId?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  paymentLink?: string;
+  note?: string;
+};
+
+export type OrganizerEventPrice = {isPaid: boolean; priceMinor: number; currency: string};
