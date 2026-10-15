@@ -32,11 +32,13 @@ import {getMyCreatorOnboarding} from '../creator';
 import { UserProfileModal, type UserPreview } from '../users';
 import AudioPartyStage from './AudioPartyStage';
 import RoomChatStream from './RoomChatStream';
+import { ReactionRow, ReactionToggle } from './RoomReactions';
 import { ACCESS_REVOKED_MESSAGE, isPaidAccessRequired } from '../paidRooms';
 import BottomSheet, {SheetSection, SheetRow} from '../../components/BottomSheet';
 import PartyRoomPanel, { type ReportTarget, type RoomAction, type RoomActionTarget, type RoomPanel } from './PartyRoomPanel';
 import { usePartyRoomState } from './usePartyRoomState';
-import { PartyColors, roomTitle } from './partyPresentation';
+import { PartyColors, roomMetaLabel, roomTitle } from './partyPresentation';
+import ListenersStrip from './ListenersStrip';
 import { deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty, type PartyParticipant, type PartyRoomSettings } from './partyService';
 
 const QUICK_GIFTS = [{name: 'Rose', emoji: '🌹'}, {name: 'Heart', emoji: '❤️'}, {name: 'Crown', emoji: '👑'}, {name: 'Rocket', emoji: '🚀'}, {name: 'Star', emoji: '⭐'}] as const;
@@ -66,6 +68,7 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const [error, setError] = useState<string | null>(null);
   const [chatText, setChatText] = useState('');
   const [outputOpen, setOutputOpen] = useState(false);
+  const [reactionsOpen, setReactionsOpen] = useState(false);
   const [topicOpen, setTopicOpen] = useState(false);
   const [viewing, setViewing] = useState<{ id: string; initial: UserPreview } | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
@@ -238,6 +241,9 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const micDisabled = canSpeak ? !isMicrophoneEnabled && !micPending && !live : busy || !live || (!ownRequest && snapshot.party.requestsEnabled === false);
   const micActive = canSpeak ? isMicrophoneEnabled : !!ownRequest;
   const chatPaused = snapshot.party.chatEnabled === false;
+  const toggleReactions = useCallback(() => setReactionsOpen(value => !value), []);
+  const pickEmoji = useCallback((emoji: string) => { setReactionsOpen(false); sendEmoji(emoji); }, [sendEmoji]);
+  const openPeople = useCallback(() => setPanel({ kind: 'people' }), []);
   const onSeatPress = useCallback((person: PartyParticipant | undefined, index: number) => setPanel(person ? { kind: 'person', personId: person.userId } : { kind: 'seat', seatIndex: index }), []);
 
   return <>
@@ -258,60 +264,66 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
     <Modal visible={expanded} animationType={SLIDE_MODAL_ANIMATION} presentationStyle="fullScreen" onRequestClose={onMinimize}>
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <KeyboardAvoidingView className="flex-1" behavior="padding" keyboardVerticalOffset={0}>
-          <View className="flex-row items-center gap-2 px-3 pb-1 pt-1">
-            <Pressable accessibilityRole="button" accessibilityLabel={`Minimize ${noun} party`} onPress={onMinimize} className="h-11 w-11 items-center justify-center rounded-full active:bg-card"><IconChevronDown size={26} color={PartyColors.text} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Room details" onPress={() => setPanel({ kind: 'info' })} className="min-w-0 flex-1 items-center active:opacity-70">
-              <Text numberOfLines={1} className="text-[16px] font-bold tracking-[-0.2px] text-foreground">{roomTitle(snapshot.party)}</Text>
+          <View className="flex-row items-center gap-1 px-2 pb-1 pt-1">
+            <Pressable accessibilityRole="button" accessibilityLabel={`Minimize ${noun} party`} onPress={onMinimize} className="h-12 w-12 items-center justify-center rounded-full active:bg-card"><IconChevronDown size={26} color={PartyColors.text} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Room details" onPress={() => setPanel({ kind: 'info' })} className="min-h-12 min-w-0 flex-1 items-center justify-center active:opacity-70">
+              <Text numberOfLines={1} className="text-[17px] font-bold tracking-[-0.2px] text-foreground">{roomTitle(snapshot.party)}</Text>
               <View className="mt-0.5 flex-row items-center gap-1.5">
-                <View className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-glow-green' : 'bg-coral'}`} />
-                <Text accessibilityLiveRegion="polite" className="text-xs text-muted">{status} · {speakers.length + audience.length} in room</Text>
+                <View className={`h-2 w-2 rounded-full ${live ? 'bg-glow-green' : 'bg-coral'}`} />
+                <Text accessibilityLiveRegion="polite" numberOfLines={1} className="shrink text-xs text-muted"><Text className={live ? 'font-semibold text-foreground' : 'font-semibold text-coral'}>{status}</Text> · {roomMetaLabel(audience.length, speakers.length)}</Text>
               </View>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Room controls" onPress={() => setPanel({ kind: 'info' })} className="h-11 w-11 items-center justify-center rounded-full active:bg-card"><IconDots size={24} color={PartyColors.text} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Room controls" onPress={() => setPanel({ kind: 'info' })} className="h-12 w-12 items-center justify-center rounded-full active:bg-card"><IconDots size={24} color={PartyColors.text} /></Pressable>
           </View>
-          {!!snapshot.party.topic && <Pressable accessibilityRole="button" accessibilityLabel={topicOpen ? 'Collapse room topic' : 'Expand room topic'} accessibilityState={{ expanded: topicOpen }} onPress={() => setTopicOpen(value => !value)} className="mx-6 min-h-11 justify-center active:opacity-70">
-            <Text numberOfLines={topicOpen ? undefined : 2} className="text-center text-[13px] leading-5 text-muted">{snapshot.party.topic}</Text>
+          {!!snapshot.party.topic && <Pressable accessibilityRole="button" accessibilityLabel={topicOpen ? 'Collapse room topic' : 'Expand room topic'} accessibilityState={{ expanded: topicOpen }} onPress={() => setTopicOpen(value => !value)} className="mx-5 min-h-11 justify-center active:opacity-70">
+            <Text numberOfLines={topicOpen ? undefined : 1} className="text-center text-[13px] leading-5 text-muted">{snapshot.party.topic}</Text>
           </Pressable>}
-          {!live && connection !== ConnectionState.Disconnected && <View accessibilityLiveRegion="polite" className="mx-4 mb-1 flex-row items-center justify-center gap-2 rounded-full bg-coral/15 px-4 py-2"><IconWifiOff size={15} color={PartyColors.coral} /><Text className="text-[13px] font-semibold text-coral">{connection === ConnectionState.Reconnecting ? 'Reconnecting to the room. Hang tight.' : 'Connecting to the room…'}</Text></View>}
+          {!live && connection !== ConnectionState.Disconnected && <StatusBanner icon={<IconWifiOff size={15} color={PartyColors.coral} />} polite>{connection === ConnectionState.Reconnecting ? 'Reconnecting to the room. Hang tight.' : 'Connecting to the room…'}</StatusBanner>}
           {isVideo && <VideoPartyStage seatCount={seatCount} speakers={speakers} liveById={liveById} localIdentity={identity} lockedSeats={snapshot.lockedSeats}
             mirrorLocal={camera.mirrored} onSwitchCamera={camera.switchCamera} onSeatPress={onSeatPress} />}
           {!isVideo && <AudioPartyStage seatCount={seatCount} speakers={speakers} liveById={liveById} localIdentity={identity} lockedSeats={snapshot.lockedSeats} scrollEnabled={keyboard}
             onSeatPress={onSeatPress} />}
+          {audience.length > 0 && !keyboard && <ListenersStrip audience={audience} onPress={openPeople} />}
           {invitation && <View className="mx-4 mb-2 flex-row items-center gap-3 rounded-2xl border border-primary/40 bg-primary-dark p-3">
             <View className="h-10 w-10 items-center justify-center rounded-full bg-gold"><IconMicrophone size={20} color={PartyColors.ink} /></View>
             <View className="min-w-0 flex-1"><Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-foreground">You’re invited to speak</Text><Text className="mt-0.5 text-xs text-muted">Seat {invitation.seatIndex + 1} · mic stays off until you unmute</Text></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Decline" disabled={busy} onPress={() => act('decline-invite', invitation.id)} className="h-11 justify-center px-2"><Text className="text-[13px] font-semibold text-muted">Later</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Accept" disabled={busy} onPress={() => act('accept-invite', invitation.id)} className="h-11 justify-center rounded-full bg-gold px-4"><Text className="text-[13px] font-bold text-text-dark">Join</Text></Pressable>
           </View>}
-          {!keyboard && <RoomChatStream messages={messages} identity={identity} onMessagePress={message => setPanel({ kind: 'message', message })} onEmojiPress={sendEmoji} />}
-          {!!(error || syncError || connectionError) && <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" className="px-5 py-1 text-center text-[13px] leading-[18px] text-coral">{error || syncError || connectionError}</Text>}
+          {!keyboard && <RoomChatStream messages={messages} identity={identity} onMessagePress={message => setPanel({ kind: 'message', message })} />}
+          {!!(error || syncError || connectionError) && <StatusBanner alert>{error || syncError || connectionError}</StatusBanner>}
           {connection === ConnectionState.Disconnected && <Pressable accessibilityRole="button" accessibilityLabel="Retry audio" onPress={restoreAudio} className="mx-auto mb-1 h-11 flex-row items-center gap-1.5 rounded-full bg-card px-4"><IconRefresh size={15} color={PartyColors.accent} /><Text className="text-[13px] font-semibold text-primary">Retry audio</Text></Pressable>}
+          {reactionsOpen && !chatPaused && <ReactionRow onPick={pickEmoji} />}
           <View className="border-t border-border/60 bg-nav-background px-3 pb-2 pt-2.5">
             <View className="flex-row items-center gap-2">
-              <View className="h-11 flex-1 flex-row items-center rounded-full border border-border bg-card pl-4 pr-1">
+              <View className="h-12 flex-1 flex-row items-center rounded-full border border-border bg-card pl-4 pr-1">
                 <TextInput accessibilityLabel="Send a room message" value={chatText} onChangeText={setChatText} maxLength={4000} editable={!chatBusy && !chatPaused} onSubmitEditing={sendChat} returnKeyType="send" placeholder={chatPaused ? 'Chat paused by host' : 'Say something…'} placeholderTextColor={PartyColors.muted} className="h-full flex-1 text-sm text-foreground" />
                 {!!chatText.trim() && <Pressable accessibilityRole="button" accessibilityLabel="Send room message" onPress={sendChat} disabled={chatBusy || chatPaused} hitSlop={4} className="h-10 w-10 items-center justify-center rounded-full bg-gold"><IconSend size={16} color={PartyColors.ink} /></Pressable>}
               </View>
-              {!isVideo && canGift && <Pressable accessibilityRole="button" accessibilityLabel="Send a gift to the host" onPress={() => setGiftSheet(true)} className="h-11 w-11 items-center justify-center rounded-full border border-gold/40 bg-card active:opacity-70">
-                <IconGift size={20} color={PartyColors.accent} />
+              <ReactionToggle open={reactionsOpen} disabled={chatPaused} onPress={toggleReactions} />
+              {!isVideo && canGift && <Pressable accessibilityRole="button" accessibilityLabel="Send a gift to the host" onPress={() => setGiftSheet(true)} className="h-12 w-12 items-center justify-center rounded-full border border-gold/40 bg-card active:opacity-70">
+                <IconGift size={21} color={PartyColors.accent} />
               </Pressable>}
             </View>
-            <View className={`mt-2.5 flex-row items-center ${isVideo && canSpeak ? 'gap-1.5' : 'gap-2'}`}>
-              <Pressable accessibilityRole="button" accessibilityLabel={host ? 'End party' : 'Leave party'} onPress={() => setPanel({ kind: 'exit' })} className="h-11 flex-row items-center gap-1.5 rounded-full bg-coral/15 px-4 active:opacity-70">
+            <View className="mt-2.5 flex-row items-center gap-1">
+              <Pressable accessibilityRole="button" accessibilityLabel={host ? 'End party' : 'Leave party'} onPress={() => setPanel({ kind: 'exit' })} className="h-12 flex-row items-center gap-1.5 rounded-full bg-coral/15 px-4 active:opacity-70">
                 <IconDoorExit size={18} color={PartyColors.coral} /><Text className="text-[13px] font-bold text-coral">{host ? 'End' : 'Leave'}</Text>
               </Pressable>
               <View className="flex-1" />
-              {isVideo && canSpeak && <DockButton label={isCameraEnabled || camera.pending ? 'Turn camera off' : 'Turn camera on'} active={!!isCameraEnabled} disabled={!isCameraEnabled && !camera.pending && !live} onPress={camera.toggle}>
+              {isVideo && canSpeak && <DockButton text={isCameraEnabled ? 'Camera' : 'Camera off'} label={isCameraEnabled || camera.pending ? 'Turn camera off' : 'Turn camera on'} active={!!isCameraEnabled} disabled={!isCameraEnabled && !camera.pending && !live} onPress={camera.toggle}>
                 {isCameraEnabled ? <IconVideo size={21} color={PartyColors.goldInk} /> : <IconVideoOff size={21} color={PartyColors.text} />}
               </DockButton>}
-              <DockButton label="Choose audio device" onPress={() => setOutputOpen(true)}><IconVolume size={21} color={PartyColors.text} /></DockButton>
-              <DockButton label={`People in room ${speakers.length + audience.length}`} onPress={() => setPanel({ kind: 'people' })}><IconUsers size={21} color={PartyColors.text} /></DockButton>
-              {manager && <DockButton label={`Requests to speak ${requests.length}`} badge={requests.length} onPress={() => setPanel({ kind: 'requests' })}><IconHandStop size={21} color={requests.length ? PartyColors.accent : PartyColors.text} /></DockButton>}
+              <DockButton text="Output" label="Choose audio device" onPress={() => setOutputOpen(true)}><IconVolume size={21} color={PartyColors.text} /></DockButton>
+              <DockButton text="People" label={`People in room ${speakers.length + audience.length}`} onPress={() => setPanel({ kind: 'people' })}><IconUsers size={21} color={PartyColors.text} /></DockButton>
+              {manager && <DockButton text="Hands" label={`Requests to speak ${requests.length}`} badge={requests.length} onPress={() => setPanel({ kind: 'requests' })}><IconHandStop size={21} color={requests.length ? PartyColors.accent : PartyColors.text} /></DockButton>}
               <Pressable accessibilityRole="button" accessibilityLabel={canSpeak ? isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone' : ownRequest ? 'Cancel request to speak' : 'Request to speak'}
                 accessibilityState={{ disabled: micDisabled }} disabled={micDisabled} onPress={canSpeak ? toggleMic : () => act(ownRequest ? 'cancel' : 'request')}
-                className={`h-12 ${isVideo && canSpeak ? 'w-12' : 'min-w-[112px] px-4'} flex-row items-center justify-center gap-2 rounded-full active:opacity-80 ${micActive ? 'bg-gold' : canSpeak ? 'border border-coral/50 bg-coral/15' : 'bg-card'} ${micDisabled ? 'opacity-50' : ''}`}>
-                {canSpeak ? isMicrophoneEnabled ? <IconMicrophone size={20} color={PartyColors.ink} /> : <IconMicrophoneOff size={20} color={PartyColors.coral} /> : <IconHandStop size={20} color={micActive ? PartyColors.ink : PartyColors.text} />}
-                {!(isVideo && canSpeak) && <Text className={`text-[14px] font-bold ${micActive ? 'text-text-dark' : canSpeak ? 'text-coral' : 'text-foreground'}`}>{micLabel}</Text>}
+                className={`ml-1 h-14 ${isVideo && canSpeak ? 'w-14' : 'min-w-[120px] px-4'} flex-row items-center justify-center gap-2 rounded-full active:opacity-80 ${micActive ? 'bg-gold' : canSpeak ? 'border border-coral/50 bg-coral/15' : 'bg-card'} ${micDisabled ? 'opacity-50' : ''}`}>
+                {canSpeak ? isMicrophoneEnabled ? <IconMicrophone size={22} color={PartyColors.ink} /> : <IconMicrophoneOff size={22} color={PartyColors.coral} /> : <IconHandStop size={22} color={micActive ? PartyColors.ink : PartyColors.text} />}
+                {!(isVideo && canSpeak) && <View>
+                  <Text numberOfLines={1} className={`text-[14px] font-bold ${micActive ? 'text-text-dark' : canSpeak ? 'text-coral' : 'text-foreground'}`}>{canSpeak && !micPending ? isMicrophoneEnabled ? 'Live' : 'Muted' : micLabel}</Text>
+                  {canSpeak && !micPending && <Text numberOfLines={1} className={`text-[11px] ${micActive ? 'text-text-dark' : 'text-coral'}`}>{isMicrophoneEnabled ? 'Tap to mute' : 'Tap to unmute'}</Text>}
+                </View>}
               </Pressable>
             </View>
           </View>
@@ -340,8 +352,15 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   </>;
 }
 
-const DockButton = ({ label, onPress, badge, active, disabled, children }: { label: string; onPress: () => void; badge?: number; active?: boolean; disabled?: boolean; children: React.ReactNode }) =>
-  <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} className={`h-11 w-11 items-center justify-center rounded-full active:opacity-70 ${active ? 'bg-gold' : 'bg-card'} ${disabled ? 'opacity-50' : ''}`}>
+const DockButton = ({ label, text, onPress, badge, active, disabled, children }: { label: string; text?: string; onPress: () => void; badge?: number; active?: boolean; disabled?: boolean; children: React.ReactNode }) =>
+  <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} className={`min-h-12 min-w-12 items-center justify-center rounded-2xl px-1 py-1 active:opacity-70 ${active ? 'bg-gold' : ''} ${disabled ? 'opacity-50' : ''}`}>
     {children}
-    {!!badge && <View className="absolute -right-0.5 -top-0.5 min-w-[18px] items-center rounded-full border-2 border-nav-background bg-gold px-1"><Text className="text-[10px] font-bold text-text-dark">{badge > 9 ? '9+' : badge}</Text></View>}
+    {!!text && <Text numberOfLines={1} className={`mt-0.5 text-[10px] font-semibold ${active ? 'text-text-dark' : 'text-muted'}`}>{text}</Text>}
+    {!!badge && <View className="absolute right-0 top-0 min-w-[18px] items-center rounded-full border-2 border-nav-background bg-gold px-1"><Text className="text-[10px] font-bold text-text-dark">{badge > 9 ? '9+' : badge}</Text></View>}
   </Pressable>;
+
+/** One consistent pill for connecting, reconnecting and error states. */
+const StatusBanner = ({ children, icon, alert, polite }: { children: React.ReactNode; icon?: React.ReactNode; alert?: boolean; polite?: boolean }) =>
+  <View accessibilityRole={alert ? 'alert' : undefined} accessibilityLiveRegion={alert ? 'assertive' : polite ? 'polite' : undefined} className="mx-4 mb-1 flex-row items-center justify-center gap-2 rounded-2xl bg-coral/15 px-4 py-2">
+    {icon}<Text className="shrink text-center text-[13px] font-semibold leading-[18px] text-coral">{children}</Text>
+  </View>;

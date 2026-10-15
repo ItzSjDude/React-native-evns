@@ -1,12 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, FlatList, Pressable, Text, View } from 'react-native';
-import IconMoodSpark from '@tabler/icons-react-native/IconMoodSpark';
-import IconX from '@tabler/icons-react-native/IconX';
-import { PartyColors } from './partyPresentation';
 import type { PartyChatMessage } from './partyService';
 import RemoteImage from '../../components/RemoteImage';
-
-const QUICK_EMOJIS = ['👏', '❤️', '😂', '🔥'] as const;
 
 const Message = memo(({ message, mine, reduced, onPress }: { message: PartyChatMessage; mine: boolean; reduced: boolean; onPress?: (message: PartyChatMessage) => void }) => {
   const entrance = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -45,19 +40,15 @@ const Message = memo(({ message, mine, reduced, onPress }: { message: PartyChatM
   );
 });
 
-export default function RoomChatStream({ messages, identity, onMessagePress, onEmojiPress }: {
+export default function RoomChatStream({ messages, identity, onMessagePress }: {
   messages: PartyChatMessage[];
   identity: string;
   onMessagePress?: (message: PartyChatMessage) => void;
-  onEmojiPress?: (emoji: string) => void;
 }) {
   const scroll = useRef<FlatList<PartyChatMessage>>(null);
   const atBottom = useRef(true);
   const [unread, setUnread] = useState(false);
   const [reduced, setReduced] = useState(false);
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  // One Animated.Value per emoji, stored in a ref so they're stable across renders.
-  const emojiAnims = useRef(QUICK_EMOJIS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduced).catch(() => {});
@@ -94,38 +85,8 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
     scroll.current?.scrollToEnd({ animated: !reduced });
   };
 
-  const toggleEmoji = useCallback(() => {
-    const opening = !emojiOpen;
-    setEmojiOpen(opening);
-    if (opening) {
-      // Stagger from bottom emoji upward (reverse order so bottom animates first)
-      Animated.stagger(
-        55,
-        [...emojiAnims].reverse().map(anim =>
-          Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }),
-        ),
-      ).start();
-    } else {
-      Animated.parallel(
-        emojiAnims.map(anim =>
-          Animated.timing(anim, { toValue: 0, duration: 110, useNativeDriver: true }),
-        ),
-      ).start();
-    }
-  }, [emojiOpen, emojiAnims]);
-
-  const handleEmoji = useCallback((emoji: string) => {
-    onEmojiPress?.(emoji);
-    setEmojiOpen(false);
-    Animated.parallel(
-      emojiAnims.map(anim =>
-        Animated.timing(anim, { toValue: 0, duration: 100, useNativeDriver: true }),
-      ),
-    ).start();
-  }, [emojiAnims, onEmojiPress]);
-
   return (
-    <View className="min-h-[100px] flex-1 px-5">
+    <View className="min-h-[96px] flex-1 px-4">
       <View className="flex-1 overflow-hidden">
         <FlatList
           ref={scroll}
@@ -160,47 +121,6 @@ export default function RoomChatStream({ messages, identity, onMessagePress, onE
             <Text className="text-sm font-semibold text-text-dark">New messages ↓</Text>
           </Pressable>
         )}
-      </View>
-
-      {/* Floating emoji picker — positioned absolute in the outer container */}
-      <View pointerEvents="box-none" className="absolute bottom-2 right-3 items-center gap-2">
-        {QUICK_EMOJIS.map((emoji, i) => (
-          <Animated.View
-            key={emoji}
-            pointerEvents={emojiOpen ? 'auto' : 'none'}
-            style={{
-              opacity: emojiAnims[i],
-              transform: [{
-                translateY: emojiAnims[i].interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
-              }],
-            }}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Send ${emoji}`}
-              onPress={() => handleEmoji(emoji)}
-              className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
-            >
-              <Text style={{ fontSize: 20 }}>{emoji}</Text>
-            </Pressable>
-          </Animated.View>
-        ))}
-
-        {/* Toggle button: closed → IconMoodSpark (primary-dark), open → IconX (card/grey like input) */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={emojiOpen ? 'Close emoji picker' : 'Open quick emoji reactions'}
-          onPress={toggleEmoji}
-          className={`h-11 w-11 items-center justify-center rounded-full border active:opacity-70 ${
-            emojiOpen
-              ? 'bg-card border-border'
-              : 'bg-primary-dark border-primary/40'
-          }`}
-        >
-          {emojiOpen
-            ? <IconX size={18} color={PartyColors.text} />
-            : <IconMoodSpark size={20} color={PartyColors.accent} />}
-        </Pressable>
       </View>
     </View>
   );
