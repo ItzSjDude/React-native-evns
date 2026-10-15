@@ -1,7 +1,6 @@
 import React, {Fragment, memo, useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, Text, TextInput, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
-import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconWorld from '@tabler/icons-react-native/IconWorld';
 import {Colors} from '../../Constants/Colors';
@@ -10,7 +9,7 @@ import {nearbyErrorMessage} from './nearbyErrors';
 import {getPassportPeople} from './nearbyService';
 import type {PassportPerson} from './types';
 import {NativeAdCard} from '../ads';
-import RemoteImage from '../../components/RemoteImage';
+import PersonRow, {PersonRowSkeleton} from '../../components/PersonRow';
 
 type Props = {
   /** The committed city the list is for. */
@@ -30,25 +29,12 @@ const personKey = (item: PassportPerson) => item.id;
 const personType = (_item: PassportPerson, index: number) => index % 4 === 3 ? 'personWithAd' : 'person';
 
 /** Never shows a distance: Passport results are about a city, not a place near you. */
-export const PassportRow = memo(({person, city, opening, onPress, onOpenProfile}: {person: PassportPerson; city: string; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => {
-  return (
-  <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name} in ${city}`} onPress={onOpenProfile} className="min-h-[72px] flex-row items-center border-b border-border py-3 active:opacity-70">
-    {person.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} className="h-12 w-12 rounded-full" /> : (
-      <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
-        <Text className="text-base font-bold text-primary">{person.name.slice(0, 1).toUpperCase()}</Text>
-      </View>
-    )}
-    <View className="ml-3 min-w-0 flex-1">
-      <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{person.name}</Text>
-      <Text className="mt-0.5 text-[13px] text-muted" numberOfLines={1}>{city}</Text>
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} onPress={onPress} disabled={opening} hitSlop={6}
-      className="ml-2 h-9 flex-row items-center justify-center gap-1.5 rounded-full bg-primary-dark px-3 active:opacity-70">
-      {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <><IconMessageCircle size={17} color={Colors.primary} /><Text className="text-[12px] font-semibold text-primary">Say hi</Text></>}
-    </Pressable>
-  </Pressable>
-  );
-});
+export const PassportRow = memo(({person, city, opening, onPress, onOpenProfile}: {person: PassportPerson; city: string; opening: boolean; onPress: () => void; onOpenProfile: () => void}) => (
+  <PersonRow name={person.name} avatarUrl={person.avatarUrl} meta={city}
+    accessibilityLabel={`View ${person.name} in ${city}`} onPress={onOpenProfile}
+    actionLabel="Say hi" actionAccessibilityLabel={`Message ${person.name}`} actionBusy={opening} onAction={onPress}
+    trailing={person.isFollowing ? <View accessibilityLabel="You follow them" className="rounded-full border border-gold-line bg-gold-bg px-2 py-1"><Text className="text-[11px] font-bold text-gold">Following</Text></View> : undefined} />
+));
 
 /** Plus-only Social Passport list: people in another city, paged by `hasMore`/offset. Does not use device location. */
 export default function PassportResults({city, onCityChange, filters, onFiltersChange, openingId, onOpenProfile, onMessage}: Props) {
@@ -123,7 +109,7 @@ export default function PassportResults({city, onCityChange, filters, onFiltersC
       <Text className="min-w-0 flex-1 pr-2 text-[20px] font-bold text-foreground" numberOfLines={1}>People in {target}</Text>
       <DiscoveryFilterBar hideCity filters={{...filters, city: undefined}} onChange={next => onFiltersChange({...next, city: filters.city})} subtitle={`People in ${target}`} />
     </View>}
-    {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry city search" onPress={() => load(people.length)} className="mb-4 rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
+    {error && <Pressable accessibilityRole="button" accessibilityLabel="Retry city search" onPress={() => load(people.length)} className="mb-4 min-h-11 justify-center rounded-xl bg-card p-3"><Text className="text-sm text-coral">{error} Tap to retry.</Text></Pressable>}
   </>;
 
   return <FlashList
@@ -138,7 +124,7 @@ export default function PassportResults({city, onCityChange, filters, onFiltersC
     onEndReached={more}
     ListHeaderComponent={header}
     ListFooterComponent={people.length && loading ? <ActivityIndicator className="my-4" color={Colors.gold} /> : undefined}
-    ListEmptyComponent={loading ? <View className="items-center pt-20"><ActivityIndicator color={Colors.primary} /></View> : target && !error ? (
+    ListEmptyComponent={loading ? <View accessibilityRole="progressbar" accessibilityLabel="Loading people" accessibilityState={{busy: true}}>{[0, 1, 2, 3].map(key => <PersonRowSkeleton key={key} chips={false} />)}</View> : target && !error ? (
       <View className="items-center px-6 pt-20">
         <IconWorld size={36} color={Colors.muted} strokeWidth={1.5} />
         <Text className="mt-4 text-center text-[16px] font-semibold text-foreground">No one found in {target}</Text>

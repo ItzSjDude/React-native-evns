@@ -4,7 +4,7 @@ import BottomSheet from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import FollowButton from './FollowButton';
 import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
-import {Avatar} from './UserProfileItems';
+import PersonRow from '../../components/PersonRow';
 import {getFollowList, messageOf, statusOf} from './usersService';
 import type {FollowListKind, FollowListUser} from './types';
 
@@ -26,17 +26,9 @@ const FollowRow = memo(function FollowRow({user, viewerId, onOpen}: {user: Follo
   const self = !!viewerId && viewerId === user.id;
   const following = useIsFollowing(user.id, viewerId, !self);
   const follow = useFollowToggle(user.id, {following});
-  return <View className="min-h-[64px] flex-row items-center gap-3 border-b border-sheet py-2">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${user.name}'s profile`} onPress={() => onOpen(user)} className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-70">
-      <Avatar name={user.name} url={user.avatarUrl} size={44} />
-      <View className="min-w-0 flex-1">
-        <Text numberOfLines={1} className="text-[15px] font-bold text-foreground">{self ? 'You' : user.name}</Text>
-        {!!user.handle && <Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted">@{user.handle}</Text>}
-        {!!follow.error && <Text numberOfLines={1} className="mt-0.5 text-[11px] text-coral">{follow.error}</Text>}
-      </View>
-    </Pressable>
-    {!self && viewerId !== undefined && <FollowButton size="small" name={user.name} following={follow.following} pending={follow.pending} onPress={follow.toggle} />}
-  </View>;
+  return <PersonRow name={self ? 'You' : user.name} avatarUrl={user.avatarUrl} handle={user.handle} notice={follow.error}
+    accessibilityLabel={`Open ${user.name}'s profile`} onPress={() => onOpen(user)}
+    trailing={!self && viewerId !== undefined ? <FollowButton size="small" name={user.name} following={follow.following} pending={follow.pending} onPress={follow.toggle} /> : undefined} />;
 });
 
 const userKey = (user: FollowListUser) => user.id;
@@ -103,7 +95,7 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
       <Text className="text-[15px] font-extrabold text-foreground">{kind === 'followers' ? 'No followers yet' : 'Not following anyone yet'}</Text>
     </View>}
 
-    {!list.loading && !list.error && list.hasMore && list.items.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Load more" onPress={() => load(true)} className="items-center p-[15px] active:opacity-70">
+    {!list.loading && !list.error && list.hasMore && list.items.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Load more" onPress={() => load(true)} className="min-h-11 items-center justify-center p-[15px] active:opacity-70">
       <Text className="text-sm font-extrabold text-gold">Load more</Text>
     </Pressable>}
       </>} />

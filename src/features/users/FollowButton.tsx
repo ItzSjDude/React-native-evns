@@ -16,7 +16,7 @@ type Props = {
 /** Gold "Follow" when not following, outline "Following" when you are; a spinner while unknown. */
 export default function FollowButton({name, following, pending, onPress, size = 'large'}: Props) {
   const large = size === 'large';
-  const shape = large ? 'h-11 flex-1 gap-2 px-4' : 'h-9 min-w-[98px] gap-1.5 px-3.5';
+  const shape = large ? 'h-11 flex-1 gap-2 px-4' : 'h-11 min-w-[98px] gap-1.5 px-3.5';
   if (following === null) {
     return <Pressable accessibilityRole="button" accessibilityLabel={`Follow ${name}`} accessibilityState={{disabled: true, busy: true}} disabled
       className={`flex-row items-center justify-center rounded-full bg-gold/40 ${shape}`}>

@@ -42,9 +42,13 @@ const NoteRow = memo(({note, own, expanded, deleting, onPress, onDelete}: NoteRo
         <IconLock size={13} color={Colors.muted} />
         <Text className="text-xs text-muted">Get within {note.radiusMeters} m to read it</Text>
       </View>}
-      <Text className="mt-2 text-xs text-muted" numberOfLines={1}>{meta}</Text>
+      <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
+        <View className={`rounded-full px-2 py-0.5 ${note.isUnlocked ? 'bg-primary-dark' : 'bg-border'}`}><Text className={`text-[11px] font-semibold ${note.isUnlocked ? 'text-primary' : 'text-muted'}`}>{note.isUnlocked ? 'Revealed' : 'Locked'}</Text></View>
+        <View className="rounded-full bg-card px-2 py-0.5"><Text className="text-[11px] font-semibold text-muted">{timeLeftLabel(note.expiresAt)}</Text></View>
+      </View>
+      <Text className="mt-1.5 text-xs text-muted" numberOfLines={1}>{meta}</Text>
     </Pressable>
-    {own && <Pressable accessibilityRole="button" accessibilityLabel="Delete vibe note" disabled={deleting} onPress={() => onDelete(note)} hitSlop={8} className="ml-3 h-8 w-8 items-center justify-center rounded-full active:bg-border">
+    {own && <Pressable accessibilityRole="button" accessibilityLabel="Delete vibe note" disabled={deleting} onPress={() => onDelete(note)} hitSlop={4} className="ml-2 h-11 w-11 items-center justify-center rounded-full active:bg-border">
       {deleting ? <ActivityIndicator size="small" color={Colors.coral} /> : <IconTrash size={18} color={Colors.coral} />}
     </Pressable>}
   </View>;
@@ -127,10 +131,10 @@ export default function VibeNotesList({radiusMeters, reloadKey, showComposeActio
         <Text className="text-[20px] font-bold text-foreground">Vibe notes</Text>
         <Text className="mt-0.5 text-[12px] text-muted">Short notes people leave nearby</Text>
       </View>
-      {hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel={showAll ? 'Show fewer vibe notes' : 'See all vibe notes'} onPress={() => setShowAll(current => !current)} hitSlop={5} className="min-h-10 justify-center px-1 active:opacity-70">
+      {hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel={showAll ? 'Show fewer vibe notes' : 'See all vibe notes'} onPress={() => setShowAll(current => !current)} hitSlop={5} className="min-h-11 justify-center px-1 active:opacity-70">
         <Text className="text-[13px] font-semibold text-primary">{showAll ? 'Show less' : 'See all'}</Text>
       </Pressable>}
-      {showComposeAction && !hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel="Write a vibe note" onPress={() => setComposing(true)} hitSlop={5} className="min-h-9 flex-row items-center gap-1.5 px-1 active:opacity-70">
+      {showComposeAction && !hasMoreNotes && <Pressable accessibilityRole="button" accessibilityLabel="Write a vibe note" onPress={() => setComposing(true)} hitSlop={5} className="min-h-11 flex-row items-center gap-1.5 px-1 active:opacity-70">
         <IconNote size={17} color={Colors.primary} />
         <Text className="text-[13px] font-semibold text-primary">Write one</Text>
       </Pressable>}

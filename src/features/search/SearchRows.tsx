@@ -4,6 +4,7 @@ import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
+import PersonRowView from '../../components/PersonRow';
 import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import type {PersonResult, RoomResult} from './types';
@@ -29,17 +30,10 @@ export function SearchAvatar({name, url, size = 44}: {name: string; url: string 
 }
 
 export const PersonRow = memo(function PersonRow({person, onPress}: {person: PersonResult; onPress: (person: PersonResult) => void}) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${person.name}'s profile`} onPress={() => onPress(person)}
-    className="flex-row items-center gap-3 px-5 py-2.5 active:bg-white/5">
-    <SearchAvatar name={person.name} url={person.avatarUrl} />
-    <View className="min-w-0 flex-1">
-      <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">{person.name}</Text>
-      {person.handle ? <Text numberOfLines={1} className="mt-0.5 text-[13px] text-muted">@{person.handle}</Text> : null}
-    </View>
-    {person.isFollowing
+  return <View className="px-5"><PersonRowView name={person.name} avatarUrl={person.avatarUrl} handle={person.handle} accessibilityLabel={`Open ${person.name}'s profile`} onPress={() => onPress(person)}
+    trailing={person.isFollowing
       ? <View className="rounded-full border border-gold-line bg-gold-bg px-2.5 py-1"><Text className="text-[11px] font-bold text-gold">Following</Text></View>
-      : <IconChevronRight size={18} color={Colors.mutedLight} />}
-  </Pressable>;
+      : <IconChevronRight size={18} color={Colors.mutedLight} />} /></View>;
 });
 
 export function RoomStatusBadge({room}: {room: RoomResult}) {
@@ -81,7 +75,7 @@ export const RoomRow = memo(function RoomRow({room, onPress}: {room: RoomResult;
 export function SectionHeader({title, onSeeAll}: {title: string; onSeeAll?: () => void}) {
   return <View className="flex-row items-center justify-between px-5 pb-2 pt-5">
     <Text accessibilityRole="header" className="text-[13px] font-bold uppercase tracking-[1.6px] text-muted">{title}</Text>
-    {onSeeAll ? <Pressable accessibilityRole="button" accessibilityLabel={`See all ${title.toLowerCase()}`} onPress={onSeeAll} hitSlop={8} className="active:opacity-60">
+    {onSeeAll ? <Pressable accessibilityRole="button" accessibilityLabel={`See all ${title.toLowerCase()}`} onPress={onSeeAll} hitSlop={8} className="min-h-11 justify-center active:opacity-60">
       <Text className="text-[13px] font-semibold text-primary">See all</Text>
     </Pressable> : null}
   </View>;
@@ -93,7 +87,7 @@ export function SectionMessage({title, body, action, onAction, busy}: {title: st
       <Text className="text-center text-[15px] font-semibold text-foreground">{title}</Text>
       {body ? <Text className="mt-1.5 text-center text-[13px] leading-[19px] text-muted">{body}</Text> : null}
       {action && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={onAction}
-        className="mt-4 rounded-full bg-gold px-5 py-2.5 active:opacity-70">
+        className="mt-4 min-h-11 justify-center rounded-full bg-gold px-5 active:opacity-70">
         <Text className="text-[14px] font-bold text-text-dark">{action}</Text>
       </Pressable> : null}
     </>}

@@ -3,15 +3,11 @@ import {ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, 
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useIsFocused, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import IconChevronDown from '@tabler/icons-react-native/IconChevronDown';
-import IconGenderFemale from '@tabler/icons-react-native/IconGenderFemale';
-import IconGenderMale from '@tabler/icons-react-native/IconGenderMale';
-import IconGenderTransgender from '@tabler/icons-react-native/IconGenderTransgender';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
-import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconNote from '@tabler/icons-react-native/IconNote';
 import IconPencil from '@tabler/icons-react-native/IconPencil';
 import BottomSheet from '../../components/BottomSheet';
-import RemoteImage from '../../components/RemoteImage';
+import PersonRow, {PersonRowSkeleton} from '../../components/PersonRow';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
 import {EventsList} from '../events';
@@ -46,41 +42,18 @@ type NearbyTab = 'PEOPLE' | 'EVENTS';
 
 const errorText = (error: unknown) => nearbyErrorMessage(error);
 
-const PersonRow = memo(function PersonRow({person, opening, onMessage, onOpenProfile}: {
+/** Never shows gender or exact distance: only the server's coarse band, bio and shared events. */
+const NearbyPersonRow = memo(function NearbyPersonRow({person, opening, onMessage, onOpenProfile}: {
   person: NearbyPerson;
   opening: boolean;
   onMessage: (person: NearbyPerson) => void;
   onOpenProfile: (person: NearbyPerson) => void;
 }) {
-  const GenderIcon = person.gender === 'male' ? IconGenderMale : person.gender === 'female' ? IconGenderFemale : person.gender === 'non_binary' ? IconGenderTransgender : null;
-  const genderColor = person.gender === 'male' ? '#4DA3FF' : person.gender === 'female' ? '#FF5C9A' : Colors.primary;
-  return (
-    <View className="min-h-[72px] flex-row items-center border-b border-border py-3">
-      <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={() => onOpenProfile(person)}
-        className="min-w-0 flex-1 flex-row items-center active:opacity-70">
-        {person.avatarUrl
-          ? <RemoteImage accessibilityLabel={`${person.name}'s profile photo`} uri={person.avatarUrl} fadeDuration={0} className="h-12 w-12 rounded-full bg-border" />
-          : <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark"><Text className="text-base font-bold text-primary">{person.name.slice(0, 1).toUpperCase()}</Text></View>}
-        <View className="ml-3 min-w-0 flex-1">
-          <View className="flex-row items-center gap-1.5">
-            <Text numberOfLines={1} className="shrink text-[15px] font-semibold text-foreground">{person.name}</Text>
-            {GenderIcon && <GenderIcon size={16} color={genderColor} />}
-          </View>
-          {!!person.bio && <Text numberOfLines={1} className="mt-0.5 text-[12px] text-muted">{person.bio}</Text>}
-          <View className="mt-1 flex-row items-center gap-1">
-            <IconMapPin size={13} color={Colors.muted} />
-            <Text className="text-[12px] text-muted">{distanceLabel(person)}</Text>
-            {!!person.sharedEvents?.length && <Text numberOfLines={1} className="ml-1 flex-1 text-[12px] text-primary">· Both at {person.sharedEvents[0].title}</Text>}
-          </View>
-        </View>
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} accessibilityState={{disabled: opening, busy: opening}}
-        disabled={opening} onPress={() => onMessage(person)} hitSlop={{top: 6, bottom: 6, left: 4, right: 4}}
-        className="ml-2 h-9 min-w-9 items-center justify-center rounded-full bg-primary-dark active:opacity-70">
-        {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <View className="flex-row items-center gap-1.5 px-2"><IconMessageCircle size={17} color={Colors.primary} /><Text className="text-[12px] font-semibold text-primary">Say hi</Text></View>}
-      </Pressable>
-    </View>
-  );
+  const sharedEvent = person.sharedEvents?.[0];
+  return <PersonRow name={person.name} avatarUrl={person.avatarUrl} bio={person.bio} meta={distanceLabel(person)}
+    hint={sharedEvent ? `Both at ${sharedEvent.title}` : null}
+    accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={() => onOpenProfile(person)}
+    actionLabel="Say hi" actionAccessibilityLabel={`Message ${person.name}`} actionBusy={opening} onAction={() => onMessage(person)} />;
 });
 
 const noPeople: NearbyPerson[] = [];
@@ -91,12 +64,8 @@ const personType = (_person: NearbyPerson, index: number) => index % 4 === 3 ? '
 const LIST_CONTENT = {paddingHorizontal: 20, paddingBottom: 112};
 
 function PeopleLoading() {
-  return <View accessibilityRole="progressbar" accessibilityLabel="Loading nearby people" accessibilityState={{busy: true}} className="gap-2">
-    {[0, 1, 2].map(key => <View key={key} className="h-[72px] flex-row items-center border-b border-border">
-      <View className="h-12 w-12 rounded-full bg-border" />
-      <View className="ml-3 flex-1 gap-2"><View className="h-3 w-2/5 rounded-full bg-border" /><View className="h-2.5 w-3/5 rounded-full bg-border" /></View>
-      <View className="ml-2 h-9 w-[76px] rounded-full bg-border" />
-    </View>)}
+  return <View accessibilityRole="progressbar" accessibilityLabel="Loading nearby people" accessibilityState={{busy: true}}>
+    {[0, 1, 2, 3].map(key => <PersonRowSkeleton key={key} />)}
   </View>;
 }
 
@@ -369,7 +338,7 @@ export default function Nearby() {
   }, []);
   const openProfile = useCallback((person: ChatTarget) => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}}), []);
   const renderPerson = useCallback(({item, index}: {item: NearbyPerson; index: number}) => <>
-    <PersonRow person={item} opening={openingId === item.id} onMessage={openConversation} onOpenProfile={openProfile} />
+    <NearbyPersonRow person={item} opening={openingId === item.id} onMessage={openConversation} onOpenProfile={openProfile} />
     {index % 4 === 3 && <NativeAdCard />}
   </>, [openConversation, openProfile, openingId]);
 
@@ -408,6 +377,10 @@ export default function Nearby() {
   const checkingLocation = visible === null && loading && !error;
   const locationAction = visible === true ? 'Turn off' : locationDenied ? 'Open settings' : visible === null ? error ? 'Retry' : 'Check' : 'Turn on';
   const locationStatus = visible === true ? 'Nearby visibility on' : locationDenied ? 'Location access off' : visible === null ? error ? 'Location unavailable' : checkingLocation ? 'Checking location…' : 'Nearby status unknown' : 'Nearby visibility off';
+  const locationDetail = visible === true ? 'People nearby can see you by approximate distance only, never your exact location. Pause any time.'
+    : locationDenied ? 'Allow location in Settings to see people near you and appear in their results.'
+    : visible === null ? error ? 'We couldn’t check your status. Try again.' : 'One moment…'
+    : 'You’re hidden. Turn on to see and be seen nearby by approximate distance only.';
   const manageLocation = () => {
     if (visible === true) {goInvisible(); return;}
     if (locationDenied) {Linking.openSettings(); return;}
@@ -424,12 +397,12 @@ export default function Nearby() {
             <Pressable accessibilityRole="button" accessibilityLabel="Your vibes" onPress={() => setMyVibesOpen(true)}
               className="min-h-11 flex-row items-center justify-center gap-1 rounded-full px-2 active:bg-card">
               <IconNote size={16} color={Colors.primary} />
-              <Text numberOfLines={1} className="text-[12px] font-semibold text-primary">Your vibes</Text>
+              <Text numberOfLines={1} className="text-[13px] font-semibold text-primary">Your vibes</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Drop a vibe" onPress={() => setComposing(true)} hitSlop={{top: 8, bottom: 8}}
-              className="-mr-5 h-8 w-[100px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-5 active:opacity-80">
+            <Pressable accessibilityRole="button" accessibilityLabel="Drop a vibe" onPress={() => setComposing(true)}
+              className="-mr-5 min-h-11 min-w-[112px] flex-row items-center justify-center gap-1 rounded-l-full bg-gold pl-3 pr-5 active:opacity-80">
               <IconPencil size={15} color={Colors.textDark} />
-              <Text numberOfLines={1} className="text-[12px] font-bold text-text-dark">Drop a vibe</Text>
+              <Text numberOfLines={1} className="text-[13px] font-bold text-text-dark">Drop a vibe</Text>
             </Pressable>
           </View>
         </View>
@@ -437,11 +410,21 @@ export default function Nearby() {
         <Pressable accessibilityRole="button" accessibilityLabel={visible === true ? 'Turn off nearby visibility' : locationDenied ? 'Open location settings' : visible === null ? error ? 'Retry location' : 'Check nearby visibility' : 'Turn on nearby visibility'}
           accessibilityState={{disabled: busy || checkingLocation, busy: busy || checkingLocation}}
           disabled={busy || checkingLocation} onPress={manageLocation}
-          className="mt-3 min-h-11 flex-row items-center rounded-xl bg-card px-3 active:opacity-75">
-          <IconMapPin size={18} color={locationDenied ? Colors.coral : Colors.primary} />
-          <Text numberOfLines={1} className="ml-2 flex-1 text-[13px] font-semibold text-foreground">{locationStatus}</Text>
+          className="mt-3 min-h-[64px] flex-row items-center rounded-2xl border border-border bg-card px-3 py-2 active:opacity-75">
+          <View className={`h-10 w-10 items-center justify-center rounded-full ${visible === true ? 'bg-glow-green/15' : locationDenied ? 'bg-coral/15' : 'bg-primary-dark'}`}>
+            <IconMapPin size={20} color={visible === true ? Colors.primary : locationDenied ? Colors.coral : Colors.muted} />
+          </View>
+          <View className="ml-3 min-w-0 flex-1 pr-2">
+            <View className="flex-row items-center gap-1.5">
+              {visible === true && <View className="h-2 w-2 rounded-full bg-glow-green" />}
+              <Text numberOfLines={1} className="shrink text-[14px] font-semibold text-foreground">{locationStatus}</Text>
+            </View>
+            <Text numberOfLines={2} className="mt-0.5 text-[12px] leading-4 text-muted">{locationDetail}</Text>
+          </View>
           {busy || checkingLocation ? <ActivityIndicator size="small" color={Colors.primary} />
-            : <Text className="ml-3 text-[13px] font-semibold text-primary">{locationAction}</Text>}
+            : <View className={`min-h-11 min-w-[72px] items-center justify-center rounded-full px-3.5 ${visible === true ? 'border border-border' : 'bg-gold'}`}>
+              <Text className={`text-[13px] font-bold ${visible === true ? 'text-foreground' : 'text-text-dark'}`}>{locationAction}</Text>
+            </View>}
         </Pressable>
         {vibeAlertsAvailable === false ? <Text className="mt-2 text-[12px] text-muted">Nearby Vibe alerts will be available after the service update.</Text>
           : <View className="mt-2 min-h-[56px] flex-row items-center rounded-xl bg-card px-3">
@@ -475,7 +458,7 @@ export default function Nearby() {
       {nearbyTab === 'EVENTS' ? <View className="flex-1"><EventsList onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} /></View>
         : mode === 'PASSPORT' ? <View className="flex-1">
         <View className="flex-row items-center justify-between px-5 pt-2">
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to nearby people" onPress={() => setMode('NEARBY')} className="min-h-10 justify-center pr-3">
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to nearby people" onPress={() => setMode('NEARBY')} className="min-h-11 justify-center pr-3">
             <Text className="text-[13px] font-semibold text-primary">‹ Nearby people</Text>
           </Pressable>
           {plusEnabled && <PresetsBar current={{mode, city: passportCity, radiusMeters: radius, filters}} onApply={applyPreset} />}
@@ -493,7 +476,7 @@ export default function Nearby() {
           <View className="items-center px-5 pt-20">
             <Text accessibilityRole="alert" className="text-center text-[16px] font-semibold text-foreground">Explore couldn’t load</Text>
             <Text className="mt-2 text-center text-[13px] leading-5 text-muted">{error}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} className="mt-5 min-h-10 justify-center rounded-full bg-primary-dark px-5">
+            <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} className="mt-5 min-h-11 justify-center rounded-full bg-primary-dark px-5">
               <Text className="text-[13px] font-semibold text-primary">Try again</Text>
             </Pressable>
           </View>
@@ -501,14 +484,18 @@ export default function Nearby() {
           <View className="items-center px-5 pt-20">
             <View className="h-14 w-14 items-center justify-center rounded-full bg-primary-dark"><IconMapPin size={28} color={Colors.primary} /></View>
             <Text className="mt-5 text-center text-[20px] font-bold text-foreground">Meet people near you</Text>
-            <Text className="mt-2 text-center text-[14px] leading-[21px] text-muted">{locationDenied ? 'Allow location in Settings, then come back to Explore.' : 'Turn on nearby above to see people around you. Only your approximate area is shown.'}</Text>
+            <Text className="mt-2 text-center text-[14px] leading-[21px] text-muted">{locationDenied ? 'Allow location in Settings, then come back to Explore.' : 'Turn on nearby to see people around you. Only your approximate area is shown.'}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={locationDenied ? 'Open settings' : 'Turn on nearby'} accessibilityState={{disabled: busy, busy}} disabled={busy} onPress={manageLocation}
+              className="mt-5 min-h-11 min-w-[160px] items-center justify-center rounded-full bg-gold px-6 active:opacity-80">
+              {busy ? <ActivityIndicator size="small" color={Colors.goldInk} /> : <Text className="text-[14px] font-bold text-text-dark">{locationDenied ? 'Open settings' : 'Turn on nearby'}</Text>}
+            </Pressable>
           </View>
         ) : (
           <>
             <Text className="mt-5 text-[20px] font-bold text-foreground">People near you</Text>
             <View className={`mt-3 flex-row items-center gap-2 ${width < 360 ? 'flex-wrap' : ''}`}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Within ${RADII.find(option => option.meters === radius)?.label ?? 'selected distance'}, change distance`}
-                onPress={() => setDistanceOpen(true)} className="min-h-10 flex-row items-center gap-1.5 rounded-full bg-card px-3 active:opacity-75">
+                onPress={() => setDistanceOpen(true)} className="min-h-11 flex-row items-center gap-1.5 rounded-full bg-card px-3 active:opacity-75">
                 <IconMapPin size={15} color={Colors.muted} />
                 <Text className="text-[13px] font-semibold text-foreground">Within {RADII.find(option => option.meters === radius)?.label ?? '2 km'}</Text>
                 <IconChevronDown size={14} color={Colors.muted} />
@@ -519,14 +506,14 @@ export default function Nearby() {
               {plusEnabled && <PresetsBar current={{mode, city: passportCity, radiusMeters: radius, filters}} onApply={applyPreset} />}
             </View>
 
-            {!loading && people.length > 0 && <Text className="mt-4 text-[12px] text-muted">{people.length} {people.length === 1 ? 'person' : 'people'} nearby</Text>}
+            {!loading && people.length > 0 && <Text accessibilityRole="header" className="mt-4 text-[12px] font-semibold uppercase tracking-[1px] text-muted">{people.length} {people.length === 1 ? 'person' : 'people'} nearby</Text>}
 
             {error ? <View className="mb-3 rounded-2xl border border-coral/30 bg-card p-4">
               <Text accessibilityRole="alert" className="text-[13px] leading-5 text-coral">{error}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Retry nearby people" onPress={retry} hitSlop={4} className="mt-2 min-h-9 justify-center self-start">
+              <Pressable accessibilityRole="button" accessibilityLabel="Retry nearby people" onPress={retry} hitSlop={4} className="mt-1 min-h-11 justify-center self-start">
                 <Text className="text-[13px] font-semibold text-primary">Try again</Text>
               </Pressable>
-              {locationDenied && <Pressable accessibilityRole="button" accessibilityLabel="Open location settings" onPress={() => Linking.openSettings()} className="min-h-9 justify-center self-start">
+              {locationDenied && <Pressable accessibilityRole="button" accessibilityLabel="Open location settings" onPress={() => Linking.openSettings()} className="min-h-11 justify-center self-start">
                 <Text className="text-[13px] font-semibold text-primary">Open location settings</Text>
               </Pressable>}
             </View> : null}
@@ -538,12 +525,12 @@ export default function Nearby() {
           <View className="mt-5 rounded-2xl bg-card px-4 py-4">
             <Text className="text-[16px] font-semibold text-foreground">No one within {RADII.find(option => option.meters === radius)?.label ?? 'this distance'} yet</Text>
             <Text className="mt-1 text-[13px] leading-5 text-muted">{nextRadius < RADII.length - 1 ? 'A wider search might find more people.' : 'Check back later for new people nearby.'}</Text>
-            {nextRadius < RADII.length - 1 && <Pressable accessibilityRole="button" accessibilityLabel="Widen search range" onPress={widenRadius} className="mt-2 min-h-10 justify-center self-start pr-4 active:opacity-75">
+            {nextRadius < RADII.length - 1 && <Pressable accessibilityRole="button" accessibilityLabel="Widen search range" onPress={widenRadius} className="mt-1 min-h-11 justify-center self-start pr-4 active:opacity-75">
               <Text className="text-[13px] font-semibold text-primary">Try {RADII[nextRadius + 1].label} →</Text>
             </Pressable>}
           </View>
         ) : undefined}
-        ListFooterComponent={error && visible === false ? <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} hitSlop={4} className="mt-4 min-h-10 justify-center rounded-xl bg-card px-4">
+        ListFooterComponent={error && visible === false ? <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} hitSlop={4} className="mt-4 min-h-11 justify-center rounded-xl bg-card px-4">
           <Text accessibilityRole="alert" className="text-[13px] leading-5 text-coral">{error}  <Text className="font-semibold text-primary">Try again</Text></Text>
         </Pressable> : undefined} />}
 
