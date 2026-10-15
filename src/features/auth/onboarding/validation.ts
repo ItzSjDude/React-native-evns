@@ -17,18 +17,36 @@ export function suggestHandle(name: string | null | undefined): string {
 }
 
 export function validateProfile(draft: Pick<OnboardingDraft, 'name' | 'handle' | 'gender' | 'country' | 'profession'>, photoMissing: boolean): OnboardingFieldErrors {
+  const errors: OnboardingFieldErrors = {...validateIdentity(draft, photoMissing), ...validateAbout(draft), ...validateProfession(draft.profession)};
+  return errors;
+}
+
+export function validateIdentity(draft: Pick<OnboardingDraft, 'name' | 'handle'>, photoMissing: boolean): OnboardingFieldErrors {
   const errors: OnboardingFieldErrors = {};
   const name = draft.name.trim();
   if (name.length < 2 || name.length > 80) errors.name = 'Name must be 2–80 characters.';
   if (!HANDLE_PATTERN.test(normalizeHandle(draft.handle))) {
     errors.handle = 'Handle must be 3–30 lowercase letters, numbers, or underscores.';
   }
-  if (!draft.gender) errors.gender = 'Select your gender.';
-  if (!draft.country) errors.country = 'Select your country.';
-  if (!draft.profession.trim()) errors.profession = 'Select or enter your profession.';
-  else if (draft.profession.trim().length > 60) errors.profession = 'Profession must be 60 characters or less.';
   if (photoMissing) errors.avatarUrl = 'Add a profile photo.';
   return errors;
+}
+
+export function validateAbout(draft: Pick<OnboardingDraft, 'gender' | 'country'>): OnboardingFieldErrors {
+  const errors: OnboardingFieldErrors = {};
+  if (!draft.gender) errors.gender = 'Select your gender.';
+  if (!draft.country) errors.country = 'Select your country.';
+  return errors;
+}
+
+export function validateWork(draft: Pick<OnboardingDraft, 'profession' | 'intent'>): OnboardingFieldErrors {
+  return {...validateProfession(draft.profession), ...validateIntent(draft.intent)};
+}
+
+export function validateProfession(profession: string): OnboardingFieldErrors {
+  if (!profession.trim()) return {profession: 'Select or enter your profession.'};
+  if (profession.trim().length > 60) return {profession: 'Profession must be 60 characters or less.'};
+  return {};
 }
 
 export const validateIntent = (intent: string): OnboardingFieldErrors => (intent ? {} : {intent: 'Pick one to continue.'});
@@ -40,7 +58,7 @@ export function validateInterests(interests: string[]): OnboardingFieldErrors {
 }
 
 export const stepForField: Record<OnboardingField, OnboardingStep> = {
-  name: 0, handle: 0, gender: 0, country: 0, profession: 0, avatarUrl: 0, intent: 1, interests: 2,
+  name: 0, handle: 0, avatarUrl: 0, gender: 1, country: 1, profession: 2, intent: 3, interests: 4,
 };
 
 /**

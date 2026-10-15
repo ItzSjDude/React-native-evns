@@ -1,10 +1,11 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Pressable, Text, TextInput, View} from 'react-native';
 import IconCamera from '@tabler/icons-react-native/IconCamera';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import {imagePicker, uploadErrorMessage, uploadMedia, type MediaPurpose} from '../../core/media';
 import type {ProfileUpdate, UserProfile} from './types';
+import RemoteImage from '../../components/RemoteImage';
 
 const INTERESTS = ['music', 'gaming', 'chill', 'talk', 'study', 'travel', 'sports', 'tech', 'startups', 'movies', 'food', 'fitness'];
 const MAX_INTERESTS = 8;
@@ -100,7 +101,7 @@ export const EditProfileSheet = ({profile, visible, onClose, onSave}: {
         <Pressable accessibilityRole="button" accessibilityLabel={draft.avatarUrl ? 'Change photo' : 'Add photo'} accessibilityState={{disabled: !canPick || media.avatar.uploading, busy: media.avatar.uploading}}
           disabled={!canPick || media.avatar.uploading} onPress={() => pickFor('avatar')} className="active:opacity-80">
           <View className="h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-[#4A3A8C]">
-            {draft.avatarUrl ? <Image accessibilityLabel="Profile photo" source={{uri: draft.avatarUrl}} className="h-full w-full" />
+            {draft.avatarUrl ? <RemoteImage accessibilityLabel="Profile photo" uri={draft.avatarUrl} className="h-full w-full" />
               : <Text className="text-[26px] font-extrabold text-[#F0ECFF]">{initialsOf(draft.name)}</Text>}
             {media.avatar.uploading && <View className="absolute inset-0 items-center justify-center bg-black/55"><ActivityIndicator color={Colors.gold} /></View>}
           </View>
@@ -120,7 +121,7 @@ export const EditProfileSheet = ({profile, visible, onClose, onSave}: {
         <Text className="mb-2 px-1 text-[13px] font-semibold text-muted">Cover</Text>
         <View className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2">
           <View className="h-14 w-24 items-center justify-center overflow-hidden rounded-lg bg-gold-bg">
-            {draft.coverUrl ? <Image accessibilityLabel="Cover image" source={{uri: draft.coverUrl}} className="h-full w-full" />
+            {draft.coverUrl ? <RemoteImage accessibilityLabel="Cover image" uri={draft.coverUrl} className="h-full w-full" />
               : <Text className="text-xs text-muted">No cover</Text>}
             {media.cover.uploading && <View className="absolute inset-0 items-center justify-center bg-black/55"><ActivityIndicator color={Colors.gold} /></View>}
           </View>

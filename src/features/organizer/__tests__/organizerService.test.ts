@@ -16,7 +16,7 @@ test('listMyWorkspaces hits the documented route and maps snake_case rows', asyn
   expect(apiRequestPage).toHaveBeenCalledWith('/workspaces?limit=50', {auth: 'required'});
   expect(workspaces).toEqual([{
     id: 'w1', name: 'Acme', slug: 'acme', description: null, logoUrl: null,
-    ticketBalance: 40, status: 'ACTIVE', role: 'OWNER', memberCount: 3,
+    ticketBalance: 40, status: 'ACTIVE', role: 'OWNER', memberCount: 3, verificationStatus: 'NOT_SUBMITTED',
   }]);
 });
 

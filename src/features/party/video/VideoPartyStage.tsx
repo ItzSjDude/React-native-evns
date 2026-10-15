@@ -1,5 +1,5 @@
-import React from 'react';
-import {Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import React, {memo} from 'react';
+import {Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {VideoTrack, useIsSpeaking, useTracks} from '@livekit/react-native';
 import {Track, type Participant} from 'livekit-client';
 import IconCrown from '@tabler/icons-react-native/IconCrown';
@@ -7,6 +7,7 @@ import IconMicrophoneOff from '@tabler/icons-react-native/IconMicrophoneOff';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconCameraRotate from '@tabler/icons-react-native/IconCameraRotate';
+import RemoteImage from '../../../components/RemoteImage';
 import {PartyColors} from '../partyPresentation';
 import type {PartyParticipant} from '../partyService';
 
@@ -15,23 +16,23 @@ const styles = StyleSheet.create({fill: {flex: 1}, scroll: {flexGrow: 0}, grid: 
 type TrackRef = React.ComponentProps<typeof VideoTrack>['trackRef'];
 type TileProps = {
   person?: PartyParticipant; live?: Participant; trackRef?: TrackRef; index: number; width: number; speaking?: boolean;
-  locked: boolean; localIdentity: string; mirror: boolean; onPress: () => void; onSwitchCamera?: () => void;
+  locked: boolean; localIdentity: string; mirror: boolean; onSeatPress: (person: PartyParticipant | undefined, index: number) => void; onSwitchCamera?: () => void;
 };
 
 const hasVideo = (trackRef: TrackRef) => !!trackRef && !!trackRef.publication?.track && !trackRef.publication.isMuted;
 
-const Tile = ({person, live, trackRef, index, width, speaking, locked, localIdentity, mirror, onPress, onSwitchCamera}: TileProps) => {
+const Tile = memo(({person, live, trackRef, index, width, speaking, locked, localIdentity, mirror, onSeatPress, onSwitchCamera}: TileProps) => {
   const muted = live ? !live.isMicrophoneEnabled : person?.muted;
   const mine = person?.userId === localIdentity;
   const showVideo = hasVideo(trackRef);
   const name = person ? mine ? 'You' : person.name || 'Guest' : `Seat ${index + 1}`;
-  return <Pressable onPress={onPress} accessibilityRole="button"
+  return <Pressable onPress={() => onSeatPress(person, index)} accessibilityRole="button"
     accessibilityLabel={person ? `${person.name || 'Guest'}, ${mine ? 'you, ' : ''}${speaking ? 'speaking' : muted ? 'muted' : 'on stage'}, camera ${showVideo ? 'on' : 'off'}` : locked ? `Locked seat ${index + 1}` : `Request speaker seat ${index + 1}`}
     style={{width, height: width}} className="active:opacity-80">
     <View className={`flex-1 overflow-hidden rounded-2xl border-2 ${speaking ? 'border-gold' : person ? 'border-border bg-card' : 'border-dashed border-border bg-card/50'}`}>
       {showVideo ? <VideoTrack trackRef={trackRef} mirror={mirror} objectFit="cover" style={styles.fill} />
         : <View className="flex-1 items-center justify-center">
-          {person?.avatarUrl ? <Image source={{uri: person.avatarUrl}} style={{width: width * 0.4, height: width * 0.4}} className="rounded-full" />
+          {person?.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} style={{width: width * 0.4, height: width * 0.4}} className="rounded-full" />
             : person ? <Text className="text-2xl font-bold text-foreground">{(person.name || '?').trim().slice(0, 2).toUpperCase()}</Text>
               : locked ? <IconLock size={26} color={PartyColors.muted} /> : <IconPlus size={26} color={PartyColors.muted} />}
           {!person && <Text className="mt-1.5 text-xs text-muted">{locked ? 'Locked' : 'Tap to request'}</Text>}
@@ -46,12 +47,12 @@ const Tile = ({person, live, trackRef, index, width, speaking, locked, localIden
     {mine && showVideo && !!onSwitchCamera && <Pressable accessibilityRole="button" accessibilityLabel="Switch camera" onPress={onSwitchCamera} hitSlop={6}
       className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full bg-black/55 active:opacity-70"><IconCameraRotate size={18} color={PartyColors.text} /></Pressable>}
   </Pressable>;
-};
+});
 
-const LiveTile = (props: TileProps & {live: Participant}) => {
+const LiveTile = memo((props: TileProps & {live: Participant}) => {
   const speaking = useIsSpeaking(props.live);
   return <Tile {...props} speaking={speaking} />;
-};
+});
 
 export default function VideoPartyStage({seatCount, speakers, liveById, localIdentity, onSeatPress, lockedSeats = [], mirrorLocal = true, onSwitchCamera}: {
   seatCount: number; speakers: PartyParticipant[]; liveById: Map<string, Participant>; localIdentity: string;
@@ -70,7 +71,7 @@ export default function VideoPartyStage({seatCount, speakers, liveById, localIde
       const person = bySeat.get(index);
       const live = person ? liveById.get(person.userId) : undefined;
       const props: TileProps = {person, live, trackRef: person ? trackById.get(person.userId) : undefined, index, width: tile, locked: lockedSeats.includes(index), localIdentity,
-        mirror: person?.userId === localIdentity && mirrorLocal, onPress: () => onSeatPress(person, index), onSwitchCamera};
+        mirror: person?.userId === localIdentity && mirrorLocal, onSeatPress, onSwitchCamera};
       return live ? <LiveTile key={index} {...props} live={live} /> : <Tile key={index} {...props} />;
     })}
   </ScrollView>;

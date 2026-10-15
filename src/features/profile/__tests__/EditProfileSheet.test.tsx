@@ -1,5 +1,6 @@
 import React from 'react';
-import {Image, Text} from 'react-native';
+import {Text} from 'react-native';
+import FastImage from 'react-native-fast-image';
 import ReactTestRenderer from 'react-test-renderer';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {uploadMedia} from '../../../core/media';
@@ -42,7 +43,7 @@ test('changing the photo uploads it as an avatar and PATCHes avatarUrl', async (
 
   await press(renderer, 'Add photo');
   expect(upload).toHaveBeenCalledWith({uri: photo.uri, type: 'image/jpeg', size: 5000, name: 'me.jpg'}, 'avatar');
-  expect(renderer.root.findAllByType(Image).some(node => node.props.source?.uri === 'https://cdn.example/avatars/new.jpg')).toBe(true);
+  expect(renderer.root.findAllByType(FastImage).some(node => node.props.source?.uri === 'https://cdn.example/avatars/new.jpg')).toBe(true);
 
   await press(renderer, 'Save changes');
   expect(onSave).toHaveBeenCalledWith({...baseUpdate, avatarUrl: 'https://cdn.example/avatars/new.jpg'});

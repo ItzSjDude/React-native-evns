@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {memo, useCallback, useEffect, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, AppState, Modal, Pressable, ScrollView, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -44,7 +44,7 @@ const BalanceCard = ({workspace, balance}: {workspace: Workspace; balance: numbe
     </View>
   </View>;
 
-const LedgerRow = ({entry, first}: {entry: CreditOverview['ledger'][number]; first?: boolean}) =>
+const LedgerRow = memo(({entry, first}: {entry: CreditOverview['ledger'][number]; first?: boolean}) =>
   <View className={`flex-row items-center gap-3 px-4 py-3 ${first ? '' : 'border-t border-border/60'}`}>
     <View className="min-w-0 flex-1">
       <Text className="text-[14px] font-semibold text-foreground">{LEDGER_REASON_LABELS[entry.reason]}</Text>
@@ -54,9 +54,9 @@ const LedgerRow = ({entry, first}: {entry: CreditOverview['ledger'][number]; fir
       <Text className={`text-[14px] font-bold ${entry.delta >= 0 ? 'text-foreground' : 'text-coral'}`}>{formatDelta(entry.delta)}</Text>
       <Text className="mt-0.5 text-xs text-muted">Balance {entry.balanceAfter}</Text>
     </View>
-  </View>;
+  </View>);
 
-const PurchaseRow = ({purchase, first}: {purchase: CreditOverview['recentPurchases'][number]; first?: boolean}) =>
+const PurchaseRow = memo(({purchase, first}: {purchase: CreditOverview['recentPurchases'][number]; first?: boolean}) =>
   <View className={`flex-row items-center gap-3 px-4 py-3 ${first ? '' : 'border-t border-border/60'}`}>
     <View className="min-w-0 flex-1">
       <Text className="text-[14px] font-semibold text-foreground">{purchase.quantity} credits</Text>
@@ -66,7 +66,7 @@ const PurchaseRow = ({purchase, first}: {purchase: CreditOverview['recentPurchas
       <Text className="text-[14px] font-bold text-foreground">{money(purchase.amountMinor, purchase.currency)}</Text>
       <Text className="mt-0.5 text-xs text-muted">{PURCHASE_STATUS_LABELS[purchase.status]}</Text>
     </View>
-  </View>;
+  </View>);
 
 /** Workspace-scoped balance, ledger, purchase history and fixed server-priced pack checkout. */
 export default function OrganizerCreditsScreen({visible, onClose}: {visible: boolean; onClose: () => void}) {

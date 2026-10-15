@@ -168,7 +168,8 @@ test('the Following tab is absent from Home', async () => {
 });
 
 test('the Events tab shows the events list inline and switching back keeps the feed without refetching', async () => {
-  feed.mockResolvedValue({posts: [post()], hasMore: true, nextCursor: 'next'});
+  // A full page, so FlashList (which mocks a 900px viewport here) doesn't ask for the next page on its own.
+  feed.mockResolvedValue({posts: [post(), ...Array.from({length: 24}, (_, i) => post({id: `extra${i}`, content: `More ${i}`}))], hasMore: true, nextCursor: 'next'});
   const renderer = await render();
   const tabs = () => renderer.root.findAll(node => node.props.accessibilityRole === 'tab' && typeof node.props.onPress === 'function');
   expect(texts(renderer)).not.toContain('Events list');

@@ -1,14 +1,15 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
 import {ActivityIndicator, AppState, Modal, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {FlashList} from '@shopify/flash-list';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconChevronRight from '@tabler/icons-react-native/IconChevronRight';
 import IconRefresh from '@tabler/icons-react-native/IconRefresh';
 import {Colors} from '../../Constants/Colors';
 import {checkInOrganizerTicket, getOrganizerDashboard, getOrganizerEventSummary, getOrganizerPayouts, listMyWorkspaces, listOrganizerAttendees, listOrganizerEvents} from './organizerService';
 import {money, messageOf} from './organizerPresentation';
-import type {OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventSummary, OrganizerPayouts, Workspace} from './types';
+import type {OrganizerAttendee, OrganizerAttendeePage, OrganizerDashboardSummary, OrganizerEvent, OrganizerEventSummary, OrganizerPayouts, Workspace} from './types';
 
 type Section = 'Overview' | 'Events' | 'Event detail' | 'Attendees' | 'Check-in' | 'Payouts';
 const sections: Section[] = ['Overview', 'Events', 'Event detail', 'Attendees', 'Check-in', 'Payouts'];
@@ -19,6 +20,15 @@ const newIdempotencyKey = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/
   return (token === 'x' ? value : (value % 4) + 8).toString(16);
 });
 const Card = ({children}: {children: React.ReactNode}) => <View className="rounded-[20px] border border-border bg-card p-4">{children}</View>;
+const renderAttendee = ({item}: {item: OrganizerAttendee}) => <AttendeeRow person={item} />;
+const renderPayout = ({item}: {item: OrganizerPayouts['history'][number]}) => <PayoutRow item={item} />;
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = {paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40};
+const ItemGap = () => <View className="h-3" />;
+const noAttendees: OrganizerAttendee[] = [];
+const eventKey = (event: OrganizerEvent) => event.id;
+const attendeeKey = (person: OrganizerAttendee) => person.id;
+const payoutKey = (item: OrganizerPayouts['history'][number]) => item.id;
 const Label = ({children}: {children: React.ReactNode}) => <Text className="text-[12px] font-semibold text-muted">{children}</Text>;
 
 /** Workspace-scoped organiser dashboard. All displayed metrics and attendee decisions come from the API. */
@@ -117,7 +127,9 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
   const selectedWorkspace = workspaces.find(row => row.id === selectedId) ?? null;
   const canHostEvent = workspaces.some(row => row.verificationStatus === 'APPROVED');
   const openSection = (next: Section) => {setSection(next); setError(null);};
-  const switchEvent = (eventId: string) => {setSelectedEventId(eventId); setCheckInKey(''); setCheckInNotice(null);};
+  const switchEvent = useCallback((eventId: string) => {setSelectedEventId(eventId); setCheckInKey(''); setCheckInNotice(null);}, []);
+  const openEvent = useCallback((event: OrganizerEvent) => {switchEvent(event.id); setSection('Event detail');}, [switchEvent]);
+  const renderEvent = useCallback(({item}: {item: OrganizerEvent}) => <EventRow event={item} onPress={openEvent} />, [openEvent]);
   const runCheckIn = async () => {
     if (!selectedId || !selectedEventId || !ticketCode.trim() || checkInBusy) return;
     const key = checkInKey || newIdempotencyKey();
@@ -154,11 +166,13 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
         <Card><Label>Next payout</Label><Text className="mt-1 text-[20px] font-extrabold text-foreground">{dashboard.nextPayoutMinor == null ? '—' : money(dashboard.nextPayoutMinor, dashboard.currency)}</Text><Text className="mt-1 text-[12px] text-muted">{dashboard.nextPayoutAt ? new Date(dashboard.nextPayoutAt).toLocaleDateString() : 'No payout scheduled'}</Text></Card>
         <Pressable accessibilityRole="button" accessibilityState={{disabled: !canHostEvent}} disabled={!canHostEvent} onPress={() => onHostEvent(workspaces)} className={`h-12 items-center justify-center rounded-full ${canHostEvent ? 'bg-gold' : 'bg-card'}`}><Text className={`text-[14px] font-extrabold ${canHostEvent ? 'text-gold-ink' : 'text-muted'}`}>{canHostEvent ? 'Create event' : 'Event hosting unlocks after verification'}</Text></Pressable>
         <Text className="mt-1 text-[15px] font-bold text-foreground">Upcoming events</Text>
-        {dashboard.events.length ? dashboard.events.map(event => <EventRow key={event.id} event={event} onPress={() => {switchEvent(event.id); setSection('Event detail');}} />) : <Empty>No events yet. Create your first event to start building your dashboard.</Empty>}
+        {dashboard.events.length ? dashboard.events.map(event => <EventRow key={event.id} event={event} onPress={openEvent} />) : <Empty>No events yet. Create your first event to start building your dashboard.</Empty>}
         {!!dashboard.actionItems.length && <><Text className="mt-2 text-[15px] font-bold text-foreground">Action needed</Text>{dashboard.actionItems.map((item, index) => <Card key={`${item.type}-${index}`}><Text className="text-[14px] font-semibold text-foreground">{item.type === 'VERIFICATION' ? verificationMessage : item.type === 'REFUND_REQUEST' ? `${item.count ?? 0} refund requests waiting` : 'Add a check-in staff member'}</Text>{!!item.eventTitle && <Text className="mt-1 text-[12px] text-muted">{item.eventTitle}</Text>}</Card>)}</>}
       </ScrollView>}
 
-      {!loading && !error && section === 'Events' && <ScrollView contentContainerClassName="gap-3 px-4 py-4 pb-10"><Pressable accessibilityRole="button" accessibilityState={{disabled: !canHostEvent}} disabled={!canHostEvent} onPress={() => onHostEvent(workspaces)} className={`h-11 items-center justify-center rounded-full ${canHostEvent ? 'bg-gold' : 'bg-card'}`}><Text className={`text-[14px] font-extrabold ${canHostEvent ? 'text-gold-ink' : 'text-muted'}`}>{canHostEvent ? '＋ Create event' : 'Event hosting unlocks after verification'}</Text></Pressable><View className="flex-row rounded-[14px] border border-border bg-card p-1">{eventFilters.map(filter => <Pressable key={filter.value} accessibilityRole="tab" accessibilityState={{selected: eventFilter === filter.value}} onPress={() => setEventFilter(filter.value)} hitSlop={{top: 6, bottom: 6}} className={`h-8 flex-1 items-center justify-center rounded-[11px] ${eventFilter === filter.value ? 'bg-background' : ''}`}><Text className={`text-[12px] font-semibold ${eventFilter === filter.value ? 'text-foreground' : 'text-muted'}`}>{filter.label}</Text></Pressable>)}</View>{events.map(event => <EventRow key={event.id} event={event} onPress={() => {switchEvent(event.id); setSection('Event detail');}} />)}{!events.length && <Empty>No {eventFilter.toLowerCase()} events.</Empty>}</ScrollView>}
+      {!loading && !error && section === 'Events' && <FlashList contentContainerStyle={LIST_CONTENT} data={events} keyExtractor={eventKey} renderItem={renderEvent} ItemSeparatorComponent={ItemGap}
+        ListHeaderComponent={<View className="gap-3 pb-3"><Pressable accessibilityRole="button" accessibilityState={{disabled: !canHostEvent}} disabled={!canHostEvent} onPress={() => onHostEvent(workspaces)} className={`h-11 items-center justify-center rounded-full ${canHostEvent ? 'bg-gold' : 'bg-card'}`}><Text className={`text-[14px] font-extrabold ${canHostEvent ? 'text-gold-ink' : 'text-muted'}`}>{canHostEvent ? '＋ Create event' : 'Event hosting unlocks after verification'}</Text></Pressable><View className="flex-row rounded-[14px] border border-border bg-card p-1">{eventFilters.map(filter => <Pressable key={filter.value} accessibilityRole="tab" accessibilityState={{selected: eventFilter === filter.value}} onPress={() => setEventFilter(filter.value)} hitSlop={{top: 6, bottom: 6}} className={`h-8 flex-1 items-center justify-center rounded-[11px] ${eventFilter === filter.value ? 'bg-background' : ''}`}><Text className={`text-[12px] font-semibold ${eventFilter === filter.value ? 'text-foreground' : 'text-muted'}`}>{filter.label}</Text></Pressable>)}</View></View>}
+        ListEmptyComponent={<Empty>No {eventFilter.toLowerCase()} events.</Empty>} />}
 
       {!loading && !error && section === 'Event detail' && eventSummary && <ScrollView contentContainerClassName="gap-3 px-4 py-4 pb-10">
         <Card><Text className="text-[19px] font-extrabold text-foreground">{eventSummary.event.title}</Text><Text className="mt-1 text-[12px] leading-5 text-muted">{new Date(eventSummary.event.startsAt).toLocaleString()} · {eventSummary.event.venue}</Text><Text className="mt-3 text-[12px] font-bold text-primary">{eventSummary.event.status}</Text></Card>
@@ -169,12 +183,13 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
       </ScrollView>}
 
       {!loading && !error && (section === 'Attendees' || section === 'Check-in') && !eventForActions && <View className="px-4 py-4"><Empty>Create or select an event to manage attendees and check-in.</Empty><Pressable accessibilityRole="button" onPress={() => openSection('Events')} className="mt-3 h-11 items-center justify-center rounded-full bg-gold"><Text className="font-bold text-gold-ink">Choose event</Text></Pressable></View>}
-      {!loading && !error && section === 'Attendees' && eventForActions && <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 px-4 py-4 pb-10">
-        {events.length > 1 && events.map(event => <Pressable key={event.id} accessibilityRole="button" accessibilityState={{selected: eventForActions === event.id}} onPress={() => switchEvent(event.id)} className={`rounded-xl border p-3 ${eventForActions === event.id ? 'border-primary bg-primary-dark/20' : 'border-border bg-card'}`}><Text numberOfLines={1} className="text-[13px] font-bold text-foreground">{event.title}</Text></Pressable>)}
-        <TextInput accessibilityLabel="Search attendees" value={query} onChangeText={setQuery} onSubmitEditing={() => load()} placeholder="Search name or ticket number" placeholderTextColor={Colors.muted} className="h-11 rounded-[14px] border border-border bg-card px-3 text-[14px] text-foreground" />
-        {attendees?.items.map(person => <Card key={person.id}><View className="flex-row items-center"><View className="flex-1"><Text className="text-[14px] font-bold text-foreground">{person.displayName}</Text><Text className="mt-0.5 text-[12px] text-muted">{person.ticketLabel} · {person.orderReference}</Text></View><View className="items-end"><Text className="text-[13px] font-bold text-foreground">{money(person.amountMinor, person.currency)}</Text><Text className={`mt-1 text-[11px] font-bold ${person.ticketStatus === 'REFUNDED' || person.ticketStatus === 'CANCELLED' ? 'text-coral' : person.checkedInAt ? 'text-success' : 'text-muted'}`}>{person.checkedInAt ? 'Checked in' : person.ticketStatus}</Text></View></View></Card>)}
-        {attendees && !attendees.items.length && <Empty>No ticket holders match this search.</Empty>}
-      </ScrollView>}
+      {!loading && !error && section === 'Attendees' && eventForActions && <FlashList keyboardShouldPersistTaps="handled" contentContainerStyle={LIST_CONTENT}
+        data={attendees?.items ?? noAttendees} keyExtractor={attendeeKey} renderItem={renderAttendee} ItemSeparatorComponent={ItemGap}
+        ListHeaderComponent={<View className="gap-3 pb-3">
+          {events.length > 1 && events.map(event => <Pressable key={event.id} accessibilityRole="button" accessibilityState={{selected: eventForActions === event.id}} onPress={() => switchEvent(event.id)} className={`rounded-xl border p-3 ${eventForActions === event.id ? 'border-primary bg-primary-dark/20' : 'border-border bg-card'}`}><Text numberOfLines={1} className="text-[13px] font-bold text-foreground">{event.title}</Text></Pressable>)}
+          <TextInput accessibilityLabel="Search attendees" value={query} onChangeText={setQuery} onSubmitEditing={() => load()} placeholder="Search name or ticket number" placeholderTextColor={Colors.muted} className="h-11 rounded-[14px] border border-border bg-card px-3 text-[14px] text-foreground" />
+        </View>}
+        ListEmptyComponent={attendees ? <Empty>No ticket holders match this search.</Empty> : undefined} />}
 
       {!loading && !error && section === 'Check-in' && eventForActions && <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 px-4 py-4 pb-10">
         {events.length > 1 && events.map(event => <Pressable key={event.id} accessibilityRole="button" accessibilityState={{selected: eventForActions === event.id}} onPress={() => switchEvent(event.id)} className={`rounded-xl border p-3 ${eventForActions === event.id ? 'border-primary bg-primary-dark/20' : 'border-border bg-card'}`}><Text numberOfLines={1} className="text-[13px] font-bold text-foreground">{event.title}</Text></Pressable>)}
@@ -182,17 +197,28 @@ export default function OrganizerDashboardScreen({visible, onClose, onHostEvent,
         <Card><Text className="text-[15px] font-bold text-foreground">Enter ticket code</Text><Text className="mt-1 text-[12px] leading-5 text-muted">Scan support can be added with the backend/native scanner integration. Manual entry is available now.</Text><TextInput accessibilityLabel="Ticket QR code or ticket code" value={ticketCode} onChangeText={value => {setTicketCode(value); setCheckInKey(''); setCheckInNotice(null);}} autoCapitalize="characters" placeholder="Ticket code" placeholderTextColor={Colors.muted} className="mt-3 h-12 rounded-[14px] border border-border bg-background px-3 text-[15px] text-foreground" /><Pressable accessibilityRole="button" accessibilityState={{disabled: !ticketCode.trim() || checkInBusy, busy: checkInBusy}} disabled={!ticketCode.trim() || checkInBusy} onPress={runCheckIn} className="mt-3 h-11 items-center justify-center rounded-full bg-gold">{checkInBusy ? <ActivityIndicator size="small" color={Colors.goldInk} /> : <Text className="font-extrabold text-gold-ink">Check in ticket</Text>}</Pressable>{!!checkInNotice && <Text accessibilityRole="alert" className="mt-3 text-[13px] text-foreground">{checkInNotice}</Text>}</Card>
       </ScrollView>}
 
-      {!loading && !error && section === 'Payouts' && payouts && <ScrollView contentContainerClassName="gap-3 px-4 py-4 pb-10">
+      {!loading && !error && section === 'Payouts' && payouts && <FlashList contentContainerStyle={LIST_CONTENT}
+        data={payouts.history} keyExtractor={payoutKey} renderItem={renderPayout} ItemSeparatorComponent={ItemGap}
+        ListHeaderComponent={<View className="gap-3 pb-3">
         <Card><Label>Next payout</Label><Text className="mt-1 text-[25px] font-extrabold text-foreground">{payouts.next ? money(payouts.next.amountMinor, payouts.next.currency) : 'No payout scheduled'}</Text>{payouts.next && <Text className="mt-1 text-[12px] text-muted">Releases {new Date(payouts.next.releaseAt).toLocaleDateString()} · {payouts.next.maskedAccount}</Text>}</Card>
-        <Text className="mt-2 text-[15px] font-bold text-foreground">Payout history</Text>{payouts.history.map(item => <Card key={item.id}><View className="flex-row items-center"><View className="flex-1"><Text className="text-[14px] font-bold text-foreground">{item.eventTitle}</Text><Text className="mt-1 text-[12px] text-muted">{item.status === 'PAID' && item.paidAt ? `Paid ${new Date(item.paidAt).toLocaleDateString()}` : `${item.status} · releases ${new Date(item.releaseAt).toLocaleDateString()}`}</Text></View><Text className="text-[14px] font-bold text-foreground">{money(item.amountMinor, item.currency)}</Text></View></Card>)}{!payouts.history.length && <Empty>No payout history yet.</Empty>}
-      </ScrollView>}
+        <Text className="mt-2 text-[15px] font-bold text-foreground">Payout history</Text>
+        </View>}
+        ListEmptyComponent={<Empty>No payout history yet.</Empty>} />}
     </SafeAreaView>
   </Modal>;
 }
 
-function EventRow({event, onPress}: {event: OrganizerEvent; onPress: () => void}) {
+const EventRow = memo(function EventRow({event, onPress}: {event: OrganizerEvent; onPress: (event: OrganizerEvent) => void}) {
   const percent = event.capacity > 0 ? Math.min(100, event.ticketsSold / event.capacity * 100) : 0;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${event.title}, ${event.status}`} onPress={onPress} className="rounded-[18px] border border-border bg-card p-4 active:opacity-80"><View className="flex-row items-center"><View className="flex-1"><Text numberOfLines={1} className="text-[14px] font-bold text-foreground">{event.title}</Text><Text className="mt-1 text-[12px] text-muted">{new Date(event.startsAt).toLocaleString()} · {event.venue}</Text></View><IconChevronRight size={18} color={Colors.muted} /></View><View className="mt-3 h-2 overflow-hidden rounded-full bg-background"><View className="h-full rounded-full bg-gold" style={{width: `${percent}%`}} /></View><Text className="mt-1 text-right text-[11px] text-muted">{event.ticketsSold} / {event.capacity} · {event.status}</Text></Pressable>;
-}
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${event.title}, ${event.status}`} onPress={() => onPress(event)} className="rounded-[18px] border border-border bg-card p-4 active:opacity-80"><View className="flex-row items-center"><View className="flex-1"><Text numberOfLines={1} className="text-[14px] font-bold text-foreground">{event.title}</Text><Text className="mt-1 text-[12px] text-muted">{new Date(event.startsAt).toLocaleString()} · {event.venue}</Text></View><IconChevronRight size={18} color={Colors.muted} /></View><View className="mt-3 h-2 overflow-hidden rounded-full bg-background"><View className="h-full rounded-full bg-gold" style={{width: `${percent}%`}} /></View><Text className="mt-1 text-right text-[11px] text-muted">{event.ticketsSold} / {event.capacity} · {event.status}</Text></Pressable>;
+});
+
+const AttendeeRow = memo(function AttendeeRow({person}: {person: OrganizerAttendee}) {
+  return <Card><View className="flex-row items-center"><View className="flex-1"><Text className="text-[14px] font-bold text-foreground">{person.displayName}</Text><Text className="mt-0.5 text-[12px] text-muted">{person.ticketLabel} · {person.orderReference}</Text></View><View className="items-end"><Text className="text-[13px] font-bold text-foreground">{money(person.amountMinor, person.currency)}</Text><Text className={`mt-1 text-[11px] font-bold ${person.ticketStatus === 'REFUNDED' || person.ticketStatus === 'CANCELLED' ? 'text-coral' : person.checkedInAt ? 'text-success' : 'text-muted'}`}>{person.checkedInAt ? 'Checked in' : person.ticketStatus}</Text></View></View></Card>;
+});
+
+const PayoutRow = memo(function PayoutRow({item}: {item: OrganizerPayouts['history'][number]}) {
+  return <Card><View className="flex-row items-center"><View className="flex-1"><Text className="text-[14px] font-bold text-foreground">{item.eventTitle}</Text><Text className="mt-1 text-[12px] text-muted">{item.status === 'PAID' && item.paidAt ? `Paid ${new Date(item.paidAt).toLocaleDateString()}` : `${item.status} · releases ${new Date(item.releaseAt).toLocaleDateString()}`}</Text></View><Text className="text-[14px] font-bold text-foreground">{money(item.amountMinor, item.currency)}</Text></View></Card>;
+});
 
 function Empty({children}: {children: React.ReactNode}) {return <View className="items-center rounded-[18px] border border-border bg-card px-5 py-7"><Text className="text-center text-[14px] leading-5 text-muted">{children}</Text></View>;}

@@ -1,10 +1,11 @@
-import React from 'react';
-import {Image, Pressable, ScrollView, Text, View} from 'react-native';
+import React, {memo} from 'react';
+import {Pressable, ScrollView, Text, View} from 'react-native';
 import IconBell from '@tabler/icons-react-native/IconBell';
 import IconDots from '@tabler/icons-react-native/IconDots';
 import IconFolder from '@tabler/icons-react-native/IconFolder';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconPin from '@tabler/icons-react-native/IconPin';
+import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import {initialsOf, isOwnMessage, messageText, relativeTime} from './conversationPresentation';
 import {OnlineDot, usePresence} from './presence';
@@ -46,13 +47,15 @@ export const InboxChips = ({query, folders, foldersLocked, showFolders, onSelect
   </ScrollView>
 );
 
-export const Avatar = ({url, title}: {url: string | null; title: string}) => url
-  ? <Image source={{uri: url}} className="h-12 w-12 rounded-full" />
-  : (
-    <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
-      <Text className="text-sm font-bold text-foreground">{initialsOf(title)}</Text>
-    </View>
-  );
+export const Avatar = ({url, title}: {url: string | null; title: string}) => {
+  return url
+    ? <RemoteImage uri={url} fadeDuration={0} className="h-12 w-12 rounded-full" />
+    : (
+      <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark">
+        <Text className="text-sm font-bold text-foreground">{initialsOf(title)}</Text>
+      </View>
+    );
+};
 
 const UnreadBadge = ({id, count}: {id: string; count: number}) => count > 0 ? (
   <View testID={`unread-${id}`} className="h-5 min-w-[20px] items-center justify-center rounded-full bg-gold px-1">
@@ -85,7 +88,7 @@ type ConversationRowProps = {
   onMenu: () => void;
 };
 
-export const ConversationRow = ({conversation, latest, reminder, onPress, onMenu}: ConversationRowProps) => {
+export const ConversationRow = memo(({conversation, latest, reminder, onPress, onMenu}: ConversationRowProps) => {
   const unread = conversation.unreadCount;
   // Direct chats only: event/organiser threads have no single person to be "online".
   const presence = usePresence(conversation.contactId ? [conversation.contactId] : []);
@@ -126,9 +129,9 @@ export const ConversationRow = ({conversation, latest, reminder, onPress, onMenu
       <MenuButton title={conversation.title} onPress={onMenu} />
     </View>
   );
-};
+});
 
-export const PartyRow = ({party, reminder, onPress, onMenu}: {party: PartyChat; reminder: boolean; onPress: () => void; onMenu: () => void}) => (
+export const PartyRow = memo(({party, reminder, onPress, onMenu}: {party: PartyChat; reminder: boolean; onPress: () => void; onMenu: () => void}) => (
   <View className="flex-row items-center border-b border-border">
     <Pressable accessibilityRole="button" accessibilityLabel={`Open party room ${party.title}${party.unreadCount ? `, ${party.unreadCount} unread` : ''}`}
       onPress={onPress} onLongPress={onMenu} className="min-h-[76px] min-w-0 flex-1 flex-row items-center gap-3 py-3 active:opacity-70">
@@ -152,10 +155,10 @@ export const PartyRow = ({party, reminder, onPress, onMenu}: {party: PartyChat; 
     </Pressable>
     <MenuButton title={party.title} onPress={onMenu} />
   </View>
-);
+));
 
 /** A pending seat request in a room the member hosts. Not a DM request: it opens the room, where seats are managed. */
-export const RequestRow = ({request, onPress}: {request: PartyRequest; onPress: () => void}) => (
+export const RequestRow = memo(({request, onPress}: {request: PartyRequest; onPress: () => void}) => (
   <Pressable accessibilityRole="button" accessibilityLabel={`Open party room ${request.partyTitle}, seat request from ${request.requesterName}`} onPress={onPress} className={rowClass}>
     <Avatar url={request.avatarUrl} title={request.requesterName} />
     <View className="min-w-0 flex-1">
@@ -166,4 +169,4 @@ export const RequestRow = ({request, onPress}: {request: PartyRequest; onPress: 
       <Text className="mt-1 text-sm text-muted" numberOfLines={1}>Wants a seat in {request.partyTitle}</Text>
     </View>
   </Pressable>
-);
+));

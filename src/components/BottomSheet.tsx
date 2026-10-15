@@ -23,10 +23,12 @@ type BottomSheetProps = {
   maxHeight?: number;
   /** Lets the owner scroll the sheet's content, e.g. to a specific row. */
   scrollRef?: React.Ref<ScrollViewInstance>;
+  /** Skips the wrapping ScrollView so children can host their own list (e.g. a FlatList that pads itself with `px-5 pb-3`). */
+  bare?: boolean;
   children?: React.ReactNode;
 };
 
-export default function BottomSheet({visible, onClose, title, subtitle, header, footer, dismissible = true, maxHeight = 0.82, scrollRef, children}: BottomSheetProps) {
+export default function BottomSheet({visible, onClose, title, subtitle, header, footer, dismissible = true, maxHeight = 0.82, scrollRef, bare, children}: BottomSheetProps) {
   const {height} = useWindowDimensions();
   const [mounted, setMounted] = useState(visible);
   const [reduced, setReduced] = useState(false);
@@ -91,9 +93,9 @@ export default function BottomSheet({visible, onClose, title, subtitle, header, 
               {dismissible && <Pressable accessibilityRole="button" accessibilityLabel="Close sheet" onPress={onClose} hitSlop={6} className="h-9 w-9 items-center justify-center rounded-full bg-card active:opacity-70"><IconX size={18} color={Colors.muted} /></Pressable>}
             </View>}
           </View>
-          <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} contentContainerClassName="px-5 pb-3">
+          {bare ? children : <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} contentContainerClassName="px-5 pb-3">
             {children}
-          </ScrollView>
+          </ScrollView>}
           {!!footer && <View className="px-5 pb-2 pt-1">{footer}</View>}
         </SafeAreaView>
       </Animated.View>

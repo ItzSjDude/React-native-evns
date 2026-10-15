@@ -1,5 +1,5 @@
-import React from 'react';
-import {Image, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import React, {memo} from 'react';
+import {Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useIsSpeaking} from '@livekit/react-native';
 import type {Participant} from 'livekit-client';
 import IconCrown from '@tabler/icons-react-native/IconCrown';
@@ -7,6 +7,7 @@ import IconMicrophoneOff from '@tabler/icons-react-native/IconMicrophoneOff';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import IconLock from '@tabler/icons-react-native/IconLock';
 import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
+import RemoteImage from '../../components/RemoteImage';
 import {PartyColors} from './partyPresentation';
 import type {PartyParticipant} from './partyService';
 
@@ -18,19 +19,19 @@ type SeatProps = {
   speaking?: boolean;
   locked: boolean;
   localIdentity: string;
-  onPress: () => void;
+  onSeatPress: (person: PartyParticipant | undefined, index: number) => void;
 };
 
-const Seat = ({person, live, index, size, speaking, locked, localIdentity, onPress}: SeatProps) => {
+const Seat = memo(({person, live, index, size, speaking, locked, localIdentity, onSeatPress}: SeatProps) => {
   const muted = live ? !live.isMicrophoneEnabled : person?.muted;
   const mine = person?.userId === localIdentity;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button"
+    <Pressable onPress={() => onSeatPress(person, index)} accessibilityRole="button"
       accessibilityLabel={person ? `${person.name || 'Guest'}, ${mine ? 'you, ' : ''}${speaking ? 'speaking' : muted ? 'muted' : 'on stage'}` : locked ? `Locked seat ${index + 1}` : `Request speaker seat ${index + 1}`}
       className="items-center active:opacity-70">
       <View style={{width: size, height: size}} className={`items-center justify-center rounded-full border-2 ${speaking ? 'border-solid border-primary bg-primary-dark' : person ? 'border-solid border-border bg-card' : 'border-dashed border-border bg-card/50'}`}>
         {speaking && <View pointerEvents="none" className="absolute -inset-1.5 rounded-full border border-primary/40" />}
-        {person?.avatarUrl ? <Image source={{uri: person.avatarUrl}} style={{width: size - 6, height: size - 6}} className="rounded-full" />
+        {person?.avatarUrl ? <RemoteImage uri={person.avatarUrl} fadeDuration={0} style={{width: size - 6, height: size - 6}} className="rounded-full" />
           : person ? <Text className="text-lg font-bold text-foreground">{(person.name || '?').trim().slice(0, 2).toUpperCase()}</Text>
             : locked ? <IconLock size={22} color={PartyColors.muted} /> : <IconPlus size={22} color={PartyColors.muted} />}
         {person && muted && <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-card"><IconMicrophoneOff size={11} color={PartyColors.coral} /></View>}
@@ -40,12 +41,12 @@ const Seat = ({person, live, index, size, speaking, locked, localIdentity, onPre
       <Text className={`mt-0.5 text-xs ${speaking ? 'text-primary' : 'text-muted'}`}>{person ? speaking ? 'Speaking' : person.role === 'HOST' ? 'Host' : person.role === 'CO_HOST' ? 'Co-host' : 'Speaker' : locked ? 'Locked' : 'Open'}</Text>
     </Pressable>
   );
-};
+});
 
-const LiveSeat = (props: SeatProps & {live: Participant}) => {
+const LiveSeat = memo((props: SeatProps & {live: Participant}) => {
   const speaking = useIsSpeaking(props.live);
   return <Seat {...props} speaking={speaking} />;
-};
+});
 
 export default function AudioPartyStage({seatCount, speakers, liveById, localIdentity, onSeatPress, lockedSeats = [], scrollEnabled = false}: {
   seatCount: number;
@@ -81,7 +82,7 @@ export default function AudioPartyStage({seatCount, speakers, liveById, localIde
           const angle = -Math.PI / 2 + index * Math.PI * 2 / seatCount;
           const person = bySeat.get(index);
           const live = person ? liveById.get(person.userId) : undefined;
-          const props: SeatProps = {person, live, index, size, locked: lockedSeats.includes(index), localIdentity, onPress: () => onSeatPress(person, index)};
+          const props: SeatProps = {person, live, index, size, locked: lockedSeats.includes(index), localIdentity, onSeatPress};
           return <View key={index} className="absolute w-[78px]" style={{left: diameter / 2 + radius * Math.cos(angle) - 39, top: diameter / 2 + radius * Math.sin(angle) - size / 2}}>
             {live ? <LiveSeat {...props} live={live} /> : <Seat {...props} />}
           </View>;

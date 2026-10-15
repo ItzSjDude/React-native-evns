@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View} from 'react-native';
+import React, {memo, useState} from 'react';
+import {Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View} from 'react-native';
 import IconBookmark from '@tabler/icons-react-native/IconBookmark';
 import IconBookmarkFilled from '@tabler/icons-react-native/IconBookmarkFilled';
 import IconDots from '@tabler/icons-react-native/IconDots';
@@ -9,6 +9,7 @@ import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconShare3 from '@tabler/icons-react-native/IconShare3';
 import IconTrash from '@tabler/icons-react-native/IconTrash';
+import RemoteImage from '../../components/RemoteImage';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
 import {Colors} from '../Colors';
 import {avatarTint, FeedColors} from '../../features/home/feedTheme';
@@ -55,7 +56,7 @@ const initialsOf = (name: string) => name.trim().split(/\s+/).map(part => part[0
 const Avatar = ({name, url, size, tint}: {name: string; url?: string | null; size: number; tint?: {background: string; text: string}}) => {
   const colours = tint ?? avatarTint(name);
   return url
-    ? <Image source={{uri: url}} accessibilityLabel={`${name}'s avatar`} style={{width: size, height: size, borderRadius: size / 2, backgroundColor: colours.background}} />
+    ? <RemoteImage uri={url} accessibilityLabel={`${name}'s avatar`} style={{width: size, height: size, borderRadius: size / 2, backgroundColor: colours.background}} />
     : <View style={{width: size, height: size, borderRadius: size / 2, backgroundColor: colours.background}} className="items-center justify-center">
       <Text style={{fontSize: size * 0.34, color: colours.text}} className="font-body-bold">{initialsOf(name)}</Text>
     </View>;
@@ -121,6 +122,11 @@ const Caption = ({text, large}: {text: string; large: boolean}) => {
   );
 };
 
+/** Remote photo with a stable source object so the native image isn't reloaded on every parent render. */
+const PostImage = ({uri, index, width}: {uri: string; index: number; width: number}) => (
+  <RemoteImage uri={uri} accessibilityLabel={`Post image ${index + 1}`} style={{width, height: width / 1.28}} resizeMode="cover" />
+);
+
 const ActionButton = ({icon: Icon, count, color, accessibilityLabel, onPress, disabled}: {
   icon: typeof IconHeart; count?: number; color: string; accessibilityLabel: string; onPress?: () => void; disabled?: boolean;
 }) => (
@@ -131,7 +137,7 @@ const ActionButton = ({icon: Icon, count, color, accessibilityLabel, onPress, di
   </Pressable>
 );
 
-const PostCard = ({author, authorAvatarUrl, authorShowPlusBadge = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
+const PostCard = memo(({author, authorAvatarUrl, authorShowPlusBadge = false, time, content, likes, likedByViewer = false, comments = 0, images = [], pending = false, canDelete = false,
   onToggleLike, onOpenComments, onDelete, onPressAuthor, onReport, onShare, saved = false, onToggleSave, headerAction}: PostCardProps) => {
   const {width: screenWidth} = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -177,7 +183,7 @@ const PostCard = ({author, authorAvatarUrl, authorShowPlusBadge = false, time, c
         <View className="mx-4 mt-3 overflow-hidden rounded-2xl" style={[styles.media, {width: mediaWidth, height: mediaWidth / 1.28}]}>
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setActiveImage(Math.round(event.nativeEvent.contentOffset.x / mediaWidth))}>
             {images.map((image, index) => (
-              <Image key={`${image}-${index}`} source={{uri: image}} accessibilityLabel={`Post image ${index + 1}`} style={{width: mediaWidth, height: mediaWidth / 1.28}} resizeMode="cover" />
+              <PostImage key={`${image}-${index}`} uri={image} index={index} width={mediaWidth} />
             ))}
           </ScrollView>
           {images.length > 1 && (
@@ -207,6 +213,6 @@ const PostCard = ({author, authorAvatarUrl, authorShowPlusBadge = false, time, c
         onConfirmStep={() => setConfirmingDelete(true)} onReportStep={() => setReporting(true)} onDelete={onDelete} onReport={onReport} />
     </View>
   );
-};
+});
 
 export default PostCard;

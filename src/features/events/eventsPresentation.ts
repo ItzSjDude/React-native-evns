@@ -2,6 +2,15 @@ import type {ApiEvent, EventViewer} from './types';
 
 export const messageOf = (error: unknown) => (error as {message?: string})?.message || 'Please try again.';
 
+/**
+ * Message for a write/purchase/ticket action. The backend answers 404 for these when `events.enabled` is off
+ * (and also when the event is gone), so a bare 404 is explained instead of echoing the server's wording.
+ */
+export const actionMessageOf = (error: unknown) =>
+  (error as {status?: number})?.status === 404
+    ? 'Ticketing is unavailable right now, or this event is no longer available.'
+    : messageOf(error);
+
 export const formatEventWhen = (startsAt: string, endsAt?: string | null) => {
   const start = new Date(startsAt);
   if (Number.isNaN(start.getTime())) return '';

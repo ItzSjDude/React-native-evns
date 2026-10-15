@@ -1,6 +1,6 @@
-import React, {useEffect, useState} from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import {SLIDE_MODAL_ANIMATION} from '../../Constants/NavigationTransitions';
-import {Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {FlatList, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 import DateTimePicker, {DateTimePickerAndroid} from '@react-native-community/datetimepicker';
 import {showDialog} from '../../components/Dialog';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -30,6 +30,7 @@ import {PlusSettingsScreen, openPaywall, usePlus} from '../plus';
 import {OrganizerCreditsScreen, useOrganizerCreditsAvailable} from '../organizer';
 import {useAds} from '../ads';
 import BottomSheet, {SheetButton, SheetRow, SheetSection} from '../../components/BottomSheet';
+import RemoteImage from '../../components/RemoteImage';
 import {deleteMyAccount, getBlockedUsers, getMySettings, getNearbyVisibility, setNearbyVisibility, unblockUser, updateMySettings} from './profileService';
 import {WEEKDAYS, dateToHHmm, deviceTimeZone, timeToDate, toHHmm, toggleDay} from './quietHours';
 import type {BlockedUser, SeatInvitesFrom, UserProfile, UserSettings} from './types';
@@ -73,6 +74,23 @@ const Row = ({icon: Icon, label, hint, value, onPress, toggle, disabled, first, 
       {toggle !== undefined ? <Toggle on={toggle} /> : onPress && !danger ? <IconChevronRight size={18} color={Colors.mutedLight} /> : null}
     </View>
   </Pressable>;
+
+const BlockedRow = memo(function BlockedRow({user, first, last, busy, onUnblock}: {user: BlockedUser; first: boolean; last: boolean; busy: boolean; onUnblock: (user: BlockedUser) => void}) {
+  // Each row paints its slice of the card, so the list can virtualize without a clipping wrapper.
+  return <View className={`min-h-[60px] flex-row items-center gap-3 border-b border-sheet bg-card px-4 py-2 ${first ? 'rounded-t-2xl' : ''} ${last ? 'rounded-b-2xl' : ''}`}>
+    <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary-dark">
+      {user.avatarUrl ? <RemoteImage uri={user.avatarUrl} fadeDuration={0} className="h-full w-full" /> : <Text className="text-[13px] font-bold text-primary">{initialsOf(user.name)}</Text>}
+    </View>
+    <View className="min-w-0 flex-1">
+      <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">{user.name}</Text>
+      {!!user.handle && <Text className="text-xs text-muted">@{user.handle}</Text>}
+    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Unblock ${user.name}`} disabled={busy} onPress={() => onUnblock(user)}
+      className="h-8 justify-center rounded-full border border-border px-3 active:opacity-70"><Text className="text-xs font-bold text-foreground">Unblock</Text></Pressable>
+  </View>;
+});
+
+const blockedKey = (user: BlockedUser) => user.id;
 
 const Group = ({title, children}: {title: string; children: React.ReactNode}) =>
   <View className="pt-6">
@@ -151,13 +169,21 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
     } else setPicking({field, value});
   };
   const closeQuiet = () => {setPanel(null); setPicking(null);};
-  const unblock = async (user: BlockedUser) => {
-    if (!blocked || busy) return;
-    setBusy(true); setError(null); setBlocked(blocked.filter(item => item.id !== user.id));
+  const blockedRef = useRef(blocked);
+  blockedRef.current = blocked;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const unblock = useCallback(async (user: BlockedUser) => {
+    const current = blockedRef.current;
+    if (!current || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true); setError(null); setBlocked(current.filter(item => item.id !== user.id));
     try {await unblockUser(user.id);}
-    catch (cause) {setBlocked(blocked); setError(messageOf(cause));}
-    finally {setBusy(false);}
-  };
+    catch (cause) {setBlocked(current); setError(messageOf(cause));}
+    finally {busyRef.current = false; setBusy(false);}
+  }, []);
+  const renderBlocked = useCallback(({item, index}: {item: BlockedUser; index: number}) =>
+    <BlockedRow user={item} first={index === 0} last={index === (blocked?.length ?? 0) - 1} busy={busy} onUnblock={unblock} />, [busy, unblock, blocked]);
   const deleteAccount = async () => {
     if (deleteText.trim() !== 'DELETE' || busy) return;
     setBusy(true); setError(null);
@@ -199,7 +225,7 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         <Pressable accessibilityRole="button" accessibilityLabel="Edit profile details" onPress={onEditProfile}
           className="flex-row items-center gap-4 px-4 py-3 active:bg-white/5">
           <View className="h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-card">
-            {profile?.avatar_url ? <Image source={{uri: profile.avatar_url}} className="h-full w-full" />
+            {profile?.avatar_url ? <RemoteImage uri={profile.avatar_url} className="h-full w-full" />
               : <Text className="text-[18px] font-bold text-foreground">{initialsOf(profile?.name)}</Text>}
           </View>
           <View className="min-w-0 flex-1">
@@ -314,20 +340,10 @@ export default function SettingsScreen({profile, visible, onClose, onEditProfile
         </SheetSection>
       </BottomSheet>
 
-      <BottomSheet visible={panel === 'blocked'} onClose={() => setPanel(null)} title="Blocked users" subtitle={blocked?.length ? 'They can’t see your posts, rooms or message you.' : null}>
-        {blocked?.length ? <SheetSection>
-          {blocked.map(user => <View key={user.id} className="min-h-[60px] flex-row items-center gap-3 border-b border-sheet px-4 py-2">
-            <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary-dark">
-              {user.avatarUrl ? <Image source={{uri: user.avatarUrl}} className="h-full w-full" /> : <Text className="text-[13px] font-bold text-primary">{initialsOf(user.name)}</Text>}
-            </View>
-            <View className="min-w-0 flex-1">
-              <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">{user.name}</Text>
-              {!!user.handle && <Text className="text-xs text-muted">@{user.handle}</Text>}
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Unblock ${user.name}`} disabled={busy} onPress={() => unblock(user)}
-              className="h-8 justify-center rounded-full border border-border px-3 active:opacity-70"><Text className="text-xs font-bold text-foreground">Unblock</Text></Pressable>
-          </View>)}
-        </SheetSection> : <Text className="py-8 text-center text-[13px] text-muted">You haven’t blocked anyone.</Text>}
+      <BottomSheet bare visible={panel === 'blocked'} onClose={() => setPanel(null)} title="Blocked users" subtitle={blocked?.length ? 'They can’t see your posts, rooms or message you.' : null}>
+        {blocked?.length ? <FlatList data={blocked} keyExtractor={blockedKey} renderItem={renderBlocked} extraData={busy} keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false} bounces={false} contentContainerClassName="px-5 pb-6"
+          initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews={Platform.OS === 'android'} /> : <Text className="px-5 pb-11 pt-8 text-center text-[13px] text-muted">You haven’t blocked anyone.</Text>}
       </BottomSheet>
 
       <BottomSheet visible={panel === 'delete'} onClose={() => setPanel(null)} dismissible={!busy} title="Delete your account?"

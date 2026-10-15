@@ -1,18 +1,19 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Image, Pressable, Text, View} from 'react-native';
+import {ActivityIndicator, Pressable, Text, View} from 'react-native';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
 import BottomSheet, {SheetButton} from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
-import {formatEventPrice, formatEventWhen, goingLabel, isSoldOut, messageOf, viewerStatusLabel} from './eventsPresentation';
+import {actionMessageOf, formatEventPrice, formatEventWhen, goingLabel, isSoldOut, messageOf, viewerStatusLabel} from './eventsPresentation';
 import {requestEventTicket, setEventInterest} from './eventsService';
 import {claimWaitlistOffer, getMyWaitlistEntries, joinEventWaitlist, leaveEventWaitlist} from './waitlistService';
 import type {EventWaitlistEntry} from './waitlistService';
 import {EventNetworkingEntry} from '../eventNetworking';
 import {getEvent} from './eventsService';
 import type {ApiEvent, EventViewer} from './types';
+import RemoteImage from '../../components/RemoteImage';
 
 type Props = {
   eventId: string | null;
@@ -86,7 +87,7 @@ const EventDetailSheet = ({eventId, initial, visible, onClose, onOpenEventChat, 
         await load(full.id);
         if (onOpenTickets) {onClose(); onOpenTickets(full.id, result.ticket.id);}
       }
-    } catch (cause) {setActionError(messageOf(cause));}
+    } catch (cause) {setActionError(actionMessageOf(cause));}
     finally {setActionBusy(false);}
   };
 
@@ -94,7 +95,7 @@ const EventDetailSheet = ({eventId, initial, visible, onClose, onOpenEventChat, 
     if (!full?.id || actionBusy) return;
     setActionBusy(true); setActionError(null);
     try {await setEventInterest(full.id, viewer?.interest === 'INTERESTED' ? 'CANCELLED' : 'INTERESTED'); await load(full.id);}
-    catch (cause) {setActionError(messageOf(cause));}
+    catch (cause) {setActionError(actionMessageOf(cause));}
     finally {setActionBusy(false);}
   };
 
@@ -109,7 +110,7 @@ const EventDetailSheet = ({eventId, initial, visible, onClose, onOpenEventChat, 
       } else {
         const joined = await joinEventWaitlist(full.id); setWaitlistEntry(joined);
       }
-    } catch (cause) {setActionError(messageOf(cause));}
+    } catch (cause) {setActionError(actionMessageOf(cause));}
     finally {setActionBusy(false);}
   };
 
@@ -136,7 +137,7 @@ const EventDetailSheet = ({eventId, initial, visible, onClose, onOpenEventChat, 
   </View> : undefined;
 
   return <BottomSheet visible={visible} onClose={onClose} title={event?.title ?? 'Event'} subtitle={event?.workspace_name ? `Hosted by ${event.workspace_name}` : null} footer={footer} dismissible={!actionBusy}>
-    {!!cover && <Image source={{uri: cover}} accessibilityLabel="Event cover" className="mb-4 h-44 w-full rounded-[18px] bg-card" resizeMode="cover" />}
+    {!!cover && <RemoteImage uri={cover} accessibilityLabel="Event cover" className="mb-4 h-44 w-full rounded-[18px] bg-card" resizeMode="cover" />}
     {loading && !event?.description && <ActivityIndicator accessibilityLabel="Loading event" color={Colors.gold} className="my-3" />}
     {!!error && <View className="mb-3 rounded-2xl border border-border bg-card p-3">
       <Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text>

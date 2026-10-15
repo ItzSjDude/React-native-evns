@@ -1,5 +1,5 @@
-import React from 'react';
-import {Image, Pressable, Text, View} from 'react-native';
+import React, {memo} from 'react';
+import {Pressable, Text, View} from 'react-native';
 import IconHeartFilled from '@tabler/icons-react-native/IconHeartFilled';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
@@ -8,6 +8,7 @@ import IconHeadphones from '@tabler/icons-react-native/IconHeadphones';
 import IconVideo from '@tabler/icons-react-native/IconVideo';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
 import IconPhoto from '@tabler/icons-react-native/IconPhoto';
+import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import type {GiftSummary, ProfileEvent, ProfileParty, ProfilePost} from './types';
 
@@ -37,7 +38,7 @@ export const PostTile = ({post, index}: {post: ProfilePost; index: number}) => {
   return <View accessibilityLabel={`Post from ${dateLabel(post.createdAt)}: ${post.body ?? 'photo'}. ${likes} likes`}
     style={surface} className="aspect-square flex-1 overflow-hidden rounded-[20px]">
     {image ? <>
-      <Image source={{uri: image}} className="absolute inset-0 h-full w-full" resizeMode="cover" />
+      <RemoteImage uri={image} fadeDuration={0} className="absolute inset-0 h-full w-full" resizeMode="cover" />
       <View className="absolute bottom-0 left-0 right-0 h-10 bg-black/35" />
     </> : post.body ? <Text numberOfLines={4} style={{color: swatch.fg}} className="p-2.5 text-[12px] font-extrabold leading-[15px]">“{post.body}”</Text>
       : <View className="flex-1 items-center justify-center"><IconPhoto size={28} color={swatch.fg} /></View>}
@@ -48,17 +49,27 @@ export const PostTile = ({post, index}: {post: ProfilePost; index: number}) => {
   </View>;
 };
 
-/** Three-column grid; the last row is padded so tiles keep equal size. */
-export const PostGrid = ({posts}: {posts: ProfilePost[]}) => {
-  const rows: ProfilePost[][] = [];
-  posts.forEach((post, i) => {(rows[Math.floor(i / 3)] ||= []).push(post);});
-  return <View className="gap-2">
-    {rows.map((row, r) => <View key={r} className="flex-row gap-2">
-      {row.map((post, c) => <PostTile key={post.id} post={post} index={r * 3 + c} />)}
-      {Array.from({length: 3 - row.length}, (_, i) => <View key={`pad${i}`} className="flex-1" />)}
-    </View>)}
-  </View>;
+/** One virtualized list row of the profile's content tab: a post-grid row, a room-grid row or an event card. */
+export type ProfileRow =
+  | {key: string; kind: 'posts'; posts: ProfilePost[]; start: number}
+  | {key: string; kind: 'rooms'; parties: (ProfileParty | null)[]; start: number}
+  | {key: string; kind: 'event'; event: ProfileEvent};
+
+const chunked = <T,>(items: T[], size: number) => {
+  const rows: T[][] = [];
+  items.forEach((item, i) => {(rows[Math.floor(i / size)] ||= []).push(item);});
+  return rows;
 };
+
+/** Three posts per row; the last row is padded so tiles keep equal size. */
+export const postRows = (posts: ProfilePost[]): ProfileRow[] =>
+  chunked(posts, 3).map((row, r) => ({key: `posts-${row[0].id}`, kind: 'posts', posts: row, start: r * 3}));
+
+/** Two room cards per row, with a trailing `null` for the "host a room" tile, as in the design. */
+export const roomRows = (parties: ProfileParty[]): ProfileRow[] =>
+  chunked<ProfileParty | null>([...parties, null], 2).map((row, r) => ({key: `rooms-${row[0]?.id ?? 'host'}`, kind: 'rooms', parties: row, start: r * 2}));
+
+export const eventRows = (events: ProfileEvent[]): ProfileRow[] => events.map(event => ({key: `event-${event.id}`, kind: 'event', event}));
 
 const statusLabel: Record<string, string> = {ACTIVE: 'Live now', SCHEDULED: 'Scheduled', ENDED: 'Ended', CANCELLED: 'Cancelled'};
 
@@ -77,24 +88,32 @@ const RoomCard = ({party, index}: {party: ProfileParty; index: number}) => {
   </View>;
 };
 
-/** Two-column room cards with a trailing "host a room" tile, as in the design. */
-export const RoomGrid = ({parties, onHost}: {parties: ProfileParty[]; onHost: () => void}) => {
-  const cells: React.ReactNode[] = parties.map((party, i) => <RoomCard key={party.id} party={party} index={i} />);
-  cells.push(<Pressable key="host" accessibilityRole="button" accessibilityLabel="Host a room" onPress={onHost}
-    className="h-[168px] flex-1 items-center justify-center gap-2.5 rounded-[22px] border-[1.5px] border-dashed border-purple-line active:opacity-70">
-    <View className="h-12 w-12 items-center justify-center rounded-full bg-purple-tint"><IconPlus size={22} color={Colors.purpleSoft} /></View>
-    <Text className="text-[14px] font-extrabold text-purple-soft">Host a room</Text>
-  </Pressable>);
-  const rows: React.ReactNode[][] = [];
-  cells.forEach((cell, i) => {(rows[Math.floor(i / 2)] ||= []).push(cell);});
-  return <View className="gap-2.5">
-    {rows.map((row, r) => <View key={r} className="flex-row gap-2.5">{row}{row.length < 2 && <View className="flex-1" />}</View>)}
-  </View>;
-};
+const HostTile = ({onHost}: {onHost: () => void}) => <Pressable accessibilityRole="button" accessibilityLabel="Host a room" onPress={onHost}
+  className="h-[168px] flex-1 items-center justify-center gap-2.5 rounded-[22px] border-[1.5px] border-dashed border-purple-line active:opacity-70">
+  <View className="h-12 w-12 items-center justify-center rounded-full bg-purple-tint"><IconPlus size={22} color={Colors.purpleSoft} /></View>
+  <Text className="text-[14px] font-extrabold text-purple-soft">Host a room</Text>
+</Pressable>;
 
-export const EventCard = ({event, onPress}: {event: ProfileEvent; onPress?: () => void}) =>
-  <Pressable disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={onPress ? `Open event ${event.title}` : undefined} className="overflow-hidden rounded-[22px] border border-border bg-card">
-    {!!event.cover_url && /^https?:\/\//i.test(event.cover_url) && <Image source={{uri: event.cover_url}} className="h-28 w-full bg-background" resizeMode="cover" />}
+/** Renders one row of the profile content list. `first` drops the gap above the first row. */
+export const ProfileRowView = memo(function ProfileRowView({row, first, onHost, onOpenEvent}: {row: ProfileRow; first: boolean; onHost: () => void; onOpenEvent: (event: ProfileEvent) => void}) {
+  if (row.kind === 'posts') {
+    return <View className={`flex-row gap-2 px-5 ${first ? '' : 'mt-2'}`}>
+      {row.posts.map((post, c) => <PostTile key={post.id} post={post} index={row.start + c} />)}
+      {Array.from({length: 3 - row.posts.length}, (_, i) => <View key={`pad${i}`} className="flex-1" />)}
+    </View>;
+  }
+  if (row.kind === 'rooms') {
+    return <View className={`flex-row gap-2.5 px-5 ${first ? '' : 'mt-2.5'}`}>
+      {row.parties.map((party, c) => party ? <RoomCard key={party.id} party={party} index={row.start + c} /> : <HostTile key="host" onHost={onHost} />)}
+      {row.parties.length < 2 && <View className="flex-1" />}
+    </View>;
+  }
+  return <View className={`px-5 ${first ? '' : 'mt-3'}`}><EventCard event={row.event} onPress={onOpenEvent} /></View>;
+});
+
+const EventCard = ({event, onPress}: {event: ProfileEvent; onPress?: (event: ProfileEvent) => void}) =>
+  <Pressable disabled={!onPress} onPress={onPress && (() => onPress(event))} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={onPress ? `Open event ${event.title}` : undefined} className="overflow-hidden rounded-[22px] border border-border bg-card">
+    {!!event.cover_url && /^https?:\/\//i.test(event.cover_url) && <RemoteImage uri={event.cover_url} className="h-28 w-full bg-background" resizeMode="cover" />}
     <View className="p-4">
       <Text numberOfLines={2} className="text-[15px] font-extrabold text-foreground">{event.title}</Text>
       <View className="mt-2 flex-row flex-wrap items-center gap-x-4 gap-y-1">
@@ -148,7 +167,7 @@ export const GiftPanel = ({summary}: {summary: GiftSummary}) => {
           const [bg, fg] = SUPPORTER_COLORS[i % SUPPORTER_COLORS.length];
           return <View key={supporter.id} accessibilityLabel={`${supporter.name}, ${supporter.total} gifts`} style={{backgroundColor: bg}}
             className={`h-[30px] w-[30px] items-center justify-center overflow-hidden rounded-full border-2 border-background ${i ? '-ml-[18px]' : ''}`}>
-            {supporter.avatarUrl ? <Image source={{uri: supporter.avatarUrl}} className="h-full w-full" />
+            {supporter.avatarUrl ? <RemoteImage uri={supporter.avatarUrl} className="h-full w-full" />
               : <Text style={{color: fg}} className="text-[11px] font-extrabold">{supporter.name.slice(0, 2).toUpperCase()}</Text>}
           </View>;
         })}

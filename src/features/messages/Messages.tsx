@@ -1,5 +1,6 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, FlatList, Pressable, RefreshControl, Text, TextInput, View} from 'react-native';
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, RefreshControl, Text, TextInput, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useIsFocused} from '@react-navigation/native';
 import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
@@ -26,7 +27,20 @@ const ALL: InboxQuery = {view: 'all'};
 
 type LoadMode = 'initial' | 'refresh' | 'silent' | 'more';
 
+type RowHandlers = {openParty: (party: PartyChat) => void; openRoom: (partyId: string) => void; openConversation: (conversation: Conversation) => void; menu: (item: InboxItem) => void};
+
+/** Memoized inbox row: re-renders only when its item, preview or reminder flag changes. */
+const InboxListRow = memo(({item, latest, reminder, handlers}: {item: InboxItem; latest: ApiMessage | null; reminder: boolean; handlers: RowHandlers}) => {
+  if (item.type === 'PARTY') return <PartyRow party={item} reminder={reminder} onPress={() => handlers.openParty(item)} onMenu={() => handlers.menu(item)} />;
+  if (item.type === 'PARTY_REQUEST') return <RequestRow request={item} onPress={() => handlers.openRoom(item.partyId)} />;
+  return <ConversationRow conversation={item} latest={latest} reminder={reminder} onPress={() => handlers.openConversation(item)} onMenu={() => handlers.menu(item)} />;
+});
+
 const itemKey = (item: InboxItem) => `${item.type ?? 'CONVERSATION'}:${item.id}`;
+/** Conversation, party and seat-request rows differ in layout, so each gets its own recycling pool. */
+const itemType = (item: InboxItem) => item.type ?? 'CONVERSATION';
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = {paddingHorizontal: 20, paddingBottom: 115};
 const itemTitle = (item: InboxItem) => item.type === 'PARTY_REQUEST' ? item.partyTitle : item.title;
 const itemSearchText = (item: InboxItem, preview?: string | null) =>
   `${itemTitle(item)} ${item.type === 'PARTY_REQUEST' ? item.requesterName : ''} ${preview ?? ''}`.toLowerCase();
@@ -329,6 +343,15 @@ const Messages = ({onOpenParty, initialView, initialConversationId}: MessagesPro
   ), [items, previews, text]);
 
   const [emptyTitle, emptyHint] = EMPTY[query.view];
+  const handlerRef = useRef<RowHandlers>(null as unknown as RowHandlers);
+  handlerRef.current = {openParty, openRoom, openConversation, menu: setTarget};
+  const rowHandlers = useMemo<RowHandlers>(() => ({
+    openParty: party => handlerRef.current.openParty(party), openRoom: id => handlerRef.current.openRoom(id),
+    openConversation: conversation => handlerRef.current.openConversation(conversation), menu: item => handlerRef.current.menu(item),
+  }), []);
+  const renderRow = ({item}: {item: InboxItem}) =>
+    <InboxListRow item={item} latest={isConversation(item) ? latestFor(item) : null} reminder={!!reminders[item.id]} handlers={rowHandlers} />;
+
   const emptyState = () => {
     if (loading) return <View className="items-center pt-20"><ActivityIndicator color={Colors.gold} /></View>;
     if (error && !items.length) {
@@ -388,17 +411,14 @@ const Messages = ({onOpenParty, initialView, initialConversationId}: MessagesPro
         <Text className="mt-5 text-xs font-semibold uppercase tracking-[1.5px] text-muted">{sectionLabel}</Text>
       </View>
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={itemKey}
-        renderItem={({item}) => {
-          if (item.type === 'PARTY') return <PartyRow party={item} reminder={!!reminders[item.id]} onPress={() => openParty(item)} onMenu={() => setTarget(item)} />;
-          if (item.type === 'PARTY_REQUEST') return <RequestRow request={item} onPress={() => openRoom(item.partyId)} />;
-          return <ConversationRow conversation={item} latest={latestFor(item)} reminder={!!reminders[item.id]} onPress={() => openConversation(item)} onMenu={() => setTarget(item)} />;
-        }}
+        getItemType={itemType}
+        renderItem={renderRow}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="flex-grow px-5 pb-[115px]"
+        contentContainerStyle={LIST_CONTENT}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} />}
         onEndReached={() => { if (hasMore && !loading && !text) load('more'); }}
         onEndReachedThreshold={0.4}

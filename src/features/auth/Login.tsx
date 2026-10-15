@@ -1,13 +1,12 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  Animated,
-  Easing,
   Image,
   Pressable,
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {LinearGradient, Rect, Stop} from 'react-native-svg';
+import Animated, {Easing, useAnimatedProps, useSharedValue, withRepeat, withTiming} from 'react-native-reanimated';
 import {cssInterop} from 'nativewind';
 import {Images} from '../../Constants/Images';
 import {statusCodes} from '@react-native-google-signin/google-signin';
@@ -32,27 +31,17 @@ const AnimatedRect = Animated.createAnimatedComponent(Rect);
 cssInterop(Svg, {className: 'style'});
 cssInterop(SafeAreaView, {className: 'style'});
 
-const Login = (_props: LoginProps) => {
+const Login = ({navigation}: LoginProps) => {
   const dispatch = useAppDispatch();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const borderProgress = useRef(new Animated.Value(0)).current;
+  const borderProgress = useSharedValue(0);
   const [buttonSize, setButtonSize] = useState({width: 0, height: 0});
 
+  // Runs on the UI thread so the border sweep never competes with JS work.
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.timing(borderProgress, {
-        toValue: 1,
-        duration: 4600,
-        easing: Easing.linear,
-        useNativeDriver: false,
-        isInteraction: false,
-      }),
-    );
-
-    animation.start();
-    return () => animation.stop();
+    borderProgress.value = withRepeat(withTiming(1, {duration: 4600, easing: Easing.linear}), -1, false);
   }, [borderProgress]);
 
   const radius = Math.min(26, Math.max((buttonSize.height - 4) / 2, 1));
@@ -60,10 +49,7 @@ const Login = (_props: LoginProps) => {
   const pathHeight = Math.max(buttonSize.height - 4, 1);
   const perimeter =
     2 * (pathWidth + pathHeight - 2 * radius) + 2 * Math.PI * radius;
-  const borderOffset = borderProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -perimeter],
-  });
+  const borderProps = useAnimatedProps(() => ({strokeDashoffset: -perimeter * borderProgress.value}));
 
  const handleGoogleLogin = async (): Promise<void> => {
   if (isLoading) return;
@@ -81,18 +67,18 @@ const Login = (_props: LoginProps) => {
 
     // New user → onboarding
     if (session.isNewUser) {
-      console.log('[Auth] New user → onboarding');
+      if (__DEV__) console.log('[Auth] New user → onboarding');
 
       // Example:
       // navigation.navigate('Onboarding');
     } else {
-      console.log('[Auth] Existing user → home');
+      if (__DEV__) console.log('[Auth] Existing user → home');
 
       // Example:
       // navigation.navigate('Home');
     }
   } catch (error) {
-    console.error('[Auth] sign-in failed:', error);
+    if (__DEV__) console.error('[Auth] sign-in failed:', error);
 
     const errorCode = (error as GoogleSignInError).code;
 
@@ -101,7 +87,7 @@ const Login = (_props: LoginProps) => {
     }
 
     if (errorCode === statusCodes.IN_PROGRESS) {
-      console.log('Signing in');
+      if (__DEV__) console.log('Signing in');
 
       setErrorMessage(
         'Google sign-in is already in progress.',
@@ -111,7 +97,7 @@ const Login = (_props: LoginProps) => {
     }
 
     if (errorCode === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-      console.log('Play services are not available');
+      if (__DEV__) console.log('Play services are not available');
 
       setErrorMessage(
         'Google Play Services are not available on this device.',
@@ -188,7 +174,7 @@ const Login = (_props: LoginProps) => {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeDasharray={[perimeter * 0.24, perimeter * 0.76]}
-                strokeDashoffset={borderOffset}
+                animatedProps={borderProps}
               />
             </Svg>
             <Typography size={18} color={Colors.textDark} fontWeight="600">{isLoading ? 'Signing in…' : 'Continue with'}</Typography>
@@ -198,6 +184,14 @@ const Login = (_props: LoginProps) => {
               resizeMode="contain"
             />
           </Pressable>
+          {__DEV__ ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => navigation.navigate('Onboarding', {preview: true})}
+              className="mt-4 items-center py-2">
+              <Typography size={14} color={Colors.textNavy}>Preview onboarding</Typography>
+            </Pressable>
+          ) : null}
           {!!errorMessage && <Typography size={14} color={Colors.coral} textAlign="center" className="mt-[14px]">{errorMessage}</Typography>}
           <LegalLinks className="mt-[18px]" />
 

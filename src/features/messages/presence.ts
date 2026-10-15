@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {View} from 'react-native';
 import {apiRequest} from '../../core/api/apiClient';
+import {setActiveInterval} from '../../core/appActiveInterval';
 
 export type UserPresence = {online: boolean; lastSeenAt: string | null};
 type PresenceResponse = {presence: Record<string, UserPresence>};
@@ -83,8 +84,8 @@ export function usePresence(userIds: string[]): Record<string, UserPresence> {
     const bump = () => setVersion(v => v + 1);
     listeners.add(bump);
     requestPresence(key.split(','));
-    const interval = setInterval(() => requestPresence(key.split(',')), PRESENCE_TTL_MS);
-    return () => { listeners.delete(bump); clearInterval(interval); };
+    const stop = setActiveInterval(() => requestPresence(key.split(',')), PRESENCE_TTL_MS);
+    return () => { listeners.delete(bump); stop(); };
   }, [key]);
 
   return useMemo(() => {

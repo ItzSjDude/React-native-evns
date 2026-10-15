@@ -36,7 +36,7 @@ import BottomSheet, {SheetSection, SheetRow} from '../../components/BottomSheet'
 import PartyRoomPanel, { type ReportTarget, type RoomAction, type RoomActionTarget, type RoomPanel } from './PartyRoomPanel';
 import { usePartyRoomState } from './usePartyRoomState';
 import { PartyColors, roomTitle } from './partyPresentation';
-import { deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty, type PartyRoomSettings } from './partyService';
+import { deletePartyChat, respondPartyInvitation, transferPartyHost, updatePartySettings, approvePartySeat, blockPartyParticipant, cancelPartySeatRequest, denyPartySeat, endParty, inviteToPartySeat, joinParty, leaveParty, movePartySpeakerToAudience, patchPartySeat, releasePartySeat, removePartyParticipant, reportPartyParticipant, requestPartySeat, sendPartyChat, setPartyCoHost, type JoinedParty, type PartyParticipant, type PartyRoomSettings } from './partyService';
 
 const QUICK_GIFTS = [{name: 'Rose', emoji: '🌹'}, {name: 'Heart', emoji: '❤️'}, {name: 'Crown', emoji: '👑'}, {name: 'Rocket', emoji: '🚀'}, {name: 'Star', emoji: '⭐'}] as const;
 type RoomGift = {type: 'party:gift'; name: string; emoji: string; senderId: string; senderName: string};
@@ -236,6 +236,8 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
   const micDisabled = canSpeak ? !isMicrophoneEnabled && !micPending && !live : busy || !live || (!ownRequest && snapshot.party.requestsEnabled === false);
   const micActive = canSpeak ? isMicrophoneEnabled : !!ownRequest;
   const chatPaused = snapshot.party.chatEnabled === false;
+  const onSeatPress = useCallback((person: PartyParticipant | undefined, index: number) => setPanel(person ? { kind: 'person', personId: person.userId } : { kind: 'seat', seatIndex: index }), []);
+
   return <>
     {!expanded && <View
       style={{ bottom: insets.bottom + 76 }}
@@ -267,9 +269,9 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
           </View>
           {!!snapshot.party.topic && <Text numberOfLines={2} className="mx-8 text-center text-[13px] leading-5 text-muted">{snapshot.party.topic}</Text>}
           {isVideo && <VideoPartyStage seatCount={seatCount} speakers={speakers} liveById={liveById} localIdentity={identity} lockedSeats={snapshot.lockedSeats}
-            mirrorLocal={camera.mirrored} onSwitchCamera={camera.switchCamera} onSeatPress={(person, index) => setPanel(person ? { kind: 'person', personId: person.userId } : { kind: 'seat', seatIndex: index })} />}
+            mirrorLocal={camera.mirrored} onSwitchCamera={camera.switchCamera} onSeatPress={onSeatPress} />}
           {!isVideo && <AudioPartyStage seatCount={seatCount} speakers={speakers} liveById={liveById} localIdentity={identity} lockedSeats={snapshot.lockedSeats} scrollEnabled={keyboard}
-            onSeatPress={(person, index) => setPanel(person ? { kind: 'person', personId: person.userId } : { kind: 'seat', seatIndex: index })} />}
+            onSeatPress={onSeatPress} />}
           {invitation && <View className="mx-4 mb-2 flex-row items-center gap-3 rounded-2xl border border-primary/40 bg-primary-dark p-3">
             <View className="h-10 w-10 items-center justify-center rounded-full bg-gold"><IconMicrophone size={20} color={PartyColors.ink} /></View>
             <View className="min-w-0 flex-1"><Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-foreground">You’re invited to speak</Text><Text className="mt-0.5 text-xs text-muted">Seat {invitation.seatIndex + 1} · mic stays off until you unmute</Text></View>

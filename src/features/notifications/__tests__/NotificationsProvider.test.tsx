@@ -1,5 +1,6 @@
 import React from 'react';
-import {Image, Text} from 'react-native';
+import {Text} from 'react-native';
+import FastImage from 'react-native-fast-image';
 import ReactTestRenderer from 'react-test-renderer';
 import {Provider} from 'react-redux';
 import {configureStore} from '@reduxjs/toolkit';
@@ -180,7 +181,7 @@ test('rows show the actor photo, post thumbnail and per-type actions', async () 
   await press(renderer, 'Notifications');
   await flush();
   expect(texts(renderer)).toEqual(expect.arrayContaining(['Reply', 'Join', 'Follow back']));
-  const images = renderer.root.findAllByType(Image).map(node => node.props.source?.uri);
+  const images = renderer.root.findAllByType(FastImage).map(node => node.props.source?.uri);
   expect(images).toEqual(expect.arrayContaining(['https://cdn/asha.jpg', 'https://cdn/post.jpg']));
   await press(renderer, 'Follow back');
   expect(mockFollowToggle).toHaveBeenCalledTimes(1);

@@ -3,6 +3,7 @@ import {
   getActivePartyGame, getPartyMonetization, isUnavailable, listPartyGifts, listPartyPolls,
   type PartyGame, type PartyGift, type PartyPoll,
 } from './extrasService';
+import {setActiveInterval} from '../../../core/appActiveInterval';
 
 export const EXTRAS_POLL_MS = 4000;
 
@@ -80,8 +81,7 @@ export function useRoomExtras(partyId: string | undefined, active: boolean, watc
   useEffect(() => {
     if (!partyId || !active) return;
     refresh();
-    const timer = setInterval(refresh, EXTRAS_POLL_MS);
-    return () => clearInterval(timer);
+    return setActiveInterval(refresh, EXTRAS_POLL_MS);
   }, [active, partyId, refresh, watchGifts]);
 
   const setPoll = useCallback((poll: PartyPoll) => setPolls(current => ({

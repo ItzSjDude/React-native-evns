@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from 'react';
-import {Image, Pressable, Switch, Text, TextInput, View} from 'react-native';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
+import {FlatList, Image, Platform, Pressable, Switch, Text, TextInput, View} from 'react-native';
 import IconHandStop from '@tabler/icons-react-native/IconHandStop';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconShare from '@tabler/icons-react-native/IconShare';
@@ -29,6 +29,7 @@ import IconNotes from '@tabler/icons-react-native/IconNotes';
 import IconGift from '@tabler/icons-react-native/IconGift';
 import IconUser from '@tabler/icons-react-native/IconUser';
 import BottomSheet, {SheetButton, SheetRow, SheetSection, SheetTile, SheetTileGrid} from '../../components/BottomSheet';
+import RemoteImage from '../../components/RemoteImage';
 import {PartyColors, roomCover, roomTags, tagClasses} from './partyPresentation';
 import {PaidAccessSection} from '../paidRooms';
 import {GamesView, GiftsView, PollsView} from './extras/RoomExtrasViews';
@@ -57,7 +58,7 @@ const roleName = (p: PartyParticipant) => p.role === 'HOST' ? 'Host' : p.role ==
 const placeLabel = (p: PartyParticipant) => p.seatIndex === null ? 'Listening' : `On stage · Seat ${p.seatIndex + 1}`;
 
 export const Avatar = ({name, url, size = 40}: {name?: string | null; url?: string | null; size?: number}) => url
-  ? <Image source={{uri: url}} style={{width: size, height: size}} className="rounded-full bg-background" />
+  ? <RemoteImage uri={url} fadeDuration={0} style={{width: size, height: size}} className="rounded-full bg-background" />
   : <View style={{width: size, height: size}} className="items-center justify-center rounded-full bg-primary-dark">
     <Text style={{fontSize: size * 0.36}} className="font-bold text-primary">{(name || '?').trim().slice(0, 2).toUpperCase()}</Text>
   </View>;
@@ -84,9 +85,16 @@ const ProfileHeader = ({p, me}: {p: PartyParticipant; me: boolean}) =>
     </View>
   </View>;
 
-const PersonRow = ({p, identity, onPress, action}: {p: PartyParticipant; identity: string; onPress: () => void; action?: React.ReactNode}) =>
-  <View className="min-h-[60px] flex-row items-center border-b border-sheet pr-3">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Manage ${p.name || 'Guest'}`} onPress={onPress} className="min-w-0 flex-1 flex-row items-center gap-3 py-2 pl-4 active:opacity-70">
+type PeopleItem = {key: string; label: string} | {key: string; p: PartyParticipant; first: boolean; last: boolean; invitable: boolean};
+const peopleKey = (item: PeopleItem) => item.key;
+
+// Each row paints its slice of the section card, so the people list can virtualize without a clipping wrapper.
+const PersonRow = memo(function PersonRow({p, identity, first, last, invitable, inviteDisabled, onOpen, onInvite}: {
+  p: PartyParticipant; identity: string; first: boolean; last: boolean; invitable: boolean; inviteDisabled: boolean;
+  onOpen: (userId: string) => void; onInvite: (userId: string) => void;
+}) {
+  return <View className={`min-h-[60px] flex-row items-center border-b border-sheet bg-card pr-3 ${first ? 'rounded-t-2xl' : ''} ${last ? 'mb-3 rounded-b-2xl' : ''}`}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Manage ${p.name || 'Guest'}`} onPress={() => onOpen(p.userId)} className="min-w-0 flex-1 flex-row items-center gap-3 py-2 pl-4 active:opacity-70">
       <View>
         <Avatar name={p.name} url={p.avatarUrl} />
         {p.seatIndex !== null && p.muted && <View className="absolute -bottom-0.5 -right-0.5 h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-background bg-card">
@@ -98,8 +106,10 @@ const PersonRow = ({p, identity, onPress, action}: {p: PartyParticipant; identit
         <Text className="mt-0.5 text-xs text-muted">{placeLabel(p)}</Text>
       </View>
     </Pressable>
-    {action}
+    {invitable && <Pressable accessibilityRole="button" accessibilityLabel={`Invite ${p.name || 'Guest'} to stage`} disabled={inviteDisabled} onPress={() => onInvite(p.userId)}
+      className={`h-8 justify-center rounded-full bg-primary-dark px-3 active:opacity-70 ${inviteDisabled ? 'opacity-40' : ''}`}><Text className="text-xs font-bold text-primary">Invite</Text></Pressable>}
   </View>;
+});
 
 const RoundAction = ({label, icon: Icon, onPress, primary, disabled}: {label: string; icon: typeof IconCheck; onPress: () => void; primary?: boolean; disabled?: boolean}) =>
   <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled: !!disabled}} disabled={disabled} onPress={onPress} hitSlop={4}
@@ -138,6 +148,22 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
   const message = shown?.message;
   const confirm = shown?.confirm ? CONFIRM_COPY[shown.confirm] : null;
   const go = (next: RoomPanel) => () => onSelect(next);
+  const onSelectRef = useRef(onSelect); onSelectRef.current = onSelect;
+  const onActionRef = useRef(onAction); onActionRef.current = onAction;
+  const openPerson = useCallback((userId: string) => onSelectRef.current({kind: 'person', personId: userId}), []);
+  const invitePerson = useCallback((userId: string) => onActionRef.current('invite', userId), []);
+  const peopleMode = shown?.kind === 'people';
+  const inviteDisabled = busy || freeSeat === undefined;
+  const peopleItems: PeopleItem[] = peopleMode ? [
+    ...(onStage.length ? [{key: 'label-stage', label: `On stage · ${onStage.length}`}] : []),
+    ...onStage.map((p, i): PeopleItem => ({key: p.userId, p, first: i === 0, last: i === onStage.length - 1, invitable: false})),
+    ...(listening.length ? [{key: 'label-listening', label: `Listening · ${listening.length}`}] : []),
+    ...listening.map((p, i): PeopleItem => ({key: p.userId, p, first: i === 0, last: i === listening.length - 1, invitable: manager && p.userId !== identity})),
+  ] : [];
+  const renderPerson = useCallback(({item}: {item: PeopleItem}) => 'label' in item
+    ? <Text className="mb-1.5 ml-1 text-[11px] font-semibold uppercase tracking-[0.8px] text-muted">{item.label}</Text>
+    : <PersonRow p={item.p} identity={identity} first={item.first} last={item.last} invitable={item.invitable} inviteDisabled={inviteDisabled} onOpen={openPerson} onInvite={invitePerson} />,
+  [identity, inviteDisabled, openPerson, invitePerson]);
   // Polls/games/gifts load only while a sheet that shows them is open, and hide themselves if the backend says no.
   const extrasKind = shown?.kind === 'info' || shown?.kind === 'polls' || shown?.kind === 'games' || shown?.kind === 'gifts';
   const extras = useRoomExtras(partyId, !!panel && !!partyId && extrasKind, shown?.kind === 'gifts');
@@ -185,8 +211,8 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
   const decision = shown?.kind === 'exit' ? {icon: IconDoorExit, title: host ? 'End this party?' : 'Leave this party?', body: host ? 'The room closes for everyone. All mics disconnect and chat is cleared.' : 'Your mic disconnects. The party keeps going for everyone else.'}
     : shown?.kind === 'confirm' && confirm ? {icon: shown.confirm === 'transfer' ? IconCrown : shown.confirm === 'block' ? IconBan : IconUserMinus, title: confirm.title, body: confirm.body} : null;
 
-  return <BottomSheet visible={!!panel} onClose={onClose} dismissible={!busy} title={heading.title} subtitle={heading.subtitle} footer={footer}>
-    {!!error && <View className="mb-3 rounded-xl bg-coral/10 px-3 py-2"><Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text></View>}
+  return <BottomSheet bare={peopleMode} visible={!!panel} onClose={onClose} dismissible={!busy} title={heading.title} subtitle={heading.subtitle} footer={footer}>
+    {!!error && !peopleMode && <View className="mb-3 rounded-xl bg-coral/10 px-3 py-2"><Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text></View>}
 
     {decision && <View className="items-center px-2 pb-2 pt-1">
       <View className={`mb-3 h-14 w-14 items-center justify-center rounded-full ${shown?.confirm === 'transfer' ? 'bg-primary-dark' : 'bg-coral/15'}`}><decision.icon size={26} color={shown?.confirm === 'transfer' ? PartyColors.accent : PartyColors.coral} /></View>
@@ -246,13 +272,10 @@ export default function PartyRoomPanel({panel, onClose, onSelect, participants, 
       <Text className="mt-1 text-center text-[13px] leading-5 text-muted">{settings?.requestsEnabled === false ? 'Requests are paused. Turn them on from room tools.' : 'When listeners raise a hand, they show up here.'}</Text>
     </View>)}
 
-    {shown?.kind === 'people' && <>
-      {!!onStage.length && <SheetSection label={`On stage · ${onStage.length}`}>{onStage.map(p => <PersonRow key={p.userId} p={p} identity={identity} onPress={go({kind: 'person', personId: p.userId})} />)}</SheetSection>}
-      {!!listening.length && <SheetSection label={`Listening · ${listening.length}`}>{listening.map(p => <PersonRow key={p.userId} p={p} identity={identity} onPress={go({kind: 'person', personId: p.userId})}
-        action={manager && p.userId !== identity ? <Pressable accessibilityRole="button" accessibilityLabel={`Invite ${p.name || 'Guest'} to stage`} disabled={busy || freeSeat === undefined} onPress={() => onAction('invite', p.userId)}
-          className={`h-8 justify-center rounded-full bg-primary-dark px-3 active:opacity-70 ${freeSeat === undefined ? 'opacity-40' : ''}`}><Text className="text-xs font-bold text-primary">Invite</Text></Pressable> : undefined} />)}</SheetSection>}
-      {!listening.length && <Text className="pb-2 pt-1 text-center text-[13px] text-muted">No listeners yet — share the room to bring people in.</Text>}
-    </>}
+    {peopleMode && <FlatList data={peopleItems} keyExtractor={peopleKey} renderItem={renderPerson} extraData={inviteDisabled} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}
+      contentContainerClassName="px-5 pb-3" initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews={Platform.OS === 'android'}
+      ListHeaderComponent={error ? <View className="mb-3 rounded-xl bg-coral/10 px-3 py-2"><Text accessibilityRole="alert" className="text-[13px] text-coral">{error}</Text></View> : undefined}
+      ListFooterComponent={!listening.length ? <Text className="pb-2 pt-1 text-center text-[13px] text-muted">No listeners yet — share the room to bring people in.</Text> : undefined} />}
 
     {shown?.kind === 'seat' && seatIndex !== undefined && (manager && seatIndex > 0 ? <SheetTileGrid columns={2}>
       <SheetTile icon={seatLocked ? IconLockOpen : IconLock} label={seatLocked ? 'Unlock seat' : 'Lock seat'} active={seatLocked} disabled={busy} onPress={() => onAction('lock', seatIndex)} />

@@ -1,4 +1,5 @@
 /* eslint-env jest */
+require('@shopify/flash-list/jestSetup'); // FlashList v2 measures natively; this stubs layout so rows render under Jest.
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = new Map();
   return {
@@ -219,4 +220,25 @@ jest.mock('react-native-iap', () => {
 jest.mock('lottie-react-native', () => {
   const {View} = require('react-native');
   return {__esModule: true, default: View};
+});
+
+// react-native-fast-image v10 is a New-Arch native component + TurboModule; under Jest it's a View that keeps
+// every prop (source, style, objectFit, ...) so tests can find it with findAllByType(FastImage) and read its source.
+jest.mock('react-native-fast-image', () => {
+  const React = require('react');
+  const {View} = require('react-native');
+  // `h` rather than React.createElement: nativewind's babel plugin rewrites the latter into an out-of-scope helper that jest.mock factories reject.
+  const h = React['createElement'];
+  const FastImage = React.forwardRef((props, ref) => h(View, {...props, ref}));
+  FastImage.displayName = 'FastImage';
+  FastImage.priority = {low: 'low', normal: 'normal', high: 'high'};
+  FastImage.cacheControl = {immutable: 'immutable', web: 'web', cacheOnly: 'cacheOnly'};
+  FastImage.setDefaults = jest.fn();
+  FastImage.preload = jest.fn().mockResolvedValue([]);
+  FastImage.clearMemoryCache = jest.fn().mockResolvedValue({ok: true});
+  FastImage.clearDiskCache = jest.fn().mockResolvedValue({ok: true});
+  const FastImageBackground = React.forwardRef(({children, style, imageStyle, imageRef, ...props}, ref) =>
+    h(View, {style, ref}, h(FastImage, {...props, style: imageStyle, ref: imageRef}), children));
+  FastImageBackground.displayName = 'FastImageBackground';
+  return {__esModule: true, default: FastImage, FastImageBackground};
 });

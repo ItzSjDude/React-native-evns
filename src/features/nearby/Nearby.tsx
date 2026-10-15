@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, AppState, Image, Linking, Pressable, RefreshControl, ScrollView, Switch, Text, View, useWindowDimensions} from 'react-native';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
+import {ActivityIndicator, Alert, AppState, Linking, Pressable, RefreshControl, Switch, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useIsFocused, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import IconChevronDown from '@tabler/icons-react-native/IconChevronDown';
@@ -11,6 +11,7 @@ import IconMessageCircle from '@tabler/icons-react-native/IconMessageCircle';
 import IconNote from '@tabler/icons-react-native/IconNote';
 import IconPencil from '@tabler/icons-react-native/IconPencil';
 import BottomSheet from '../../components/BottomSheet';
+import RemoteImage from '../../components/RemoteImage';
 import {Colors} from '../../Constants/Colors';
 import {DirectConversation, startDirectConversation} from '../messages';
 import {EventsList} from '../events';
@@ -29,6 +30,7 @@ import type {DiscoveryPreset, DiscoveryPresetMode, NearbyPerson} from './types';
 import VibeNoteComposer from './VibeNoteComposer';
 import VibeNoteRevealSheet from './VibeNoteRevealSheet';
 import {NativeAdCard} from '../ads';
+import {FlashList} from '@shopify/flash-list';
 
 const RADII = [
   {label: '2 km', meters: 2_000},
@@ -44,20 +46,20 @@ type NearbyTab = 'PEOPLE' | 'EVENTS';
 
 const errorText = (error: unknown) => nearbyErrorMessage(error);
 
-function PersonRow({person, opening, onMessage, onOpenProfile}: {
+const PersonRow = memo(function PersonRow({person, opening, onMessage, onOpenProfile}: {
   person: NearbyPerson;
   opening: boolean;
-  onMessage: () => void;
-  onOpenProfile: () => void;
+  onMessage: (person: NearbyPerson) => void;
+  onOpenProfile: (person: NearbyPerson) => void;
 }) {
   const GenderIcon = person.gender === 'male' ? IconGenderMale : person.gender === 'female' ? IconGenderFemale : person.gender === 'non_binary' ? IconGenderTransgender : null;
   const genderColor = person.gender === 'male' ? '#4DA3FF' : person.gender === 'female' ? '#FF5C9A' : Colors.primary;
   return (
     <View className="min-h-[72px] flex-row items-center border-b border-border py-3">
-      <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={onOpenProfile}
+      <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}, ${distanceLabel(person)}`} onPress={() => onOpenProfile(person)}
         className="min-w-0 flex-1 flex-row items-center active:opacity-70">
         {person.avatarUrl
-          ? <Image accessibilityLabel={`${person.name}'s profile photo`} source={{uri: person.avatarUrl}} className="h-12 w-12 rounded-full bg-border" />
+          ? <RemoteImage accessibilityLabel={`${person.name}'s profile photo`} uri={person.avatarUrl} fadeDuration={0} className="h-12 w-12 rounded-full bg-border" />
           : <View className="h-12 w-12 items-center justify-center rounded-full bg-primary-dark"><Text className="text-base font-bold text-primary">{person.name.slice(0, 1).toUpperCase()}</Text></View>}
         <View className="ml-3 min-w-0 flex-1">
           <View className="flex-row items-center gap-1.5">
@@ -73,13 +75,20 @@ function PersonRow({person, opening, onMessage, onOpenProfile}: {
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Message ${person.name}`} accessibilityState={{disabled: opening, busy: opening}}
-        disabled={opening} onPress={onMessage} hitSlop={{top: 6, bottom: 6, left: 4, right: 4}}
+        disabled={opening} onPress={() => onMessage(person)} hitSlop={{top: 6, bottom: 6, left: 4, right: 4}}
         className="ml-2 h-9 min-w-9 items-center justify-center rounded-full bg-primary-dark active:opacity-70">
         {opening ? <ActivityIndicator size="small" color={Colors.primary} /> : <View className="flex-row items-center gap-1.5 px-2"><IconMessageCircle size={17} color={Colors.primary} /><Text className="text-[12px] font-semibold text-primary">Say hi</Text></View>}
       </Pressable>
     </View>
   );
-}
+});
+
+const noPeople: NearbyPerson[] = [];
+const personKey = (person: NearbyPerson) => person.id;
+/** Every 4th row carries a native ad under the person, so it gets its own recycling pool. */
+const personType = (_person: NearbyPerson, index: number) => index % 4 === 3 ? 'personWithAd' : 'person';
+// FlashList only honours padding on the content container.
+const LIST_CONTENT = {paddingHorizontal: 20, paddingBottom: 112};
 
 function PeopleLoading() {
   return <View accessibilityRole="progressbar" accessibilityLabel="Loading nearby people" accessibilityState={{busy: true}} className="gap-2">
@@ -346,15 +355,23 @@ export default function Nearby() {
     loadPeople(meters);
   };
 
-  const openConversation = async (person: ChatTarget) => {
-    if (openingId) return;
+  const openingRef = useRef(openingId);
+  openingRef.current = openingId;
+  const openConversation = useCallback(async (person: ChatTarget) => {
+    if (openingRef.current) return;
+    openingRef.current = person.id;
     setOpeningId(person.id); setError(null);
     try {
       const conversation = await startDirectConversation(person.id);
       setChat({id: conversation.id, person});
     } catch (cause) {setError(errorText(cause));}
-    finally {setOpeningId(null);}
-  };
+    finally {openingRef.current = null; setOpeningId(null);}
+  }, []);
+  const openProfile = useCallback((person: ChatTarget) => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}}), []);
+  const renderPerson = useCallback(({item, index}: {item: NearbyPerson; index: number}) => <>
+    <PersonRow person={item} opening={openingId === item.id} onMessage={openConversation} onOpenProfile={openProfile} />
+    {index % 4 === 3 && <NativeAdCard />}
+  </>, [openConversation, openProfile, openingId]);
 
   const retry = async () => {
     setError(null);
@@ -465,11 +482,13 @@ export default function Nearby() {
         </View>
         <PassportResults city={passportCity} onCityChange={setPassportCity} filters={filters}
         onFiltersChange={next => {setFilters(next); filtersRef.current = isPlus ? next : undefined;}}
-        openingId={openingId} onOpenProfile={person => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})}
+        openingId={openingId} onOpenProfile={openProfile}
         onMessage={openConversation} />
-      </View> : <ScrollView className="flex-1" showsVerticalScrollIndicator={false}
+      </View> : <FlashList showsVerticalScrollIndicator={false}
+        data={visible === true && !loading ? people : noPeople} keyExtractor={personKey} getItemType={personType} renderItem={renderPerson}
         refreshControl={visible ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} colors={[Colors.gold]} progressBackgroundColor={Colors.card} /> : undefined}
-        contentContainerClassName="px-5 pb-[112px]">
+        contentContainerStyle={LIST_CONTENT}
+        ListHeaderComponent={<>
         {visible === null && loading ? <View className="items-center pt-16"><ActivityIndicator color={Colors.primary} /></View> : visible === null && error ? (
           <View className="items-center px-5 pt-20">
             <Text accessibilityRole="alert" className="text-center text-[16px] font-semibold text-foreground">Explore couldn’t load</Text>
@@ -511,23 +530,22 @@ export default function Nearby() {
                 <Text className="text-[13px] font-semibold text-primary">Open location settings</Text>
               </Pressable>}
             </View> : null}
-            {loading ? <View className="mt-4"><PeopleLoading /></View> : people.length > 0
-              ? people.map((person, index) => <React.Fragment key={person.id}><PersonRow person={person} opening={openingId === person.id}
-                onMessage={() => openConversation(person)}
-                onOpenProfile={() => setViewing({id: person.id, initial: {name: person.name, avatarUrl: person.avatarUrl}})} />{index % 4 === 3 && <NativeAdCard />}</React.Fragment>)
-              : !error && <View className="mt-5 rounded-2xl bg-card px-4 py-4">
-                <Text className="text-[16px] font-semibold text-foreground">No one within {RADII.find(option => option.meters === radius)?.label ?? 'this distance'} yet</Text>
-                <Text className="mt-1 text-[13px] leading-5 text-muted">{nextRadius < RADII.length - 1 ? 'A wider search might find more people.' : 'Check back later for new people nearby.'}</Text>
-                {nextRadius < RADII.length - 1 && <Pressable accessibilityRole="button" accessibilityLabel="Widen search range" onPress={widenRadius} className="mt-2 min-h-10 justify-center self-start pr-4 active:opacity-75">
-                  <Text className="text-[13px] font-semibold text-primary">Try {RADII[nextRadius + 1].label} →</Text>
-                </Pressable>}
-              </View>}
+            {loading ? <View className="mt-4"><PeopleLoading /></View> : null}
           </>
         )}
-        {error && visible === false ? <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} hitSlop={4} className="mt-4 min-h-10 justify-center rounded-xl bg-card px-4">
+        </>}
+        ListEmptyComponent={visible === true && !loading && !error ? (
+          <View className="mt-5 rounded-2xl bg-card px-4 py-4">
+            <Text className="text-[16px] font-semibold text-foreground">No one within {RADII.find(option => option.meters === radius)?.label ?? 'this distance'} yet</Text>
+            <Text className="mt-1 text-[13px] leading-5 text-muted">{nextRadius < RADII.length - 1 ? 'A wider search might find more people.' : 'Check back later for new people nearby.'}</Text>
+            {nextRadius < RADII.length - 1 && <Pressable accessibilityRole="button" accessibilityLabel="Widen search range" onPress={widenRadius} className="mt-2 min-h-10 justify-center self-start pr-4 active:opacity-75">
+              <Text className="text-[13px] font-semibold text-primary">Try {RADII[nextRadius + 1].label} →</Text>
+            </Pressable>}
+          </View>
+        ) : undefined}
+        ListFooterComponent={error && visible === false ? <Pressable accessibilityRole="button" accessibilityLabel="Retry Explore" onPress={retry} hitSlop={4} className="mt-4 min-h-10 justify-center rounded-xl bg-card px-4">
           <Text accessibilityRole="alert" className="text-[13px] leading-5 text-coral">{error}  <Text className="font-semibold text-primary">Try again</Text></Text>
-        </Pressable> : null}
-      </ScrollView>}
+        </Pressable> : undefined} />}
 
       <BottomSheet visible={distanceOpen} onClose={() => setDistanceOpen(false)} title="Search distance" subtitle="Show people near your current location.">
         <View className="flex-row gap-2 pb-2 pt-2">

@@ -22,10 +22,6 @@ export const INTENT_OPTIONS: Option[] = [
   {value: 'explore', label: 'Just exploring'},
 ];
 
-// ponytail: gender/country/profession/intent are collected but not sent until gathr-api accepts them
-// (docs/ONBOARDING_PROFILE_FIELDS_CONTRACT.md). Flip to true once backend ships.
-export const SEND_PROFILE_EXTRAS = false;
-
 /** [name, ISO 3166-1 alpha-2]. The name is what gets stored; the code only drives the flag. */
 export const COUNTRIES: [string, string][] = [
   ['Afghanistan', 'AF'], ['Albania', 'AL'], ['Algeria', 'DZ'], ['Argentina', 'AR'], ['Armenia', 'AM'],
