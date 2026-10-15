@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [staging, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # ios/Pods is git-ignored (so absent in CI) but present on dev machines and contains a minified vendor .js
+      # that eslint cannot parse; ignore it so the same command passes locally. Warnings are pre-existing, errors fail.
+      - run: npx eslint . --ignore-pattern 'ios/Pods/**'
+      - run: npm test -- --ci
+
+  android:
+    # Builds the release variant (R8 off, debug-key fallback is fine on PRs; see release.yml for the signed build).
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # AGP 9.2 / Gradle 9.4 require JDK 17+; 21 is the current LTS.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      # Accepts SDK licenses so AGP can auto-install compileSdk 37 / build-tools 37 / NDK 27.
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/staging' }}
+      - name: assembleRelease (arm64 only to keep PR builds fast)
+        working-directory: android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --stacktrace
+      # Same build with R8 + resource shrinking, so keep-rule regressions show up as build/missing-class failures.
+      # Build-only signal: runtime behaviour of the minified app still needs a manual device smoke test.
+      - name: assembleRelease with R8 (-PhivaMinify=true)
+        working-directory: android
+        run: ./gradlew :app:assembleRelease -PhivaMinify=true -PreactNativeArchitectures=arm64-v8a --stacktrace
+      - name: Upload R8 mapping / missing rules
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping
+          path: android/app/build/outputs/mapping/release/
+          if-no-files-found: ignore
+          retention-days: 7
