@@ -69,3 +69,49 @@ export const tagClasses = (tag: string) => {
     default: return 'bg-card dark:bg-[#262331] text-muted dark:text-[#C2BECE]';
   }
 };
+
+/** How many avatars to draw in a stack and how many people the "+N" chip stands for. */
+export const participantStack = (count: number, maxAvatars = 3) => {
+  const total = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
+  const shown = Math.min(total, maxAvatars);
+  return {shown, overflow: total - shown};
+};
+
+export const listenerLabel = (count: number) => {
+  const total = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
+  return total === 1 ? '1 listening' : total + ' listening';
+};
+
+export type PartyStateTone = 'live' | 'scheduled' | 'ended';
+/** Single source of truth for the state chip on cards and the preview. */
+export const partyState = (room: Pick<PartyRoom, 'status' | 'scheduledStartAt'>): {label: string; tone: PartyStateTone} => {
+  switch (room.status) {
+    case 'ACTIVE': return {label: 'Live', tone: 'live'};
+    case 'SCHEDULED': return {label: room.scheduledStartAt ? 'Starts ' + startsAt(room.scheduledStartAt) : 'Scheduled', tone: 'scheduled'};
+    case 'CANCELLED': return {label: 'Cancelled', tone: 'ended'};
+    default: return {label: 'Ended', tone: 'ended'};
+  }
+};
+
+const LANGUAGE_NAMES: Record<string, string> = {en: 'English', hi: 'Hindi', hinglish: 'Hinglish'};
+export const languageLabel = (language: string | null | undefined) => {
+  const key = (language || '').trim().toLowerCase();
+  return key ? LANGUAGE_NAMES[key] || key.charAt(0).toUpperCase() + key.slice(1) : '';
+};
+
+export const initialsOf = (name: string | null | undefined, length = 2) => (name || '?').trim().slice(0, length).toUpperCase();
+
+export type PartyListItem =
+  | {type: 'header'; key: string; title: string; count: number}
+  | {type: 'room'; key: string; room: PartyRoom};
+
+/** Groups discovery results into "Live now" and "Starting soon" sections, keeping server order inside each group. */
+export const buildPartyListItems = (rooms: PartyRoom[]): PartyListItem[] => {
+  const live = rooms.filter(room => room.status !== 'SCHEDULED');
+  const soon = rooms.filter(room => room.status === 'SCHEDULED');
+  const toItems = (list: PartyRoom[]): PartyListItem[] => list.map(room => ({type: 'room', key: room.id, room}));
+  const out: PartyListItem[] = [];
+  if (live.length) out.push({type: 'header', key: 'h-live', title: 'Live now', count: live.length}, ...toItems(live));
+  if (soon.length) out.push({type: 'header', key: 'h-soon', title: 'Starting soon', count: soon.length}, ...toItems(soon));
+  return out;
+};
