@@ -3,6 +3,8 @@ import {createNavigationContainerRef} from '@react-navigation/native';
 export type RootNavigationParamList = {
   Login: undefined;
   Onboarding: undefined;
+  Tabs: undefined;
+  MyTickets: {eventId?: string; ticketId?: string} | undefined;
   Home: undefined;
   Nearby: {vibeNoteId?: string} | undefined;
   Messages: undefined;

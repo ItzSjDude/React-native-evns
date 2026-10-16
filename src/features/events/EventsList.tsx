@@ -3,12 +3,10 @@ import {ActivityIndicator, AppState, Pressable, RefreshControl, Text, View} from
 import {FlashList} from '@shopify/flash-list';
 import IconCalendarEvent from '@tabler/icons-react-native/IconCalendarEvent';
 import IconMapPin from '@tabler/icons-react-native/IconMapPin';
-import IconTicket from '@tabler/icons-react-native/IconTicket';
 import IconUsers from '@tabler/icons-react-native/IconUsers';
 import IconBuildingStore from '@tabler/icons-react-native/IconBuildingStore';
 import {Colors} from '../../Constants/Colors';
 import EventDetailSheet from './EventDetailSheet';
-import MyTicketsSheet from './MyTicketsSheet';
 import {formatEventPrice, formatEventWhen, goingLabel, messageOf} from './eventsPresentation';
 import {getEvents} from './eventsService';
 import type {ApiEvent} from './types';
@@ -45,9 +43,9 @@ const EventRow = memo(({event, onPress}: {event: ApiEvent; onPress: (event: ApiE
 });
 
 /** The events list, embedded under Home's tab row. Loads its first page when mounted. */
-type EventsListProps = {onOpenEventChat?: (conversationId?: string) => void};
+type EventsListProps = {onOpenEventChat?: (conversationId?: string) => void; onOpenTickets?: (eventId?: string, ticketId?: string) => void};
 
-const EventsList = ({onOpenEventChat}: EventsListProps) => {
+const EventsList = ({onOpenEventChat, onOpenTickets}: EventsListProps) => {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -56,9 +54,6 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApiEvent | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [ticketsOpen, setTicketsOpen] = useState(false);
-  const [ticketEventId, setTicketEventId] = useState<string | null>(null);
-  const [ticketId, setTicketId] = useState<string | null>(null);
   const [organizerOnboardingOpen, setOrganizerOnboardingOpen] = useState(false);
   const [hostEventMode, setHostEventMode] = useState(false);
   const [organizerWorkspaces, setOrganizerWorkspaces] = useState<Workspace[]>([]);
@@ -146,7 +141,6 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
         title={!workspacesLoaded ? 'Checking organiser access…' : approvedWorkspaces.length ? 'Host an event' : reviewPending ? 'Verification pending' : 'Become an organiser'}
         subtitle={!workspacesLoaded ? 'Loading your organisations' : approvedWorkspaces.length ? 'Create an event for your organisation' : reviewPending ? 'Your document is under review. Tap to refresh.' : 'Set up your organisation and create an event'} />
     </View>
-    <GradientBanner icon={IconTicket} title="My tickets" subtitle="Your event passes and QR codes" accessibilityLabel="Open my tickets" onPress={() => {setTicketEventId(null); setTicketId(null); setTicketsOpen(true);}} />
   </View>;
 
   const openEvent = useCallback((event: ApiEvent) => { setSelected(event); setSheetOpen(true); }, []);
@@ -171,9 +165,7 @@ const EventsList = ({onOpenEventChat}: EventsListProps) => {
     />
     <EventDetailSheet eventId={selected?.id ?? null} initial={selected} visible={sheetOpen} onClose={() => setSheetOpen(false)}
       onOpenEventChat={onOpenEventChat}
-      onOpenTickets={(eventId, nextTicketId) => {setTicketEventId(eventId); setTicketId(nextTicketId ?? null); setTicketsOpen(true);}} />
-    <MyTicketsSheet visible={ticketsOpen} eventId={ticketEventId} ticketId={ticketId} onExitTicket={() => setTicketId(null)}
-      onClose={() => {setTicketsOpen(false); setTicketEventId(null); setTicketId(null);}} />
+      onOpenTickets={onOpenTickets} />
     {organizerOnboardingOpen && <OrganizerOnboardingScreen mode={hostEventMode ? 'hostEvent' : 'onboarding'} workspaces={approvedWorkspaces} onEventCreated={() => {load(0, 'refresh');}} onClose={() => {setOrganizerOnboardingOpen(false); setHostEventMode(false); refreshWorkspaces();}} />}
   </>;
 };

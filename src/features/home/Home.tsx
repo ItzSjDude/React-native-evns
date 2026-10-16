@@ -25,6 +25,7 @@ import {getPartyRoom, PartyRoomPreview, usePartySession, type PartyRoom} from '.
 import IconSearch from '@tabler/icons-react-native/IconSearch';
 import IconArrowDown from '@tabler/icons-react-native/IconArrowDown';
 import IconPlus from '@tabler/icons-react-native/IconPlus';
+import IconTicket from '@tabler/icons-react-native/IconTicket';
 import type {ApiPostMedia, HomePost} from './types';
 import {NativeAdCard} from '../ads';
 
@@ -172,7 +173,9 @@ const Home = () => {
   const [viewing, setViewing] = useState<{id: string; initial: UserPreview} | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
-  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string; vibeNoteId?: string}) => void}>();
+  const navigation = useNavigation<{navigate: (route: string, params?: {initialView?: 'events'; initialConversationId?: string; vibeNoteId?: string; eventId?: string; ticketId?: string}) => void}>();
+  const openTickets = useCallback((eventId?: string, ticketId?: string) => navigation.navigate('MyTickets', {eventId, ticketId}), [navigation]);
+  const openMyTickets = useCallback(() => navigation.navigate('MyTickets'), [navigation]);
   // Taps on pushes and notification rows: open a person's profile or the Chat tab; anything else falls back to the notifications sheet.
   useNotificationNavigator(target => {
     if (target.kind === 'user' && 'id' in target) {
@@ -306,7 +309,8 @@ const Home = () => {
           </Pressable>
         </View>
       </View>
-      <View accessibilityRole="tablist" className="flex-row gap-[26px] border-b border-feed-line px-[19px]">
+      <View className="flex-row items-stretch justify-between border-b border-feed-line px-[19px]">
+      <View accessibilityRole="tablist" className="flex-row gap-[26px]">
         {([['all', 'For you'], ['events', 'Events']] as const).map(([key, label]) => {
           const selected = tab === key;
           return <Pressable key={key} accessibilityRole="tab" accessibilityState={{selected}} onPress={() => key === 'events' ? setTab(key) : changeScope(key)} className="pb-3 pt-2 active:opacity-70">
@@ -314,6 +318,12 @@ const Home = () => {
             {selected && <View className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-feed-accent" />}
           </Pressable>;
         })}
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open my tickets" onPress={openMyTickets} hitSlop={{top: 2, bottom: 2}}
+        className="h-11 min-w-[44px] flex-row items-center justify-center gap-1.5 pl-3 active:opacity-70">
+        <IconTicket size={19} color={FeedColors.accent} />
+        <Text className="font-body-semibold text-[14px] text-feed-accent">My tickets</Text>
+      </Pressable>
       </View>
     </View>
   );
@@ -353,7 +363,7 @@ const Home = () => {
     <HomePostRow item={item} index={index} viewerId={viewerId} saved={savedPosts.has(item.id)} handlers={rowHandlers} />, [viewerId, savedPosts, rowHandlers]);
   return <SafeAreaView className="flex-1 bg-background" edges={['top']}>
     {topBar}
-    {tab === 'events' && <EventsList onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} />}
+    {tab === 'events' && <EventsList onOpenTickets={openTickets} onOpenEventChat={conversationId => navigation.navigate('Chat', {initialView: 'events', initialConversationId: conversationId})} />}
     {/* Hidden rather than unmounted under Events, so the feed keeps its posts and scroll and can't refresh or paginate. */}
     <View className={tab === 'events' ? 'hidden' : 'flex-1'}>
     <FlashList
@@ -385,7 +395,7 @@ const Home = () => {
       focusCommentId={focusCommentId} />
     <ComposePostSheet visible={composeVisible} draft={composeDraft} error={composeError} onChangeDraft={setComposeDraft} onClose={() => setComposeVisible(false)} onSubmit={submitPost}
       viewerName={viewer?.name} viewerAvatarUrl={viewer?.avatarUrl} />
-    <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)}
+    <EventDetailSheet eventId={eventId} visible={!!eventId} onClose={() => setEventId(null)} onOpenTickets={openTickets}
       onOpenEventChat={() => navigation.navigate('Chat', {initialView: 'events'})} />
     <SearchScreen visible={searchOpen} onClose={() => setSearchOpen(false)} onOpenParty={(_id, room) => {setSearchOpen(false); setPreviewRoom(room);}} />
     {previewRoom && <PartyRoomPreview room={previewRoom} activePartyId={partySession?.party.id}

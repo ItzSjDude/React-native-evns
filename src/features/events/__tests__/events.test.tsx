@@ -6,10 +6,14 @@ import {getEvent, getEvents, requestEventTicket, setEventInterest} from '../even
 import {formatEventPrice, goingLabel, viewerStatusLabel} from '../eventsPresentation';
 import EventsList from '../EventsList';
 import EventDetailSheet from '../EventDetailSheet';
-import MyTicketsSheet from '../MyTicketsSheet';
+import MyTicketsView from '../MyTicketsView';
+import MyTicketsScreen from '../MyTicketsScreen';
 
 jest.mock('../../../core/api/apiClient', () => ({apiRequest: jest.fn(), apiRequestPage: jest.fn()}));
 jest.mock('react-native-safe-area-context', () => ({SafeAreaView: ({children}: any) => children}));
+const mockNav = {canGoBack: jest.fn(() => true), goBack: jest.fn(), navigate: jest.fn(), setParams: jest.fn()};
+let mockParams: unknown;
+jest.mock('@react-navigation/native', () => ({useNavigation: () => mockNav, useRoute: () => ({params: mockParams})}));
 jest.mock('../../../components/BottomSheet', () => {
   const {Text, Pressable} = require('react-native');
   const SheetButton = ({label, onPress, disabled}: any) => <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress}><Text>{label}</Text></Pressable>;
@@ -130,7 +134,7 @@ test('My tickets loads the signed pass image only after opening a ticket', async
   page.mockResolvedValue({data: [ticket], meta: {limit: 50, offset: 0, hasMore: false}});
   request.mockResolvedValue({...ticket, qrImageDataUrl: 'data:image/png;base64,abc'});
   let r: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {r = ReactTestRenderer.create(<MyTicketsSheet visible onClose={() => {}} />);});
+  await ReactTestRenderer.act(async () => {r = ReactTestRenderer.create(<MyTicketsView onBack={() => {}} />);});
   await flush();
   expect(texts(r!)).toContain('Rooftop Night');
   await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Open ticket for Rooftop Night'}).props.onPress();});
@@ -146,7 +150,7 @@ test('opens a newly issued ticket directly, then returns to the ticket list', as
   page.mockResolvedValue({data: [], meta: {limit: 50, offset: 0, hasMore: false}});
   const Harness = () => {
     const [focusedTicket, setFocusedTicket] = React.useState<string | null>('t1');
-    return <MyTicketsSheet visible eventId="e1" ticketId={focusedTicket} onExitTicket={() => setFocusedTicket(null)} onClose={() => {}} />;
+    return <MyTicketsView eventId="e1" ticketId={focusedTicket} onExitTicket={() => setFocusedTicket(null)} onBack={() => {}} />;
   };
   let r: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {r = ReactTestRenderer.create(<Harness />);});
@@ -172,5 +176,40 @@ test('sold-out published event offers a backend-backed waitlist join and leave a
   await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Join waitlist'}).props.onPress();});
   expect(request).toHaveBeenCalledWith('/waitlist/events/e1/join', {auth: 'required', method: 'POST'});
   expect(texts(r!)).toContain('Leave waitlist');
+  await ReactTestRenderer.act(async () => {r!.unmount();});
+});
+
+const ticketRow = {id: 't1', code: 'HIVA-42', status: 'ISSUED', issued_at: '2026-10-12T00:00:00.000Z', event_id: 'e1', event_title: 'Rooftop Night', event_starts_at: '2026-11-01T18:00:00.000Z', event_ends_at: null, event_venue: 'Skyline', event_address: null, event_cover_url: null, event_timezone: 'Asia/Kolkata', workspace_name: 'Hiva Co'};
+
+test('My tickets screen shows an empty state and an error with retry', async () => {
+  mockParams = undefined;
+  page.mockResolvedValueOnce({data: [], meta: {limit: 50, offset: 0, hasMore: false}});
+  let r: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {r = ReactTestRenderer.create(<MyTicketsScreen />);});
+  await flush();
+  expect(texts(r!)).toContain('No tickets here yet');
+  page.mockRejectedValueOnce(new Error('boom'));
+  await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Past tickets'}).props.onPress();});
+  await flush();
+  expect(r!.root.findAllByProps({accessibilityRole: 'alert'}).length).toBeGreaterThan(0);
+  page.mockResolvedValueOnce({data: [ticketRow], meta: {limit: 50, offset: 0, hasMore: false}});
+  await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Retry'}).props.onPress();});
+  await flush();
+  expect(texts(r!)).toContain('Rooftop Night');
+  await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Go back'}).props.onPress();});
+  expect(mockNav.goBack).toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => {r!.unmount();});
+});
+
+test('My tickets screen opens the ticket detail from route params', async () => {
+  mockParams = {eventId: 'e1', ticketId: 't1'};
+  request.mockResolvedValue({...ticketRow, qrImageDataUrl: 'data:image/png;base64,abc'});
+  let r: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {r = ReactTestRenderer.create(<MyTicketsScreen />);});
+  await flush();
+  expect(request).toHaveBeenCalledWith('/tickets/t1?includeImage=true', {auth: 'required'});
+  expect(r!.root.findByProps({accessibilityLabel: 'Ticket QR code'})).toBeTruthy();
+  await ReactTestRenderer.act(async () => {r!.root.findByProps({accessibilityLabel: 'Back to my tickets'}).props.onPress();});
+  expect(mockNav.setParams).toHaveBeenCalledWith({ticketId: undefined});
   await ReactTestRenderer.act(async () => {r!.unmount();});
 });
