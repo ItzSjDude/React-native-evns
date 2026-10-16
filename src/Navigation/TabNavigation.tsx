@@ -25,7 +25,7 @@ import {HomeScreen} from '../features/home';
 import {NearbyScreen} from '../features/nearby';
 import {PartyScreen} from '../features/party';
 import {MessagesScreen, useFollowUpOpened} from '../features/messages';
-import {MyTicketsSheet} from '../features/events';
+import {MyTicketsView} from '../features/events';
 import {resolveNotificationTarget, useNotifications} from '../features/notifications';
 import {navigateWhenReady} from './navigationRef';
 import {ProfileScreen, useMyAvatarUrl} from '../features/profile';
@@ -237,10 +237,15 @@ const renderTabBar = (props: BottomTabBarProps) => (
 );
 
 // A tapped follow-up reminder lands on the Messages tab. Chat is a tab of the root navigator, which the typed ref does not list.
-const openMessagesTab = () => (navigateWhenReady as (name: string) => void)('Chat');
+const openMessagesTab = () => (navigateWhenReady as (name: string, params?: object) => void)('Tabs', {screen: 'Chat'});
 
-// Rendered inside the chat Modal (a second Modal cannot present over it on iOS), so the ticket pass opens from a TICKET bubble.
-const renderTicketPass = (ticketId: string, onClose: () => void) => <MyTicketsSheet visible ticketId={ticketId} onClose={onClose} />;
+// A TICKET bubble lives inside the chat Modal, which covers any stack screen and cannot host a second Modal on iOS.
+// So the same full-screen MyTicketsView is laid over the chat inside that Modal; back returns to the conversation.
+const renderTicketPass = (ticketId: string, onClose: () => void) => (
+  <View style={StyleSheet.absoluteFill} className="bg-background">
+    <MyTicketsView ticketId={ticketId} onBack={onClose} onExitTicket={onClose} />
+  </View>
+);
 
 const TabNavigation = () => {
   useFollowUpOpened(openMessagesTab);

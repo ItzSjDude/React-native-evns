@@ -86,7 +86,7 @@ export default function AudioRoomStage({ session, onClose, closeRequest, connect
       if (creator.payoutEligible) return;
       showDialog('Your gift is ready', 'The gift has been added to your creator earnings. Set up creator payouts from the Me profile before you can withdraw it.', [
         {text: 'Later', style: 'cancel'},
-        {text: 'Go to profile', onPress: () => (navigateWhenReady as (name: string) => void)('Me')},
+        {text: 'Go to profile', onPress: () => (navigateWhenReady as (name: string, params?: object) => void)('Tabs', {screen: 'Me'})},
       ]);
     } catch { promptedCreatorGifts.current.delete(giftId); /* A status lookup failure must not claim that a gift can or cannot be withdrawn. */ }
   }, []);

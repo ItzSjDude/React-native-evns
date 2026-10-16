@@ -20,7 +20,8 @@ jest.mock('../../events', () => {
   return {EventsList: () => <MockText>Events list</MockText>, EventDetailSheet: () => null};
 });
 jest.mock('../../notifications', () => ({NotificationsBell: () => null, useNotificationNavigator: jest.fn()}));
-jest.mock('@react-navigation/native', () => ({useNavigation: () => ({navigate: jest.fn()})}));
+const mockNavigation = {navigate: jest.fn()};
+jest.mock('@react-navigation/native', () => ({useNavigation: () => mockNavigation}));
 jest.mock('../homeService', () => ({
   getFeedPage: jest.fn(),
   likePost: jest.fn(),
@@ -187,4 +188,13 @@ test('the Events tab shows the events list inline and switching back keeps the f
   expect(texts(renderer)).toContain('From the API');
   expect(feed).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => { renderer.unmount(); });
+});
+
+test('the tab row has an Open my tickets control that opens the MyTickets screen', async () => {
+  feed.mockResolvedValue({posts: [], hasMore: false, nextCursor: null});
+  const renderer = await render();
+  const control = renderer.root.findByProps({accessibilityLabel: 'Open my tickets'});
+  expect(texts(renderer)).toContain('My tickets');
+  await ReactTestRenderer.act(async () => { control.props.onPress(); });
+  expect(mockNavigation.navigate).toHaveBeenCalledWith('MyTickets');
 });

@@ -1,8 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Pressable, Text, View} from 'react-native';
+import {ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import IconChevronLeft from '@tabler/icons-react-native/IconChevronLeft';
 import IconTicket from '@tabler/icons-react-native/IconTicket';
-import BottomSheet, {SheetButton} from '../../components/BottomSheet';
+import {SheetButton} from '../../components/BottomSheet';
 import {showDialog} from '../../components/Dialog';
 import {Colors} from '../../Constants/Colors';
 import {actionMessageOf, formatEventWhen} from './eventsPresentation';
@@ -12,13 +13,25 @@ import RemoteImage from '../../components/RemoteImage';
 
 const when = (ticket: Ticket) => formatEventWhen(ticket.event_starts_at, ticket.event_ends_at);
 
-export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onExitTicket}: {visible: boolean; onClose: () => void; eventId?: string | null; ticketId?: string | null; onExitTicket?: () => void}) {
+export type MyTicketsViewProps = {
+  /** Leaves the screen (header back button). */
+  onBack: () => void;
+  eventId?: string | null;
+  /** Opens this ticket's detail (pass + QR) straight away. */
+  ticketId?: string | null;
+  /** Called when the user returns from a ticket detail to the list. */
+  onExitTicket?: () => void;
+};
+
+/** Full-screen "My tickets": header, upcoming/past passes, ticket detail with QR and cancel. Hosted by a stack route or, inside the chat Modal, as an overlay. */
+export default function MyTicketsView({onBack, eventId, ticketId, onExitTicket}: MyTicketsViewProps) {
   const [upcoming, setUpcoming] = useState(true);
   const [items, setItems] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -30,13 +43,12 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
   }, [eventId, upcoming]);
 
   useEffect(() => {
-    if (!visible) return;
     setSelected(null); setError(null);
     if (ticketId) {
       setBusy(true);
       getMyTicket(ticketId).then(setSelected).catch(cause => setError(actionMessageOf(cause))).finally(() => setBusy(false));
     } else load();
-  }, [visible, ticketId, load]);
+  }, [ticketId, load]);
 
   const openTicket = async (ticket: Ticket) => {
     setSelected(ticket); setBusy(true); setError(null);
@@ -58,11 +70,26 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
     ]);
   };
 
-  const title = selected ? selected.event_title : 'My tickets';
-  return <BottomSheet visible={visible} onClose={onClose} title={title} subtitle={selected ? selected.workspace_name : 'Your upcoming and past event passes'} maxHeight={0.9}
-    dismissible={!busy}
-    footer={selected?.status === 'ISSUED' && new Date(selected.event_starts_at).getTime() > Date.now()
-      ? <SheetButton label="Cancel ticket" variant="destructive" disabled={busy} busy={busy} onPress={cancel} /> : undefined}>
+  const refresh = async () => {
+    if (selected || ticketId) return;
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  const canCancel = selected?.status === 'ISSUED' && new Date(selected.event_starts_at).getTime() > Date.now();
+  return <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
+    <View className="min-h-[56px] flex-row items-center gap-2 px-3">
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} hitSlop={4} className="h-11 w-11 items-center justify-center rounded-full active:opacity-70">
+        <IconChevronLeft size={24} color={Colors.text} />
+      </Pressable>
+      <View className="min-w-0 flex-1">
+        <Text accessibilityRole="header" numberOfLines={1} className="text-[20px] font-extrabold text-foreground">My tickets</Text>
+        <Text numberOfLines={1} className="text-[12px] text-muted">{selected ? `${selected.event_title} · ${selected.workspace_name}` : 'Your upcoming and past event passes'}</Text>
+      </View>
+    </View>
+    <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6 pt-2" keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.gold} enabled={!selected && !ticketId} />}>
     {selected ? <View>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to my tickets" onPress={() => {setSelected(null); setError(null); onExitTicket?.();}}
         className="mb-4 h-9 flex-row items-center gap-1 self-start rounded-full bg-card px-3 active:opacity-70">
@@ -108,5 +135,7 @@ export default function MyTicketsSheet({visible, onClose, eventId, ticketId, onE
             <Text className="mt-2 text-[15px] font-bold text-foreground">No tickets here yet</Text>
             <Text className="mt-1 text-center text-[13px] text-muted">Tickets you receive for events will show up here.</Text></View>}
     </View>}
-  </BottomSheet>;
+    </ScrollView>
+    {canCancel && <View className="px-4 pb-2"><SheetButton label="Cancel ticket" variant="destructive" disabled={busy} busy={busy} onPress={cancel} /></View>}
+  </SafeAreaView>;
 }

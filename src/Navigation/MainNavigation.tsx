@@ -4,7 +4,7 @@ import ThemedStatusBar from '../components/ThemedStatusBar';
 import {NavigationContainer} from '@react-navigation/native';
 import {navigationRef} from './navigationRef';
 import {AuthStack} from './StackNavigation';
-import TabNavigation from './TabNavigation';
+import RootStack from './RootStack';
 import {PartySessionProvider, PartyLinkCapture, PartyLinkHandler} from '../features/party';
 import {clearVibeNoteRegions, installVibeNoteGeofenceEntryHandler} from '../features/nearby';
 import {AdsProvider} from '../features/ads';
@@ -57,7 +57,7 @@ const MainNavigation = () => {
       <NavigationContainer ref={navigationRef}>
         {/* Keyed so moving between auth surfaces starts a fresh stack at the right screen. */}
         {route === 'Main'
-          ? <AdsProvider><PartySessionProvider><TabNavigation /><PartyLinkHandler /></PartySessionProvider></AdsProvider>
+          ? <AdsProvider><PartySessionProvider><RootStack /><PartyLinkHandler /></PartySessionProvider></AdsProvider>
           : <AuthStack key={route} initialRouteName={route} />}
       </NavigationContainer>
     </View>
