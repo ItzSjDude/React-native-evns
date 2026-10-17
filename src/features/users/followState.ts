@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {registerLocalDataWiper} from '../../core/localData';
 import {loadSession} from '../auth';
 import {followUser, getViewerFollowingIds, messageOf, unfollowUser} from './usersService';
 import type {FollowResult} from './types';
@@ -23,6 +24,13 @@ export const followStore = {
     listeners.add(listener);
     return () => {listeners.delete(listener);};
   },
+  /**
+   * Records follow state the server reported on list rows. Only booleans are trusted (older servers omit the
+   * field). Does not notify: rows read the store when they mount.
+   */
+  seedFromRows(rows: ReadonlyArray<{id: string; isFollowing?: boolean}>, viewerId?: string | null) {
+    rows.forEach(row => {if (typeof row.isFollowing === 'boolean' && row.id !== viewerId) known.set(row.id, row.isFollowing);});
+  },
   /** Loads the viewer's following list once per session and marks those users as followed. */
   loadViewerFollowing(viewerId: string) {
     if (viewerFollowing?.viewerId !== viewerId) {
@@ -35,9 +43,14 @@ export const followStore = {
     }
     return viewerFollowing.promise;
   },
-  /** Test-only: forget everything learned so far. */
+  /** Forgets what was learned (another account may be signing in) but keeps live subscribers. */
+  clear() {known.clear(); viewerFollowing = null;},
+  /** Test-only: forget everything learned so far, subscribers included. */
   reset() {known.clear(); listeners.clear(); viewerFollowing = null;},
 };
+
+// Logout, account deletion and account switches must not leak the previous account's follow state.
+registerLocalDataWiper(() => followStore.clear());
 
 /** undefined while the keychain is read, null when signed out. */
 export function useViewerId() {
@@ -50,11 +63,14 @@ export function useViewerId() {
   return viewerId;
 }
 
-/** Whether the viewer follows `userId`: null until known. Seeds from the viewer's following list. */
+/** Whether the viewer follows `userId`: null until known. Uses what rows/actions taught the store; falls back to the viewer's following list. */
 export function useIsFollowing(userId: string, viewerId: string | null | undefined, enabled = true) {
   const [following, setFollowing] = useState<boolean | null>(() => followStore.get(userId) ?? null);
   useEffect(() => {
-    setFollowing(followStore.get(userId) ?? null);
+    const learned = followStore.get(userId);
+    setFollowing(learned ?? null);
+    // Already learned (from a list row or an action): no need to download the viewer's following list.
+    if (learned !== undefined) return;
     if (!enabled || !viewerId || viewerId === userId) return;
     let mounted = true;
     followStore.loadViewerFollowing(viewerId)

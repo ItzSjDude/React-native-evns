@@ -32,7 +32,10 @@ export type FollowResult = {userId: string; isFollowing: boolean; followers: num
 export type FollowListKind = 'followers' | 'following';
 
 /** Row of `GET /users/:userId/followers|following`. */
-export type FollowListUser = {id: string; name: string; handle: string | null; avatarUrl: string | null; followedAt: string};
+export type FollowListUser = {id: string; name: string; handle: string | null; avatarUrl: string | null; followedAt: string;
+  /** Whether the viewer follows this person. Absent on older servers. */
+  isFollowing?: boolean;
+};
 
 export type UserContentTab = 'posts' | 'parties' | 'events';
 
