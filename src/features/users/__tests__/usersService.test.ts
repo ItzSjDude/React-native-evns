@@ -26,6 +26,15 @@ test('follow lists are paged and the viewer lookup stops when there are no more 
   expect(await getFollowList('u2', 'followers', 40)).toEqual({items: [], hasMore: false, offset: 40});
 });
 
+test('follow list rows keep isFollowing when the server sends a boolean and omit it otherwise', async () => {
+  (apiRequestPage as jest.Mock).mockResolvedValueOnce({data: [
+    {id: 'a', isFollowing: true}, {id: 'b', isFollowing: false}, {id: 'c'}, {id: 'd', isFollowing: null}, {id: 'e', isFollowing: 'yes'},
+  ], meta: {limit: 20, offset: 0, hasMore: false}});
+  const page = await getFollowList('u2', 'followers');
+  expect(page.items).toEqual([{id: 'a', isFollowing: true}, {id: 'b', isFollowing: false}, {id: 'c'}, {id: 'd'}, {id: 'e'}]);
+  expect('isFollowing' in page.items[2]).toBe(false);
+});
+
 test('403 and 404 map to private and unavailable', () => {
   expect(accessOf({status: 403})).toBe('private');
   expect(accessOf({status: 404})).toBe('unavailable');

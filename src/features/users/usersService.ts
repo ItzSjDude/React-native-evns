@@ -23,7 +23,9 @@ export const unfollowUser = (userId: string) =>
 
 export async function getFollowList(userId: string, kind: FollowListKind, offset = 0, limit = 20): Promise<UserPage<FollowListUser>> {
   const response = await apiRequestPage<FollowListUser[]>(`${user(userId)}/${kind}?limit=${limit}&offset=${offset}`, {auth: 'required'});
-  return {items: response.data, hasMore: response.meta.hasMore, offset: response.meta.offset};
+  // `isFollowing` is the viewer's relationship to the row; keep it only when the server sent a boolean.
+  const items = response.data.map(({isFollowing, ...rest}) => (typeof isFollowing === 'boolean' ? {...rest, isFollowing} : rest));
+  return {items, hasMore: response.meta.hasMore, offset: response.meta.offset};
 }
 
 export async function getUserContentPage(userId: string, tab: UserContentTab, offset = 0): Promise<UserPage<UserContentItem>> {
@@ -46,8 +48,8 @@ export const reportUser = (userId: string, reason: string, details?: string) => 
 };
 
 /**
- * Who the viewer follows, used to seed Follow/Following buttons because list rows carry no
- * `isFollowing`. Capped so a huge following list can't stall the UI; beyond the cap a row reads
+ * Who the viewer follows. Fallback only, for servers whose list rows omit `isFollowing` (current
+ * servers return it on every row, which seeds the buttons without this download). Capped so a huge following list can't stall the UI; beyond the cap a row reads
  * "Follow", and pressing it is harmless because follow is idempotent.
  */
 export async function getViewerFollowingIds(viewerId: string, maxPages = 5): Promise<Set<string>> {

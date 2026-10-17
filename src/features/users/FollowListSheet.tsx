@@ -3,7 +3,7 @@ import {ActivityIndicator, FlatList, Platform, Pressable, Text, View} from 'reac
 import BottomSheet from '../../components/BottomSheet';
 import {Colors} from '../../Constants/Colors';
 import FollowButton from './FollowButton';
-import {useFollowToggle, useIsFollowing, useViewerId} from './followState';
+import {followStore, useFollowToggle, useIsFollowing, useViewerId} from './followState';
 import PersonRow from '../../components/PersonRow';
 import {getFollowList, messageOf, statusOf} from './usersService';
 import type {FollowListKind, FollowListUser} from './types';
@@ -40,6 +40,8 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
   const listRef = useRef(list);
   listRef.current = list;
   const generation = useRef(0);
+  const viewerRef = useRef(viewerId);
+  viewerRef.current = viewerId;
   const onOpenUserRef = useRef(onOpenUser);
   onOpenUserRef.current = onOpenUser;
   const openUser = useCallback((user: FollowListUser) => onOpenUserRef.current(user), []);
@@ -54,6 +56,7 @@ export default function FollowListSheet({userId, kind, visible, onClose, onOpenU
     try {
       const page = await getFollowList(userId, kind, offset);
       if (request !== generation.current) return;
+      followStore.seedFromRows(page.items, viewerRef.current);
       setList(state => ({
         items: append ? [...state.items, ...page.items.filter(item => !state.items.some(existing => existing.id === item.id))] : page.items,
         loading: false, error: null, unavailable: false, loaded: true,

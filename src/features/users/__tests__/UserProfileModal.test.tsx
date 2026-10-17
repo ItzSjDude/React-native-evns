@@ -157,3 +157,26 @@ test('follow list pages with Load more and shows a follow button per row', async
   await press(tree!, "Open Fan 5's profile");
   expect(onOpenUser).toHaveBeenCalledWith(person(5));
 });
+
+test('follow list rows that carry isFollowing seed the buttons without downloading the following list', async () => {
+  const row = (id: string, isFollowing?: boolean) => ({id, name: `Fan ${id}`, handle: null, avatarUrl: null, followedAt: '2026-10-07T10:00:00Z', ...(isFollowing === undefined ? {} : {isFollowing})});
+  (getFollowList as jest.Mock).mockResolvedValueOnce({items: [row('p1', true), row('p2', false)], hasMore: false, offset: 0});
+  await ReactTestRenderer.act(async () => {
+    tree = ReactTestRenderer.create(<FollowListSheet userId="u2" kind="followers" visible onClose={jest.fn()} onOpenUser={jest.fn()} />);
+  });
+  expect(pressable(tree!, 'Unfollow Fan p1')).toHaveLength(1);
+  expect(pressable(tree!, 'Follow Fan p2')).toHaveLength(1);
+  expect(getViewerFollowingIds).not.toHaveBeenCalled();
+});
+
+test('rows without isFollowing fall back to the viewer following list', async () => {
+  const row = (id: string) => ({id, name: `Fan ${id}`, handle: null, avatarUrl: null, followedAt: '2026-10-07T10:00:00Z'});
+  (getViewerFollowingIds as jest.Mock).mockResolvedValue(new Set(['p1']));
+  (getFollowList as jest.Mock).mockResolvedValueOnce({items: [row('p1'), row('p2')], hasMore: false, offset: 0});
+  await ReactTestRenderer.act(async () => {
+    tree = ReactTestRenderer.create(<FollowListSheet userId="u2" kind="followers" visible onClose={jest.fn()} onOpenUser={jest.fn()} />);
+  });
+  expect(getViewerFollowingIds).toHaveBeenCalled();
+  expect(pressable(tree!, 'Unfollow Fan p1')).toHaveLength(1);
+  expect(pressable(tree!, 'Follow Fan p2')).toHaveLength(1);
+});

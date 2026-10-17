@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {followStore, useFollowToggle, useIsFollowing, useViewerId} from '../followState';
 import {followUser, getViewerFollowingIds, unfollowUser} from '../usersService';
 import {loadSession} from '../../auth';
+import {wipeLocalUserData} from '../../../core/localData';
 
 jest.mock('../../auth', () => ({loadSession: jest.fn()}));
 jest.mock('../usersService', () => ({
@@ -106,6 +107,42 @@ describe('useViewerId', () => {
   });
 });
 
+describe('followStore seeding and wipe', () => {
+  test('seedFromRows records only boolean flags, skips the viewer, and notifies nobody', () => {
+    const listener = jest.fn();
+    followStore.subscribe(listener);
+    followStore.seedFromRows([{id: 'a', isFollowing: true}, {id: 'b', isFollowing: false}, {id: 'c'}, {id: 'me', isFollowing: false}], 'me');
+    expect(followStore.get('a')).toBe(true);
+    expect(followStore.get('b')).toBe(false);
+    expect(followStore.get('c')).toBeUndefined();
+    expect(followStore.get('me')).toBeUndefined();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  test('a wipe forgets follow state learned for user A so the next viewer starts clean', async () => {
+    loadFollowing.mockResolvedValue(new Set(['a']));
+    await followStore.loadViewerFollowing('userA');
+    followStore.publish('x', true);
+    expect(followStore.get('a')).toBe(true);
+    const listener = jest.fn();
+    followStore.subscribe(listener);
+
+    await wipeLocalUserData();
+
+    expect(followStore.get('a')).toBeUndefined();
+    expect(followStore.get('x')).toBeUndefined();
+    expect(listener).not.toHaveBeenCalled();
+    // Second viewer: following list is fetched afresh, and the live subscriber still hears new events.
+    loadFollowing.mockResolvedValue(new Set(['z']));
+    await followStore.loadViewerFollowing('userB');
+    expect(loadFollowing).toHaveBeenCalledTimes(2);
+    expect(followStore.get('a')).toBeUndefined();
+    expect(followStore.get('z')).toBe(true);
+    followStore.publish('z', false);
+    expect(listener).toHaveBeenCalledWith('z', false, undefined);
+  });
+});
+
 describe('useIsFollowing', () => {
   const setup = async (userId: string, viewerId: string | null | undefined, enabled = true) => {
     const hook = mountHook(({u, v, e}: {u: string; v: string | null | undefined; e: boolean}) => useIsFollowing(u, v, e), {u: userId, v: viewerId, e: enabled});
@@ -130,6 +167,13 @@ describe('useIsFollowing', () => {
     loadFollowing.mockResolvedValue(new Set(['u2']));
     expect((await setup('u2', 'me')).result.current).toBe(true);
     expect((await setup('u3', 'me')).result.current).toBe(false);
+  });
+
+  test('does not download the following list when the store already learned the answer from a row', async () => {
+    followStore.seedFromRows([{id: 'u2', isFollowing: true}, {id: 'u3', isFollowing: false}]);
+    expect((await setup('u2', 'me')).result.current).toBe(true);
+    expect((await setup('u3', 'me')).result.current).toBe(false);
+    expect(loadFollowing).not.toHaveBeenCalled();
   });
 
   test('never looks up your own profile or when disabled', async () => {
